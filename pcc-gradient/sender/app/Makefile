@@ -38,7 +38,7 @@ endif
 
 DIR = $(shell pwd)
 
-APP = incast_client appclient sendfile recvfile gradient_descent_pcc_client exponentiated_weights_pcc_client
+APP = appclient gradient_descent_pcc_client exponentiated_weights_pcc_client
 
 all: $(APP)
 
