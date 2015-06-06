@@ -117,11 +117,13 @@ protected:
 private:	
 	virtual long double utility(unsigned long total, unsigned long loss, double time, double rtt) {
 		if (previous_rtt_ == 0) previous_rtt_ = rtt;
+		if (previous_rtt_ > 1.05 * rtt) previous_rtt_ = 1.01 * rtt;
+		if (previous_rtt_ < 0.95 * rtt) previous_rtt_ = 0.99 * rtt;
 
 		//long double rate = (total-loss)/time;
 		//long double loss_rate = double(loss) / double(total);
 	//	long double computed_utility = total - total * exp((10 * loss_rate) / 0.05 - 1);
-		long double computed_utility = ((total-loss)/time*(1-1/(1+exp(-100*(double(loss)/total-0.005))))* (1-1/(1+exp(-10*(1-previous_rtt_/rtt)))) -1*double(loss)/time)/rtt*1000;
+		long double computed_utility = ((total-loss)/time*(1-1/(1+exp(-100*(double(loss)/total-0.005))))* (1-1/(1+exp(-1*(1-previous_rtt_/rtt)))) -1*double(loss)/time)/rtt*1000;
 		previous_rtt_ = rtt;
 
 		computed_utility *= 10000;
@@ -147,7 +149,6 @@ private:
 
 	bool should_fallback(double curr_utility) const {
 		if (prev_utilities_.size() < kFallbackIndex + 1) return false;
-		//cout << "should fallback: this util = " << curr_utility << " prev util " << prev_utilities_[kFallbackIndex] << endl;
 		if (curr_utility >= prev_utilities_[kFallbackIndex]) return false;
 		if (curr_utility * prev_utilities_[kFallbackIndex] < 0) return true;
 		if ((curr_utility >= 0) && (prev_utilities_[kFallbackIndex] > 1.3 * curr_utility)) return true;
