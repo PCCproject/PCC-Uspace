@@ -93,6 +93,7 @@ protected:
 		m_dPktSndPeriod = 10000;
 		m_dCWndSize = 100000.0;
 		setRTO(100000000);
+		srand(time(NULL));
 	}
 
 	virtual void setRate(double mbps) {
