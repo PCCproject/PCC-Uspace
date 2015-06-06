@@ -56,8 +56,7 @@ public:
 			}			
 		} else if (state_ == DECISION) {
 			if (should_fallback(curr_utility)) {
-				cout << "falling back " << endl;
-				double new_rate = max<double>(0.85 * rate(), prev_rates_[0]);
+				double new_rate = max<double>(0.85 * rate(), prev_rates_[0] - kMaxChangeMbpsUp * 10);
 				setRate(new_rate);
 				monitor_in_prog_ = -1;
 				state_ = SEARCH;
@@ -150,13 +149,13 @@ private:
 		//cout << "should fallback: this util = " << curr_utility << " prev util " << prev_utilities_[kFallbackIndex] << endl;
 		if (curr_utility >= prev_utilities_[kFallbackIndex]) return false;
 		if (curr_utility * prev_utilities_[kFallbackIndex] < 0) return true;
-		if ((curr_utility >= 0) && (prev_utilities_[kFallbackIndex] > 1.5 * curr_utility)) return true;
-		if ((curr_utility < 0) && (prev_utilities_[kFallbackIndex] > 0.66 * curr_utility)) return true;
+		if ((curr_utility >= 0) && (prev_utilities_[kFallbackIndex] > 1.3 * curr_utility)) return true;
+		if ((curr_utility < 0) && (prev_utilities_[kFallbackIndex] > 0.75 * curr_utility)) return true;
 		return false;
 	}
 
 	static const double kMaxChangeMbpsUp = 0.2;
-	static const double kMaxChangeMbpsDown = 1;
+	static const double kMaxChangeMbpsDown = 2;
 	static const double kMinRateMbps = 0.01;
 	static const size_t kHistorySize = 9;
 	static const size_t kFallbackIndex = 8;
