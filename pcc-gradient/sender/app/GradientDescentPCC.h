@@ -14,7 +14,9 @@ protected:
 	}
 	virtual void decide(long double curr_utility) {
 		size_t next_rate = rate() + rand_dir_ * (kEpsilon / kDelta) * curr_utility;
+		//cout << "current utility: " << curr_utility << ". Next Rate = ";
 		setRate(next_rate);
+		//cout << rate() << endl;
 	}
 
 private:
