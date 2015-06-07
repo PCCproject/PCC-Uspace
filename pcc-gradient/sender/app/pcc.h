@@ -56,7 +56,7 @@ public:
 			}			
 		} else if (state_ == DECISION) {
 			if (should_fallback(curr_utility)) {
-				double new_rate = max<double>(0.85 * rate(), prev_rates_[0] - kMaxChangeMbpsUp * 10);
+				double new_rate = 0.85 * rate();
 				setRate(new_rate);
 				monitor_in_prog_ = -1;
 				state_ = SEARCH;
@@ -116,14 +116,12 @@ protected:
 
 private:	
 	virtual long double utility(unsigned long total, unsigned long loss, double time, double rtt) {
+		if (rtt < 1) rtt = 1;
 		if (previous_rtt_ == 0) previous_rtt_ = rtt;
-		if (previous_rtt_ > 1.05 * rtt) previous_rtt_ = 1.01 * rtt;
-		if (previous_rtt_ < 0.95 * rtt) previous_rtt_ = 0.99 * rtt;
-
-		//long double rate = (total-loss)/time;
-		//long double loss_rate = double(loss) / double(total);
-	//	long double computed_utility = total - total * exp((10 * loss_rate) / 0.05 - 1);
-		long double computed_utility = ((total-loss)/time*(1-1/(1+exp(-100*(double(loss)/total-0.005))))* (1-1/(1+exp(-1*(1-previous_rtt_/rtt)))) -1*double(loss)/time)/rtt*1000;
+		if (previous_rtt_ > 1.001 * rtt) previous_rtt_ = 1.001 * rtt;
+		if (0.999 * previous_rtt_ < rtt) previous_rtt_ = 0.999 * rtt;
+		previous_rtt_ = rtt;
+		long double computed_utility = ((total-loss)/time*(1-1/(1+exp(-100*(double(loss)/total-0.005))))* (1-1/(1+exp(-10*(1-previous_rtt_/rtt)))) -1*double(loss)/time)/rtt*1000;
 		previous_rtt_ = rtt;
 
 		computed_utility *= 10000;
@@ -147,17 +145,15 @@ private:
 		return true;
 	}
 
-	bool should_fallback(double curr_utility) const {
+	bool should_fallback(double curr_utility) {
 		if (prev_utilities_.size() < kFallbackIndex + 1) return false;
 		if (curr_utility >= prev_utilities_[kFallbackIndex]) return false;
-		if (curr_utility * prev_utilities_[kFallbackIndex] < 0) return true;
-		if ((curr_utility >= 0) && (prev_utilities_[kFallbackIndex] > 1.3 * curr_utility)) return true;
-		if ((curr_utility < 0) && (prev_utilities_[kFallbackIndex] > 0.75 * curr_utility)) return true;
+		if (prev_utilities_[kFallbackIndex] > 1.3 * curr_utility) return true;
 		return false;
 	}
 
 	static const double kMaxChangeMbpsUp = 0.2;
-	static const double kMaxChangeMbpsDown = 2;
+	static const double kMaxChangeMbpsDown = 5;
 	static const double kMinRateMbps = 0.01;
 	static const size_t kHistorySize = 9;
 	static const size_t kFallbackIndex = 8;
