@@ -13,7 +13,7 @@ protected:
 		setRate(rate() + kDelta * rand_dir_);
 	}
 	virtual void decide(long double curr_utility) {
-		size_t next_rate = rate() + rand_dir_ * (kEpsilon / kDelta) * curr_utility;
+		double next_rate = rate() + rand_dir_ * (kEpsilon / kDelta) * curr_utility;
 		setRate(next_rate);
 	}
 
