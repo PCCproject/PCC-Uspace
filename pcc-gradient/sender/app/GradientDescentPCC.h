@@ -14,7 +14,9 @@ protected:
 	}
 	virtual void decide(long double curr_utility) {
 		double next_rate = rate() + rand_dir_ * (kEpsilon / kDelta) * curr_utility;
+//		cout << "current utility: " << curr_utility << ". Direction = " << rand_dir_ << ". Next Rate = ";
 		setRate(next_rate);
+//		cout << rate() << endl;
 	}
 
 private:

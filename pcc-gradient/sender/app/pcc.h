@@ -41,7 +41,7 @@ public:
 			monitor_in_prog_ = current_monitor;
 		}
 	}
-
+	
 	virtual void onMonitorEnds(unsigned long total, unsigned long loss, double in_time, int current, int endMonitor, double rtt) {
 		if (endMonitor != monitor_in_prog_) return;
 		long double curr_utility = utility(total, loss, in_time, rtt);
@@ -55,13 +55,12 @@ public:
 				state_ = SEARCH;
 			}			
 		} else if (state_ == DECISION) {
-			if ((prev_utilities_.size() >= kFallbackIndex + 1) && (prev_utilities_[kFallbackIndex] > 2 * curr_utility)) {
-				double new_rate = max<double>(0.85 * rate(), rate() - kMaxChangeMbpsDown);
+			if (should_fallback(curr_utility)) {
+				double new_rate = 0.85 * rate();
 				setRate(new_rate);
 				monitor_in_prog_ = -1;
 				state_ = SEARCH;
-				prev_utilities_.clear();
-				prev_rates_.clear();
+				clear_after_fallback();
 				return;			
 			}
 			
@@ -78,7 +77,7 @@ public:
 		}
 		monitor_in_prog_ = -1;
 	}
-
+	
 protected:
 	static const double kEpsilon = 0.000035;
 	static const double kDelta = 0.00001;
@@ -94,6 +93,7 @@ protected:
 		m_dPktSndPeriod = 10000;
 		m_dCWndSize = 100000.0;
 		setRTO(100000000);
+		srand(time(NULL));
 	}
 
 	virtual void setRate(double mbps) {
@@ -102,13 +102,11 @@ protected:
 			mbps = link_capacity_;
 		}
 		if (state_ != START){
-			if ((rate_ < mbps) && (rate_ + kMaxChangeMbps < mbps)) {
-				mbps = rate_ + kMaxChangeMbps;
-			}
-			if ((rate_ > mbps) && (rate_ - kMaxChangeMbpsDown > mbps)) {
+			if ((rate_ < mbps) && (rate_ + kMaxChangeMbpsUp < mbps)) {
+				mbps = rate_ + kMaxChangeMbpsUp;
+			} else if ((rate_ > mbps) && (rate_ - kMaxChangeMbpsDown > mbps)) {
 				mbps = rate_ - kMaxChangeMbpsDown;
 			}
-
 		}
 		rate_ = mbps;
 		m_dPktSndPeriod = (m_iMSS * 8.0) / mbps;	
@@ -118,16 +116,26 @@ protected:
 
 private:	
 	virtual long double utility(unsigned long total, unsigned long loss, double time, double rtt) {
+		if (rtt < 1) rtt = 1;
 		if (previous_rtt_ == 0) previous_rtt_ = rtt;
-
-		//long double rate = (total-loss)/time;
-		//long double loss_rate = double(loss) / double(total);
-	//	long double computed_utility = total - total * exp((10 * loss_rate) / 0.05 - 1);
+		if (previous_rtt_ > 1.001 * rtt) previous_rtt_ = 1.001 * rtt;
+		if (0.999 * previous_rtt_ < rtt) previous_rtt_ = 0.999 * rtt;
+		previous_rtt_ = rtt;
 		long double computed_utility = ((total-loss)/time*(1-1/(1+exp(-100*(double(loss)/total-0.005))))* (1-1/(1+exp(-10*(1-previous_rtt_/rtt)))) -1*double(loss)/time)/rtt*1000;
 		previous_rtt_ = rtt;
-		//cout << "total " << total << " loss " << loss << " utility = " << computed_utility << endl;
+
+		computed_utility *= 10000;
+		//cout << "utility = " << computed_utility << endl;
 		return computed_utility;
 	}
+	
+	void clear_after_fallback() {
+		while (prev_utilities_.size() > kFallbackIndex) {
+			prev_utilities_.pop_back();
+			prev_rates_.pop_back();
+		}
+	}
+
 	
 	bool slow_start(double curr_utility, unsigned long loss) {
 		if (previous_utility_ > curr_utility) { return false; }
@@ -137,10 +145,17 @@ private:
 		return true;
 	}
 
-	static const double kMaxChangeMbps = 0.1;
-	static const double kMaxChangeMbpsDown = 6;
+	bool should_fallback(double curr_utility) {
+		if (prev_utilities_.size() < kFallbackIndex + 1) return false;
+		if (curr_utility >= prev_utilities_[kFallbackIndex]) return false;
+		if (prev_utilities_[kFallbackIndex] > 1.3 * curr_utility) return true;
+		return false;
+	}
+
+	static const double kMaxChangeMbpsUp = 0.2;
+	static const double kMaxChangeMbpsDown = 5;
 	static const double kMinRateMbps = 0.01;
-	static const size_t kHistorySize = 10;
+	static const size_t kHistorySize = 9;
 	static const size_t kFallbackIndex = 8;
 
 	enum ConnectionState {
