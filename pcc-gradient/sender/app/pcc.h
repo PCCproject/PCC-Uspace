@@ -1,6 +1,8 @@
 #ifndef __PCC_H__
 #define __PCC_H__
 
+#define _USE_MATH_DEFINES
+
 #include <udt.h>
 #include <ccc.h>
 #include<iostream>
@@ -54,16 +56,7 @@ public:
 				setRate(rate()/2);
 				state_ = SEARCH;
 			}			
-		} else if (state_ == DECISION) {
-			if (should_fallback(curr_utility)) {
-				double new_rate = 0.85 * rate();
-				setRate(new_rate);
-				monitor_in_prog_ = -1;
-				state_ = SEARCH;
-				clear_after_fallback();
-				return;			
-			}
-			
+		} else if (state_ == DECISION) {			
 			prev_utilities_.push_back(curr_utility);
 			prev_rates_.push_back(rate());
 
@@ -79,8 +72,8 @@ public:
 	}
 	
 protected:
-	static const double kEpsilon = 0.000035;
-	static const double kDelta = 0.00001;
+	static const double kEpsilon = 1;
+	static const double kDelta = 1;
 	deque<long double> prev_utilities_;
 	deque<long double> prev_rates_;
 
@@ -101,31 +94,25 @@ protected:
 		if (mbps > link_capacity_) {
 			mbps = link_capacity_;
 		}
-		if (state_ != START){
-			if ((rate_ < mbps) && (rate_ + kMaxChangeMbpsUp < mbps)) {
-				mbps = rate_ + kMaxChangeMbpsUp;
-			} else if ((rate_ > mbps) && (rate_ - kMaxChangeMbpsDown > mbps)) {
-				mbps = rate_ - kMaxChangeMbpsDown;
-			}
-		}
 		rate_ = mbps;
 		m_dPktSndPeriod = (m_iMSS * 8.0) / mbps;	
 	}
 	
 	double rate() const { return rate_; }
 
+	double project(long double utility_diff) {
+		double projection = 100 * (2 * atan(utility_diff/500)) / M_PI;
+		if ((projection > 0) && (projection > kMaxProj)) return kMaxProj;
+		if ((projection < 0) && (projection < -1 * kMaxProj)) return (-1 * kMaxProj);
+		return projection;
+	}
+
 private:	
 	virtual long double utility(unsigned long total, unsigned long loss, double time, double rtt) {
-		if (rtt < 1) rtt = 1;
 		if (previous_rtt_ == 0) previous_rtt_ = rtt;
-		if (previous_rtt_ > 1.001 * rtt) previous_rtt_ = 1.001 * rtt;
-		if (0.999 * previous_rtt_ < rtt) previous_rtt_ = 0.999 * rtt;
 		previous_rtt_ = rtt;
-		long double computed_utility = ((total-loss)/time*(1-1/(1+exp(-100*(double(loss)/total-0.005))))* (1-1/(1+exp(-10*(1-previous_rtt_/rtt)))) -1*double(loss)/time)/rtt*1000;
+		long double computed_utility = ((total-loss)/time*(1-1/(1+exp(-100*(double(loss)/total-0.05))))* (1-1/(1+exp(-10*(1-previous_rtt_/rtt)))) -1*double(loss)/time)/rtt*1000;
 		previous_rtt_ = rtt;
-
-		computed_utility *= 10000;
-		//cout << "utility = " << computed_utility << endl;
 		return computed_utility;
 	}
 	
@@ -145,15 +132,7 @@ private:
 		return true;
 	}
 
-	bool should_fallback(double curr_utility) {
-		if (prev_utilities_.size() < kFallbackIndex + 1) return false;
-		if (curr_utility >= prev_utilities_[kFallbackIndex]) return false;
-		if (prev_utilities_[kFallbackIndex] > 1.3 * curr_utility) return true;
-		return false;
-	}
-
-	static const double kMaxChangeMbpsUp = 0.2;
-	static const double kMaxChangeMbpsDown = 5;
+	static const double kMaxProj = 5;
 	static const double kMinRateMbps = 0.01;
 	static const size_t kHistorySize = 9;
 	static const size_t kFallbackIndex = 8;

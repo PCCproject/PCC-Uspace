@@ -7,7 +7,7 @@ using namespace std;
 
 class ExponentiatedWeightsPCC: public PCC {
 public:
-	ExponentiatedWeightsPCC() : selection_ (0) {
+	ExponentiatedWeightsPCC() : selection_ (0), is_first_(true), previous_utility_(0), count_(0) {
 		for (size_t i = 0; i < kNumStrategies; i++) {
 			weights_[i] = 1.0;
 		}
@@ -27,16 +27,25 @@ protected:
 		}
 
 		selection_ = i;
-		setRate(rate() + kEpsilon * (selection_ - kNumStrategies / 2));
+		int diff1 = selection_ - (kNumStrategies >> 1);
+		long double diff = kDelta * diff1;
+//		cout << "selection = " << selection_ << " epsilon = " << kEpsilon << " chanding rate by " << diff << " (diff1 = " << diff1 << ")" << endl;
+		if (count_ % 10 == 0) {
+			print_weights();
+		} 
+		count_++;
+		setRate(rate() + diff);
+		
 	}
 
 	virtual void decide(long double curr_utility) {
-		long double previous_utility = curr_utility;
-		if (prev_utilities_.size() > 0) {
-			previous_utility = prev_utilities_[prev_utilities_.size() - 1];
+		if (is_first_) {
+			previous_utility_ = curr_utility;
+			is_first_ = false;
 		}
 
-		weights_[selection_] = weights_[selection_] * (1 - kDelta * (previous_utility - curr_utility));
+		//cout << "updating weight by " << (1 - (previous_utility_ - curr_utility)) << endl;
+		weights_[selection_] = weights_[selection_] * (1 - kEpsilon * project(previous_utility_ - curr_utility));
 		double sum_weights = 0;
 		for (size_t i = 0; i < kNumStrategies; i++) {
 			sum_weights += weights_[i];
@@ -44,15 +53,24 @@ protected:
 		for (size_t i = 0; i < kNumStrategies; i++) {
 			probs_[i] = weights_[i] / sum_weights;
 		}
+		previous_utility_ = curr_utility;
 	}
 
 
 private:
-	static const size_t kNumStrategies = 1 << 16;
+	void print_weights() {
+		for (size_t i = 0; i < kNumStrategies; i++) {
+			cout << probs_[i] << " ";
+		}
+		cout << endl;
+	}
 
+	static const size_t kNumStrategies = 1 << 4;
+	unsigned int selection_;
+	bool is_first_;
+	long double previous_utility_;
+	size_t count_;
 	double weights_[kNumStrategies];
-	double probs_[kNumStrategies];
-	int selection_;
-};
+	double probs_[kNumStrategies];};
 
 #endif
