@@ -55,16 +55,8 @@ public:
 			if (!slow_start(curr_utility, loss)) {
 				setRate(rate()/2);
 				state_ = SEARCH;
-			}			
+			}		
 		} else if (state_ == DECISION) {			
-			prev_utilities_.push_back(curr_utility);
-			prev_rates_.push_back(rate());
-
-			if (prev_utilities_.size() > kHistorySize) {
-				prev_utilities_.pop_front();
-				prev_rates_.pop_front();
-			}
-
 			decide(curr_utility);
 			state_ = SEARCH;
 		}
@@ -72,11 +64,9 @@ public:
 	}
 	
 protected:
-	static const double kEpsilon = 1;
+	static const double kEpsilon = 0.2;
 	static const double kDelta = 1;
-	deque<long double> prev_utilities_;
-	deque<long double> prev_rates_;
-
+	static const double kMaxProj = 5;
 
 	virtual void search() = 0;
 	virtual void decide(long double utility) = 0;
@@ -101,7 +91,7 @@ protected:
 	double rate() const { return rate_; }
 
 	double project(long double utility_diff) {
-		double projection = 100 * (2 * atan(utility_diff/500)) / M_PI;
+		double projection = 200 * (2 * atan(0.02 * utility_diff * kDelta)) / M_PI;
 		if ((projection > 0) && (projection > kMaxProj)) return kMaxProj;
 		if ((projection < 0) && (projection < -1 * kMaxProj)) return (-1 * kMaxProj);
 		return projection;
@@ -110,19 +100,10 @@ protected:
 private:	
 	virtual long double utility(unsigned long total, unsigned long loss, double time, double rtt) {
 		if (previous_rtt_ == 0) previous_rtt_ = rtt;
-		previous_rtt_ = rtt;
-		long double computed_utility = ((total-loss)/time*(1-1/(1+exp(-100*(double(loss)/total-0.05))))* (1-1/(1+exp(-10*(1-previous_rtt_/rtt)))) -1*double(loss)/time)/rtt*1000;
+		long double computed_utility = ((total-loss)/time*(1-1/(1+exp(-100*(double(loss)/total-0.05))))* (1-1/(1+exp(-1*(1-previous_rtt_/rtt)))) -1*double(loss)/time)/rtt*1000;
 		previous_rtt_ = rtt;
 		return computed_utility;
 	}
-	
-	void clear_after_fallback() {
-		while (prev_utilities_.size() > kFallbackIndex) {
-			prev_utilities_.pop_back();
-			prev_rates_.pop_back();
-		}
-	}
-
 	
 	bool slow_start(double curr_utility, unsigned long loss) {
 		if (previous_utility_ > curr_utility) { return false; }
@@ -132,10 +113,7 @@ private:
 		return true;
 	}
 
-	static const double kMaxProj = 5;
 	static const double kMinRateMbps = 0.01;
-	static const size_t kHistorySize = 9;
-	static const size_t kFallbackIndex = 8;
 
 	enum ConnectionState {
 		START,
@@ -148,7 +126,6 @@ private:
 	double previous_rtt_;
 	int monitor_in_prog_;
 	double previous_utility_;
-	
 	long double utility_sum_;
 	size_t measurement_intervals_;
 };

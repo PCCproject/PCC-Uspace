@@ -28,11 +28,11 @@ protected:
 
 		selection_ = i;
 		int diff1 = selection_ - (kNumStrategies >> 1);
-		long double diff = kDelta * diff1;
-//		cout << "selection = " << selection_ << " epsilon = " << kEpsilon << " chanding rate by " << diff << " (diff1 = " << diff1 << ")" << endl;
-		if (count_ % 10 == 0) {
-			print_weights();
-		} 
+		long double diff = kEpsilon * diff1;
+//		cout << "selection = " << selection_ << " chanding rate by " << diff << endl;
+//		if (count_ % 10 == 0) {
+//			print_weights();
+//		} 
 		count_++;
 		setRate(rate() + diff);
 		
@@ -44,12 +44,25 @@ protected:
 			is_first_ = false;
 		}
 
-		//cout << "updating weight by " << (1 - (previous_utility_ - curr_utility)) << endl;
-		weights_[selection_] = weights_[selection_] * (1 - kEpsilon * project(previous_utility_ - curr_utility));
+		cout << "utility change:" << curr_utility << ","<< previous_utility_ << endl;
+		weights_[selection_] = weights_[selection_] * (1 + 0.05 * project(curr_utility - previous_utility_)/kMaxProj);
 		double sum_weights = 0;
 		for (size_t i = 0; i < kNumStrategies; i++) {
 			sum_weights += weights_[i];
 		}
+
+		double avg_weight = sum_weights / kNumStrategies;
+		for (size_t i = 0; i < kNumStrategies; i++) {
+			if (weights_[i] < 0.1 * avg_weight) {
+				weights_[i] = 0.1 * avg_weight;
+			}
+		}
+
+		for (size_t i = 0; i < kNumStrategies; i++) {
+			sum_weights += weights_[i];
+		}
+
+
 		for (size_t i = 0; i < kNumStrategies; i++) {
 			probs_[i] = weights_[i] / sum_weights;
 		}
