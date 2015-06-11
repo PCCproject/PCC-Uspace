@@ -7,11 +7,11 @@ using namespace std;
 
 class ExponentiatedWeightsPCC: public PCC {
 public:
-	ExponentiatedWeightsPCC() : selection_ (0), is_first_(true), previous_utility_(0), count_(0) {
-		for (size_t i = 0; i < kNumStrategies; i++) {
+	ExponentiatedWeightsPCC() : PCC(10, 0.1), selection_ (0), is_first_(true), previous_utility_(0), count_(0) {
+		for (int i = 0; i < kNumStrategies; i++) {
 			weights_[i] = 1.0;
 		}
-		for (size_t i = 0; i < kNumStrategies; i++) {
+		for (int i = 0; i < kNumStrategies; i++) {
 			probs_[i] = 1.0 / kNumStrategies;
 		}
 	}
@@ -19,7 +19,7 @@ public:
 protected:
 	virtual void search() {
 		double p = rand() / (1.0 * RAND_MAX);
-		unsigned int i = 0;
+		int i = 0;
 		double s = probs_[i];
 		while ((s < p) && (i < kNumStrategies)) {
 			i++;
@@ -39,47 +39,65 @@ protected:
 	}
 
 	virtual void decide(long double curr_utility) {
+		static int count = 0;
+		count++;
 		if (is_first_) {
 			previous_utility_ = curr_utility;
 			is_first_ = false;
 		}
 
-		cout << "utility change:" << curr_utility << ","<< previous_utility_ << endl;
-		weights_[selection_] = weights_[selection_] * (1 + 0.05 * project(curr_utility - previous_utility_)/kMaxProj);
+		double change = project(curr_utility - previous_utility_)/kMaxProj;
+
+		if (count % 100 == 0){
+			cout << "utility change:" << curr_utility - previous_utility_ << " changing weight for strategy (" << selection_ << "," << kNumStrategies << ") " << selection_ - (kNumStrategies >> 1) << " BY " << change << endl;
+			print_probs();
+		}
+
+		weights_[selection_] = weights_[selection_] * (1 + 0.2 * change);
+		avoid_starvation();
 		double sum_weights = 0;
-		for (size_t i = 0; i < kNumStrategies; i++) {
+		for (int i = 0; i < kNumStrategies; i++) {
 			sum_weights += weights_[i];
 		}
 
-		double avg_weight = sum_weights / kNumStrategies;
-		for (size_t i = 0; i < kNumStrategies; i++) {
-			if (weights_[i] < 0.1 * avg_weight) {
-				weights_[i] = 0.1 * avg_weight;
-			}
-		}
-
-		for (size_t i = 0; i < kNumStrategies; i++) {
-			sum_weights += weights_[i];
-		}
-
-
-		for (size_t i = 0; i < kNumStrategies; i++) {
+		for (int i = 0; i < kNumStrategies; i++) {
 			probs_[i] = weights_[i] / sum_weights;
 		}
+
+		if (count % 100 == 0) print_probs();
+
 		previous_utility_ = curr_utility;
+
 	}
 
-
 private:
-	void print_weights() {
-		for (size_t i = 0; i < kNumStrategies; i++) {
+
+	void avoid_starvation() {
+		double sum_weights = 0;
+		for (int i = 0; i < kNumStrategies; i++) {
+			sum_weights += weights_[i];
+		}
+
+		double avg = sum_weights / kNumStrategies;
+
+		for (int i = 0; i < kNumStrategies; i++) {
+			if (weights_[i] < 0.1 * avg) {
+				weights_[i] = 0.1 * avg;
+			}
+		}		
+	}
+	void print_probs() {
+		for (int i = 0; i < kNumStrategies; i++) {
 			cout << probs_[i] << " ";
 		}
 		cout << endl;
 	}
 
-	static const size_t kNumStrategies = 1 << 4;
-	unsigned int selection_;
+	static const int kNumStrategies = (1 << 1) + 1;
+	static const double kEpsilon = 0.05;
+	static const double kDelta = 1;
+
+	int selection_;
 	bool is_first_;
 	long double previous_utility_;
 	size_t count_;

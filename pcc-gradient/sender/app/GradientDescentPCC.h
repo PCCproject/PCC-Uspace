@@ -5,7 +5,7 @@
 
 class GradientDescentPCC: public PCC {
 public:
-	GradientDescentPCC() : c_(INITIAL), round_(0), rand_dir_(-1), prev_utility_(0), curr_utility_(0) {}
+	GradientDescentPCC() : PCC(100, 0.01), c_(INITIAL), round_(0), rand_dir_(-1), prev_utility_(0), curr_utility_(0) {}
 
 protected:
 	virtual void search() {
@@ -40,6 +40,9 @@ protected:
 	}
 
 private:
+	static const double kEpsilon = 0.1;
+	static const double kDelta = 1;
+
 	enum MeasurementState {
 		INITIAL,
 		GUESS,
