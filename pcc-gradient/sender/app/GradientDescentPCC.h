@@ -5,54 +5,58 @@
 
 class GradientDescentPCC: public PCC {
 public:
-	GradientDescentPCC() : PCC(100, 0.01), c_(INITIAL), round_(0), rand_dir_(-1), prev_utility_(0), curr_utility_(0) {}
+	GradientDescentPCC() : PCC(5), measure_(UP), first_(true), up_utility_(0), down_utility_(0) {}
 
 protected:
 	virtual void search() {
-		if (c_ == GUESS) {
-			rand_dir_ = ((rand() / (1.0 * RAND_MAX)) > 0.5 ? 1 : -1);
-			setRate(rate() + kDelta * rand_dir_);
-		} if (c_ == ADAPT) {
-			double utility_diff = curr_utility_ - prev_utility_;
-			double change = kEpsilon * project(rand_dir_ * (1 / kDelta) * utility_diff);
-			double next_rate = rate() + change;
-			//cout << "utility diff: " << utility_diff << ". direction " << rand_dir_<< ". CHANGE = " << change << endl;
-			setRate(next_rate);
+		if ((!first_) && (measure_ == UP)) {
+			adapt();
 		}
+		guess();
 	}
 	virtual void decide(long double curr_utility) {
-		//cout << "utility in rate " << rate() << " is " << curr_utility << endl;
-		if (c_ == INITIAL) {
-			prev_utility_ = curr_utility;
-			c_ = GUESS;
-		} else if (c_ == GUESS) {
-			curr_utility_ = curr_utility;
-			c_ = ADAPT;
-		} else if (c_ == ADAPT) {
-			prev_utility_ = curr_utility;
-			c_ = GUESS;
-			round_++;
-			if (round_ == 50) {
-				c_ = INITIAL;
-				round_ = 0;
-			}
+		if (measure_ == UP) {
+			up_utility_ = curr_utility;
+			measure_ = DOWN;
+		} else if (measure_ == DOWN) {
+			down_utility_ = curr_utility;
+			measure_ = UP;
 		}
 	}
 
 private:
+	void guess() {
+		if (first_) {
+			if (measure_ == UP) base_rate_ = rate();
+			if (measure_ == DOWN) first_ = false;
+		}
+		if (measure_ == UP) {
+			setRate(base_rate_ + kDelta);
+		} else if (measure_ == DOWN) {
+			setRate(base_rate_ - kDelta);
+		}
+		
+	}
+	void adapt() {
+		double gradient = (up_utility_ - down_utility_) / (2 * kDelta);
+		double change = kEpsilon * gradient;
+		//cout << "up utility " << up_utility_ << ". down utility " << down_utility_ << ". Diff = " << up_utility_ - down_utility_ << ". CHANGE = " << change << endl;
+		base_rate_ += change;
+	}
+
+	enum MeasurementDirection {
+		UP,
+		DOWN
+	} measure_;
+	
+	bool first_;
+	double base_rate_;
+	double up_utility_;
+	double down_utility_;
+	
 	static const double kEpsilon = 0.1;
-	static const double kDelta = 1;
-
-	enum MeasurementState {
-		INITIAL,
-		GUESS,
-		ADAPT
-	} c_;
-
-	size_t round_;
-	int rand_dir_;
-	double prev_utility_;
-	double curr_utility_;
+	static const double kDelta = 0.5;
+	
 };
 
 #endif
