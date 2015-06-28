@@ -24,13 +24,14 @@ DWORD WINAPI monitor(LPVOID);
 
 double avg_loss_rate = 0;
 double rate_sum = 0;
+double rtt_sum = 0;
 unsigned int iteration_count = 0;
 
 GradientDescentPCC* cchandle = NULL;
 
 void intHandler(int dummy) {
 	if (iteration_count  > 0) {
-		cout << "Avg. rate: " <<  rate_sum / iteration_count << " loss rate = " << avg_loss_rate;
+		cout << "Avg. rate: " <<  rate_sum / iteration_count << " loss rate = " << avg_loss_rate << " avg. RTT = " << rtt_sum / iteration_count;
 		if (cchandle != NULL) {
 			cout<< " average utility = " << cchandle->avg_utility();
 		}
@@ -194,6 +195,7 @@ DWORD WINAPI monitor(LPVOID s)
 
 	if (i > 10) {
 		rate_sum += perf.mbpsSendRate;
+		rtt_sum += perf.msRTT;
 		iteration_count++;		
 	}
    }
