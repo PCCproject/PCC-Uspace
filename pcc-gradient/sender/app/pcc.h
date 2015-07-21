@@ -29,7 +29,9 @@ public:
 
 	virtual void onMonitorStart(int current_monitor) {
 		if (state_ == START) {
+			if (monitor_in_start_phase_ != -1) return;
 			setRate(rate() * slow_start_factor_);
+			monitor_in_start_phase_ = current_monitor;
 		} else if (state_ == SEARCH) {
 			search();
             search_monitor_number[search_number] = current_monitor;
@@ -49,7 +51,7 @@ public:
 
 		long double curr_utility = utility(total, loss, in_time, rtt);
 
-		conditions_changed_too_much_ = (rtt / previous_rtt_ > 1.2) || (previous_rtt_ / rtt > 1.2);
+		conditions_changed_too_much_ = (rtt / previous_rtt_ > 1.15) || (previous_rtt_ / rtt > 1.15);
 		conditions_changed_too_much_ = conditions_changed_too_much_ || ((previous_loss_ * 10 < loss) && (previous_loss_ > 0));
 		previous_rtt_ = rtt;
 		previous_loss_ = loss;
@@ -58,13 +60,16 @@ public:
 		measurement_intervals_++;
 
 		if(state_ == START) {
-			if (loss > 0) {
-				setRate(rate() / slow_start_factor_);
-				slow_start_factor_ /= 1.5;
-				if (slow_start_factor_ < 1.2) {
-					state_ = SEARCH;
+			if (monitor_in_start_phase_ == endMonitor) {
+				if (loss > 0) {
+					setRate(rate() / slow_start_factor_);
+					slow_start_factor_ /= 1.5;
+					if (slow_start_factor_ < 1.2) {
+						state_ = SEARCH;
+					}
 				}
-			}
+				monitor_in_start_phase_ = -1;
+			}		
 		} else if (state_ == DECISION) {
             if(endMonitor == search_monitor_number[0]) {
                 search_monitor_number[0] = -1;
@@ -91,7 +96,7 @@ protected:
 	virtual void search() = 0;
 	virtual void decide(long double utility) = 0;
 
-	PCC(double alpha, bool latency_mode) : conditions_changed_too_much_(false), state_(START), slow_start_factor_(2), alpha_(alpha), rate_(5.0), previous_rtt_(0),
+	PCC(double alpha, bool latency_mode) : conditions_changed_too_much_(false), state_(START), monitor_in_start_phase_(-1), slow_start_factor_(2), alpha_(alpha), rate_(5.0), previous_rtt_(0),
 			monitor_in_prog_(-1), utility_sum_(0), measurement_intervals_(0) {
 		m_dPktSndPeriod = 10000;
 		m_dCWndSize = 100000.0;
@@ -129,7 +134,7 @@ private:
 		//long double computed_utility = ((total-loss)/time*(1-1/(1+exp(-100*(double(loss)/total-0.05))))* (1-1/(1+exp(-1*(1-previous_rtt_/rtt)))) -1*double(loss)/time)/rtt*1000;
 
 		long double norm_measurement_interval = time / rtt;
-		long double utility = ((long double)total - (long double) (alpha_ * pow(loss, 1.05))) / norm_measurement_interval - beta_ * get_rtt(rtt) * total;
+		long double utility = ((long double)total - (long double) (alpha_ * pow(loss, 1.2))) / norm_measurement_interval - beta_ * get_rtt(rtt) * total;
 		//cout << "total " << total << ". loss " << loss << " RTT " << get_rtt(rtt) << " rtt cont. " << - beta_ * get_rtt(rtt) << " utility = " << utility << " interval: " << norm_measurement_interval;
 		return utility;
 
@@ -153,6 +158,7 @@ private:
 		DECISION
 	} state_;
 
+	int monitor_in_start_phase_;
 	double slow_start_factor_;
 	double alpha_;
 	double beta_;

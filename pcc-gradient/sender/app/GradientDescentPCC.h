@@ -5,7 +5,7 @@
 
 class GradientDescentPCC: public PCC {
 public:
-	GradientDescentPCC() : PCC(6, false), first_(true), up_utility_(0), down_utility_(0), consecutive_big_changes_(0) {}
+	GradientDescentPCC() : PCC(6, true), first_(true), up_utility_(0), down_utility_(0), consecutive_big_changes_(0) {}
 
 protected:
 	virtual void search() {
