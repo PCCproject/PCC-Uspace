@@ -12,7 +12,7 @@ protected:
 		guess();
 	}
 	virtual void decide(long double curr_utility) {
-		if ((rtt_changed_too_much_) && (consecutive_big_changes_ < 2)){
+		if ((conditions_changed_too_much_) && (consecutive_big_changes_ < 2)){
 			consecutive_big_changes_++;
 			return;
 		}

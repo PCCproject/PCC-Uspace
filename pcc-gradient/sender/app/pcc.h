@@ -91,7 +91,7 @@ protected:
 	virtual void search() = 0;
 	virtual void decide(long double utility) = 0;
 
-	PCC(double alpha, LatencySensitivity latency_mode) : conditions_changed_too_much_(false), state_(START), slow_start_factor_(2), alpha_(alpha), rate_(5.0), previous_rtt_(0),
+	PCC(double alpha, bool latency_mode) : conditions_changed_too_much_(false), state_(START), slow_start_factor_(2), alpha_(alpha), rate_(5.0), previous_rtt_(0),
 			monitor_in_prog_(-1), utility_sum_(0), measurement_intervals_(0) {
 		m_dPktSndPeriod = 10000;
 		m_dCWndSize = 100000.0;
