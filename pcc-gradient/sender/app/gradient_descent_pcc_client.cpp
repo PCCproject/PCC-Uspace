@@ -25,6 +25,8 @@ DWORD WINAPI monitor(LPVOID);
 double rate_sum = 0;
 double rtt_sum = 0;
 double avg_loss_rate = 0;
+double base_loss = 0;
+double base_sent = 0;
 unsigned int iteration_count = 0;
 
 GradientDescentPCC* cchandle = NULL;
@@ -190,9 +192,13 @@ DWORD WINAPI monitor(LPVOID s)
 	if (perf.pktSentTotal == 0) {
 		avg_loss_rate = 0;
 	} else {
-		avg_loss_rate = (1.0 * perf.pktSndLossTotal) / (1.0 * perf.pktSentTotal);
+		avg_loss_rate = (1.0 * perf.pktSndLossTotal - base_loss) / (1.0 * perf.pktSentTotal - base_sent);
 	}
-	if (i > 10) {
+	
+	if (i == 10) {
+		base_loss = 1.0 * perf.pktSndLossTotal;
+		base_sent = 1.0 * perf.pktSentTotal;
+	} else if (i > 10) {
 		rate_sum += perf.mbpsSendRate;
 		rtt_sum += perf.msRTT;
 		iteration_count++;		

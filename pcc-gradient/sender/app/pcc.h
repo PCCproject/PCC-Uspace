@@ -120,7 +120,7 @@ protected:
 	double rate() const { return rate_; }
 
 private:
-	double get_rtt(double rtt) const {
+	static double get_rtt(double rtt) {
 		double conv_diff = (double)(((long) (rtt * 1000 * 1000)) % kMillisecondsDigit);
 		return conv_diff / (1000.0 * 1000.0);
 	}
@@ -134,7 +134,7 @@ private:
 		//long double computed_utility = ((total-loss)/time*(1-1/(1+exp(-100*(double(loss)/total-0.05))))* (1-1/(1+exp(-1*(1-previous_rtt_/rtt)))) -1*double(loss)/time)/rtt*1000;
 
 		long double norm_measurement_interval = time / rtt;
-		long double utility = ((long double)total - (long double) (alpha_ * pow(loss, 1.2))) / norm_measurement_interval - beta_ * get_rtt(rtt) * total;
+		long double utility = ((long double)total - (long double) (alpha_ * total * (1 - pow(1 - (double)loss/(double)total, 1.4)))) / norm_measurement_interval - beta_ * get_rtt(rtt) * total;
 		//cout << "total " << total << ". loss " << loss << " RTT " << get_rtt(rtt) << " rtt cont. " << - beta_ * get_rtt(rtt) << " utility = " << utility << " interval: " << norm_measurement_interval;
 		return utility;
 
