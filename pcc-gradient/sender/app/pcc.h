@@ -104,7 +104,6 @@ public:
 	}
 
 protected:
-	static const double kMaxProj = 1;
 	bool conditions_changed_too_much_;
     long double search_monitor_utility[2];
     int search_monitor_number[2];
@@ -145,12 +144,12 @@ private:
         return search_monitor_number[0] == -1 && search_monitor_number[1] == -1;
     }
 
+	
 	virtual long double utility(unsigned long total, unsigned long loss, double time, double rtt) {
 
-		//long double computed_utility = ((total-loss)/time*(1-1/(1+exp(-100*(double(loss)/total-0.05))))* (1-1/(1+exp(-1*(1-previous_rtt_/rtt)))) -1*double(loss)/time)/rtt*1000;
-
 		long double norm_measurement_interval = time / rtt;
-		long double utility = ((long double)total - (long double) (alpha_ * pow(loss, 1.2))) / norm_measurement_interval - beta_ * get_rtt(rtt) * total;
+		long double rtt_penalty = beta_ * total * get_rtt(rtt) * total;
+		long double utility = ((long double)total - (long double) (alpha_ * pow(loss, 1.2))) / norm_measurement_interval - pow(rtt_penalty, 1.02);
 		//cout << "total " << total << ". loss " << loss << " RTT " << get_rtt(rtt) << " rtt cont. " << - beta_ * get_rtt(rtt) << " utility = " << utility << " interval: " << norm_measurement_interval;
 		return utility;
 
