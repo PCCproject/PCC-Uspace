@@ -9,6 +9,7 @@
 #include<cmath>
 #include <deque>
 #include <time.h>
+#include <pthread.h>
 
 using namespace std;
 
@@ -28,10 +29,14 @@ public:
 	virtual void onACK(const int& ack){}
 
 	virtual void onMonitorStart(int current_monitor) {
+		pthread_mutex_lock(&mutex_);
 		if (state_ == START) {
-			if (monitor_in_start_phase_ != -1) return;
-			setRate(rate() * slow_start_factor_);
+			if (monitor_in_start_phase_ != -1) {
+				pthread_mutex_unlock(&mutex_);
+				return;
+			}
 			monitor_in_start_phase_ = current_monitor;
+			setRate(rate() * slow_start_factor_);
 		} else if (state_ == SEARCH) {
 			search();
             search_monitor_number[search_number] = current_monitor;
@@ -41,10 +46,11 @@ public:
                 state_ = DECISION;
             }
 		}
+		pthread_mutex_unlock(&mutex_);
 	}
 
 	virtual void onMonitorEnds(unsigned long total, unsigned long loss, double in_time, int current, int endMonitor, double rtt) {
-
+		pthread_mutex_lock(&mutex_);
 		rtt /= (1000 * 1000);
 		if (rtt == 0) rtt = 0.0001;
 		if (previous_rtt_ == 0) previous_rtt_ = rtt;
@@ -59,17 +65,26 @@ public:
 		utility_sum_ += curr_utility;
 		measurement_intervals_++;
 
+		bool continue_slow_start = (loss == 0) && (curr_utility >= 1.1 * prev_utility_);
+		long double tmp_prev_utility = prev_utility_;
+		prev_utility_ = curr_utility;
+		if (continue_slow_start_) no_loss_count_++;
+		else no_loss_count_ = 0;
+		
 		if(state_ == START) {
 			if (monitor_in_start_phase_ == endMonitor) {
-				if (loss > 0) {
+				//cout << "END: State = " << state_ << " Monitor = " << monitor_in_start_phase_ << endl;		
+				monitor_in_start_phase_ = -1;
+				if (!continue_slow_start) {
 					setRate(rate() / slow_start_factor_);
 					slow_start_factor_ /= 1.5;
 					if (slow_start_factor_ < 1.2) {
+						//init();
+						cout << "Slow Start: Done! new = " << curr_utility << " prev " << tmp_prev_utility << endl;
 						state_ = SEARCH;
 					}
 				}
-				monitor_in_start_phase_ = -1;
-			}		
+			}
 		} else if (state_ == DECISION) {
             if(endMonitor == search_monitor_number[0]) {
                 search_monitor_number[0] = -1;
@@ -85,6 +100,7 @@ public:
 			    state_ = SEARCH;
             }
 		}
+		pthread_mutex_unlock(&mutex_);
 	}
 
 protected:
@@ -97,7 +113,7 @@ protected:
 	virtual void decide(long double utility) = 0;
 
 	PCC(double alpha, bool latency_mode) : conditions_changed_too_much_(false), state_(START), monitor_in_start_phase_(-1), slow_start_factor_(2), alpha_(alpha), rate_(5.0), previous_rtt_(0),
-			monitor_in_prog_(-1), utility_sum_(0), measurement_intervals_(0) {
+			monitor_in_prog_(-1), utility_sum_(0), measurement_intervals_(0), no_loss_count_(0), prev_utility_(-10000000), continue_slow_start_(true) {
 		m_dPktSndPeriod = 10000;
 		m_dCWndSize = 100000.0;
         search_number = 0;
@@ -166,9 +182,13 @@ private:
 	double previous_rtt_;
 	unsigned long previous_loss_;
 	int monitor_in_prog_;
+	pthread_mutex_t mutex_;
 	double previous_utility_;
 	long double utility_sum_;
 	size_t measurement_intervals_;
+	size_t no_loss_count_;
+	long double prev_utility_;
+	bool continue_slow_start_;
 };
 
 #endif
