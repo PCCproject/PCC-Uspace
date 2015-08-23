@@ -148,7 +148,7 @@ private:
 	virtual long double utility(unsigned long total, unsigned long loss, double time, double rtt) {
 
 		long double norm_measurement_interval = time / rtt;
-		long double rtt_penalty = beta_ * total * get_rtt(rtt) * total;
+		long double rtt_penalty = beta_ * total * get_rtt(rtt);
 		long double utility = ((long double)total - (long double) (alpha_ * pow(loss, 1.2))) / norm_measurement_interval - pow(rtt_penalty, 1.02);
 		//cout << "total " << total << ". loss " << loss << " RTT " << get_rtt(rtt) << " rtt cont. " << - beta_ * get_rtt(rtt) << " utility = " << utility << " interval: " << norm_measurement_interval;
 		return utility;
