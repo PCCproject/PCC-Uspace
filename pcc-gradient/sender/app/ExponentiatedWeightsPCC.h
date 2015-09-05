@@ -7,7 +7,7 @@ using namespace std;
 
 class ExponentiatedWeightsPCC: public PCC {
 public:
-	ExponentiatedWeightsPCC() : PCC(5, true), selection_ (0), is_first_(true), previous_utility_(0), count_(0) {
+	ExponentiatedWeightsPCC() : selection_ (0), is_first_(true), previous_utility_(0), count_(0) {
 		for (int i = 0; i < kNumStrategies; i++) {
 			weights_[i] = 1.0;
 		}
@@ -38,20 +38,15 @@ protected:
 		
 	}
 
-	virtual void decide(long double curr_utility) {
+	virtual void decide(long double start_utility, long double end_utility, long double base_rate, bool conditions_changed) {
 		static int count = 0;
 		count++;
 		if (is_first_) {
-			previous_utility_ = curr_utility;
+			previous_utility_ = start_utility;
 			is_first_ = false;
 		}
 
-		double change = (curr_utility - previous_utility_)/kMaxProj;
-
-		if (count % 100 == 0){
-			cout << "utility change:" << curr_utility - previous_utility_ << " changing weight for strategy (" << selection_ << "," << kNumStrategies << ") " << selection_ - (kNumStrategies >> 1) << " BY " << change << endl;
-			print_probs();
-		}
+		double change = (start_utility - previous_utility_);
 
 		weights_[selection_] = weights_[selection_] * (1 + 0.2 * change);
 		avoid_starvation();
@@ -66,7 +61,7 @@ protected:
 
 		if (count % 100 == 0) print_probs();
 
-		previous_utility_ = curr_utility;
+		previous_utility_ = start_utility;
 
 	}
 

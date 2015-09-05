@@ -3005,9 +3005,9 @@ void CUDT::start_monitor(int length)
 	m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
         time_interval[current_monitor] = m_pCC->m_dPktSndPeriod;
         double rand_factor;
-        rand_factor = double(rand()%3)/10;
+        rand_factor = double(rand()%10)/100.0;
 	if(m_iRTT*(1.1)/m_pCC->m_dPktSndPeriod>10)
-		length=m_iRTT*(1.5+rand_factor)/m_pCC->m_dPktSndPeriod;
+		length=m_iRTT*(0.5 + rand_factor)/m_pCC->m_dPktSndPeriod;
 	else
 		length=(10>(5000/m_pCC->m_dPktSndPeriod))?10:(5000/m_pCC->m_dPktSndPeriod);
 //#ifdef EXPERIMENTAL_FEATURE_CONTINOUS_SEND
