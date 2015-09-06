@@ -86,7 +86,7 @@ public:
 					slow_start_factor_ /= 1.5;
 					if (slow_start_factor_ < 1.2) {
 						//init();
-						cout << "Slow Start: Done! new = " << curr_utility << " prev " << tmp_prev_utility << endl;
+						//cout << "Slow Start: Done! new = " << curr_utility << " prev " << tmp_prev_utility << endl;
 						state_ = SEARCH;
 					}
 				}
