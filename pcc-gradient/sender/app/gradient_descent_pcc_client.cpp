@@ -31,11 +31,6 @@ unsigned int iteration_count = 0;
 
 GradientDescentPCC* cchandle = NULL;
 
-double PCC::kAlpha(1);
-double PCC::kBeta(1);
-double PCC::kExponent(1);
-bool PCC::kPolyUtility(true);
-
 void intHandler(int dummy) {
 	if (iteration_count  > 0) {
 		cout << "Avg. rate: " <<  rate_sum / iteration_count << " loss rate = " << avg_loss_rate << " avg. RTT = " << rtt_sum / iteration_count;
@@ -50,23 +45,13 @@ void intHandler(int dummy) {
 
 int main(int argc, char* argv[])
 {
-   if ((argc < 3) || (0 == atoi(argv[2])))
+   if ((3 != argc) || (0 == atoi(argv[2])))
    {
-      cout << "usage: " << argv[0] << " server_ip server_port [alpha = 4] [beta = 55] [exponent = 1.5] [poly_utility = 1]" << endl;
+      cout << "usage: appclient server_ip server_port" << endl;
       return 0;
    }
 	signal(SIGINT, intHandler);
 
-	double alpha = 4;
-	double beta = 55;
-	double exponent = 1.5;
-	bool use_poly = true;
-
-	if (argc > 3) alpha = atof(argv[3]);
-	if (argc > 4) beta = atof(argv[4]);
-	if (argc > 5) exponent = atof(argv[5]);
-	if (argc > 6) use_poly = (0 == strcmp("1", argv[6])); 
-	GradientDescentPCC::set_utility_params(alpha, beta, exponent, use_poly);
 //sleep(1500);
    // use this function to initialize the UDT library
    UDT::startup();

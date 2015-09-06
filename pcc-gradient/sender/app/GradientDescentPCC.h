@@ -8,11 +8,21 @@ public:
 	GradientDescentPCC() : PCC(6, true), first_(true), up_utility_(0), down_utility_(0), consecutive_big_changes_(0) {}
 
 protected:
+/*
+	virtual void init() {
+		PCC::init();
+		first_ = true;
+		up_utility_ = 0;
+		down_utility_ = 0;
+		consecutive_big_changes_ = 0;
+	}
+*/
+
 	virtual void search() {
 		guess();
 	}
 	virtual void decide(long double curr_utility) {
-		if ((conditions_changed_too_much_) && (consecutive_big_changes_ < 2)){
+		if (conditions_changed_too_much_){
 			consecutive_big_changes_++;
 			return;
 		}
@@ -20,8 +30,9 @@ protected:
 
 		double gradient = (search_monitor_utility[0] - search_monitor_utility[1]) / (2 * kDelta);
 		double change = kEpsilon * gradient;
-		//cout << "up utility " << up_utility_ << ". down utility " << down_utility_ << ". Diff = " << up_utility_ - down_utility_ << ". CHANGE = " << change << endl;
 		base_rate_ += change;
+		if (base_rate_ < kDelta) base_rate_ = kDelta;
+		//cout << "base_rate_ " << base_rate_ << endl;
 	}
 
 private:
@@ -46,8 +57,8 @@ private:
 	double down_utility_;
 	size_t consecutive_big_changes_;
 
-	static const double kEpsilon = 0.08;
-	static const double kDelta = 0.7;
+	static const double kEpsilon = 0.02;
+	static const double kDelta = 0.5;
 
 };
 

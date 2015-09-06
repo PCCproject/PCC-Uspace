@@ -38,8 +38,7 @@ endif
 
 DIR = $(shell pwd)
 
-APP = appclient gradient_descent_pcc_client exponentiated_weights_pcc_client
-
+APP = appclient gradient_descent_pcc_client
 all: $(APP)
 
 %.o: %.cpp
@@ -56,8 +55,6 @@ recvfile: recvfile.o
 incast_client: incast_client.o
 	$(C++) $^ -o $@ $(LDFLAGS)
 gradient_descent_pcc_client: gradient_descent_pcc_client.o
-	$(C++) -g $^ -o $@ $(LDFLAGS)
-exponentiated_weights_pcc_client: exponentiated_weights_pcc_client.o
 	$(C++) -g $^ -o $@ $(LDFLAGS)
 
 clean:

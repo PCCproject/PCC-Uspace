@@ -10,20 +10,8 @@
 #include <deque>
 #include <time.h>
 #include <pthread.h>
-#include <map>
 
 using namespace std;
-
-class Measurement {
-	public:
-		Measurement(double base_rate, int other_monitor = -1): utility_(0), base_rate_(base_rate), other_monitor_(other_monitor), set_(false), rtt_(0), loss_(0) {}
-		long double utility_;
-		double base_rate_;
-		int other_monitor_;
-		bool set_;
-		double rtt_;
-		double loss_;
-};
 
 class PCC : public CCC {
 public:
@@ -48,21 +36,17 @@ public:
 				return;
 			}
 			monitor_in_start_phase_ = current_monitor;
+			//cout << "Start. STATE = " << state_ << " Monitor = " << monitor_in_start_phase_ << endl;
+			//cout << rate() << "," << slow_start_factor_ << "-->" << rate() * slow_start_factor_ << endl;
 			setRate(rate() * slow_start_factor_);
-		} else if (state_ == HOLD) {
-			if (monitor_in_start_phase_ == -1) {
-				monitor_in_start_phase_ = current_monitor;
-			}
 		} else if (state_ == SEARCH) {
-			if (start_measurement_) {
-				start_measurment_map_.insert(pair<int,Measurement*>(current_monitor, new Measurement(base_rate_)));
-				current_start_monitor_ = current_monitor;
-			} else {
-				end_measurment_map_.insert(pair<int,Measurement*>(current_monitor, new Measurement(base_rate_,current_start_monitor_)));
-				start_measurment_map_.at(current_start_monitor_)->other_monitor_ = current_monitor;
-			}
 			search();
-			start_measurement_ = !start_measurement_;
+            search_monitor_number[search_number] = current_monitor;
+            search_number ++;
+            if(search_number == 2) {
+			    search_number = 0;
+                state_ = DECISION;
+            }
 		}
 		pthread_mutex_unlock(&mutex_);
 	}
@@ -71,159 +55,99 @@ public:
 		pthread_mutex_lock(&mutex_);
 		rtt /= (1000 * 1000);
 		if (rtt == 0) rtt = 0.0001;
+		if (previous_rtt_ == 0) previous_rtt_ = rtt;
 
 		long double curr_utility = utility(total, loss, in_time, rtt);
+
+		conditions_changed_too_much_ = (rtt / previous_rtt_ > 1.3) || (previous_rtt_ / rtt > 1.3);
+		conditions_changed_too_much_ = conditions_changed_too_much_ || ((previous_loss_ * 10 < loss) && (previous_loss_ > 0));
+		previous_rtt_ = rtt;
+		previous_loss_ = loss;
 
 		utility_sum_ += curr_utility;
 		measurement_intervals_++;
 
-		bool continue_slow_start = (loss == 0) && (1.1 * curr_utility > prev_utility_);
+		//cout << "utility = " << curr_utility << endl;
+		bool continue_slow_start = (loss == 0) && (curr_utility >= prev_utility_);
 		long double tmp_prev_utility = prev_utility_;
 		prev_utility_ = curr_utility;
+		if (continue_slow_start_) no_loss_count_++;
+		else no_loss_count_ = 0;
+		//cout << "loss count " << no_loss_count_ << endl;
 		
+
+		//cout << "Monitor @ end: " << endMonitor << endl;
 		if(state_ == START) {
 			if (monitor_in_start_phase_ == endMonitor) {
+				//cout << "END: State = " << state_ << " Monitor = " << monitor_in_start_phase_ << endl;		
 				monitor_in_start_phase_ = -1;
 				if (!continue_slow_start) {
-					//cout << "changing to Hold, rate =  " << rate() << endl;
-					//cout << "previous utility = " << tmp_prev_utility << ", this utility = " << curr_utility << endl;
-					state_ = HOLD;
-				}
-			}
-		} else if(state_ == HOLD) {
-			if (monitor_in_start_phase_ == endMonitor) {
-				if (!continue_slow_start) {
-					hold_count_--;
-					if (hold_count_ == 0) {
-						setRate(rate() / slow_start_factor_);
-						slow_start_factor_ /= 1.2;
-						//cout << "slow_start_factor_ = " << slow_start_factor_ << endl; 
-						hold_count_ = kInitHoldCount;
-						if (slow_start_factor_ < 1) {
-							//cout << "Slow start done, rate = " << rate() << endl;
-							state_ = SEARCH;
-						}
-					} else {
-						//cout << "Holding rate " << rate() << endl;
-						prev_utility_ = tmp_prev_utility;
+					setRate(rate() / slow_start_factor_);
+					slow_start_factor_ /= 1.5;
+					if (slow_start_factor_ < 1.2) {
+						//init();
+						cout << "Slow Start: Done! new = " << curr_utility << " prev " << tmp_prev_utility << endl;
+						state_ = SEARCH;
 					}
-				} else {
-					//cout << "slow start back again.." << endl;
-					hold_count_ = kInitHoldCount;
-					state_ = START;
 				}
-				monitor_in_start_phase_ = -1;
 			}
-		} else if(state_ == SEARCH) {
-            if(start_measurment_map_.find(endMonitor) != start_measurment_map_.end()) {
-				start_measurment_map_.at(endMonitor)->utility_ = curr_utility;
-				start_measurment_map_.at(endMonitor)->set_ = true;
-				start_measurment_map_.at(endMonitor)->rtt_ = rtt;
-				start_measurment_map_.at(endMonitor)->loss_ = loss;
-            } else if(end_measurment_map_.find(endMonitor) != end_measurment_map_.end()) {
-				end_measurment_map_.at(endMonitor)->utility_ = curr_utility;
-				end_measurment_map_.at(endMonitor)->set_ = true;
-				end_measurment_map_.at(endMonitor)->rtt_ = rtt;
-				end_measurment_map_.at(endMonitor)->loss_ = loss;
+		} else if (state_ == DECISION) {
+            if(endMonitor == search_monitor_number[0]) {
+                search_monitor_number[0] = -1;
+                search_monitor_utility[0] = curr_utility;
+            }
+            if(endMonitor == search_monitor_number[1]) {
+                search_monitor_number[1] = -1;
+                search_monitor_utility[1] = curr_utility;
             }
 
-            if(isAllSearchResultBack(endMonitor)) {
-				int start_utility, end_utility;
-				int other_monitor;
-
-				double start_rtt, start_loss, end_rtt, end_loss;
-				double start_base, end_base;
-
-				if (start_measurment_map_.find(endMonitor) != start_measurment_map_.end()) {
-					start_utility = start_measurment_map_.at(endMonitor)->utility_;
-					other_monitor = start_measurment_map_.at(endMonitor)->other_monitor_;
-					end_utility = end_measurment_map_.at(other_monitor)->utility_;
-					
-					start_base = start_measurment_map_.at(endMonitor)->base_rate_;
-					end_base = end_measurment_map_.at(other_monitor)->base_rate_;
-
-					start_rtt = start_measurment_map_.at(endMonitor)->rtt_;
-					start_loss = start_measurment_map_.at(endMonitor)->loss_;
-					end_rtt = end_measurment_map_.at(other_monitor)->rtt_;
-					end_loss = end_measurment_map_.at(other_monitor)->loss_;
-
-					
-					delete start_measurment_map_.at(endMonitor);
-					delete end_measurment_map_.at(other_monitor);
-					start_measurment_map_.erase(endMonitor);
-					end_measurment_map_.erase(other_monitor);
-				} else {
-					end_utility = end_measurment_map_.at(endMonitor)->utility_;
-					other_monitor = end_measurment_map_.at(endMonitor)->other_monitor_;
-					start_utility = start_measurment_map_.at(other_monitor)->utility_;
-					
-					start_base = start_measurment_map_.at(other_monitor)->base_rate_;
-					end_base = end_measurment_map_.at(endMonitor)->base_rate_;
-
-
-					start_rtt = start_measurment_map_.at(other_monitor)->rtt_;
-					start_loss = start_measurment_map_.at(other_monitor)->loss_;
-					end_rtt = end_measurment_map_.at(endMonitor)->rtt_;
-					end_loss = end_measurment_map_.at(endMonitor)->loss_;
-
-
-					delete end_measurment_map_.at(endMonitor);
-					delete start_measurment_map_.at(other_monitor);
-					end_measurment_map_.erase(endMonitor);
-					start_measurment_map_.erase(other_monitor);
+            if(isAllSearchResultBack()) {
+                decide(curr_utility);
+				state_ = SEARCH;
+				/*
+				if ((no_loss_count_ > 1000) && false) {
+					no_loss_count_ = 0;
+					state_ = START;
 				}
-
-				bool contidutions_changed_too_much = false;
-				if ((end_rtt > 1.15 * start_rtt) || (start_rtt > 1.15 * end_rtt)) contidutions_changed_too_much = true;
-				if (((end_loss > 10 * start_loss) && (end_loss > 10) ) || ((start_loss > 10 * end_loss) && (start_loss > 10) )) contidutions_changed_too_much = true;
-
-				if (start_base == end_base) {
-					decide(start_utility, end_utility, start_base, contidutions_changed_too_much);
-				}
+				*/
             }
 		}
 		pthread_mutex_unlock(&mutex_);
 	}
 
-	static void set_utility_params(double alpha = 4, double beta = 54, double exponent = 1.5, bool polyUtility = true) {
-		kAlpha = alpha;
-		kBeta = beta;
-		kExponent = exponent;
-		kPolyUtility = polyUtility;
-	}
-	
 protected:
-
-	static double kAlpha, kBeta, kExponent;
-	static bool kPolyUtility;
-	
+	bool conditions_changed_too_much_;
     long double search_monitor_utility[2];
     int search_monitor_number[2];
-    bool start_measurement_;
-	double base_rate_;
-	static const double kMinRateMbps = 0.01;
-
+    int search_number;
 	virtual void search() = 0;
-	virtual void decide(long double start_utility, long double end_utility, long double base_rate, bool condition_change) = 0;
+	virtual void decide(long double utility) = 0;
 
-	PCC() : start_measurement_(true), base_rate_(5.0), state_(START), hold_count_(kInitHoldCount), monitor_in_start_phase_(-1), slow_start_factor_(2),
-			alpha_(kAlpha), beta_(kBeta), exponent_(kExponent), poly_utlity_(kPolyUtility), rate_(5.0), monitor_in_prog_(-1), utility_sum_(0), measurement_intervals_(0), prev_utility_(-10000000), continue_slow_start_(true) {
+	PCC(double alpha, bool latency_mode) : conditions_changed_too_much_(false), state_(START), monitor_in_start_phase_(-1), slow_start_factor_(2), alpha_(alpha), rate_(kMinRateMbps), previous_rtt_(0),
+			monitor_in_prog_(-1), utility_sum_(0), no_loss_count_(0), measurement_intervals_(0), prev_utility_(-10000000), continue_slow_start_(true) {
 		m_dPktSndPeriod = 10000;
 		m_dCWndSize = 100000.0;
+        search_number = 0;
 		setRTO(100000000);
 		srand(time(NULL));
-		//cout << "configuration: alpha = " << alpha_ << ", beta = " << beta_   << ", exponent = " << exponent_ << endl;
-		
-		/*
+
 		if (!latency_mode) {
 			beta_ = 0;
 		} else {
-			beta_ = 50;
+			beta_ = 0.00052; 
 		}
-		*/
 	}
 
+	/*
+	virtual void init() {
+		cout << "Init()" <<endl;
+		slow_start_factor_ = 2;
+		continue_slow_start_ = true;
+	}
+	*/
+	
 	virtual void setRate(double mbps) {
+		//cout << "rate = " << mbps << endl;
 		if (mbps < kMinRateMbps) { mbps = kMinRateMbps; };
 		rate_ = mbps;
 		m_dPktSndPeriod = (m_iMSS * 8.0) / mbps;
@@ -233,61 +157,60 @@ protected:
 
 private:
 	static double get_rtt(double rtt) {
+		return 1000 * rtt;
 		double conv_diff = (double)(((long) (rtt * 1000 * 1000)) % kMillisecondsDigit);
 		return conv_diff / (1000.0 * 1000.0);
 	}
 
-    double isAllSearchResultBack(int current_monitor) {
-		if ((start_measurment_map_.find(current_monitor) != start_measurment_map_.end()) && (start_measurment_map_.at(current_monitor)->set_)) {
-			int other_monitor = start_measurment_map_.at(current_monitor)->other_monitor_;
-			return ((end_measurment_map_.find(other_monitor) != end_measurment_map_.end()) && (end_measurment_map_.at(other_monitor)->set_));
-		} else if ((end_measurment_map_.find(current_monitor) != end_measurment_map_.end()) && (end_measurment_map_.at(current_monitor)->set_)) {
-			int other_monitor = end_measurment_map_.at(current_monitor)->other_monitor_;
-			return ((start_measurment_map_.find(other_monitor) != start_measurment_map_.end()) && (start_measurment_map_.at(other_monitor)->set_));
-		}
-		return false;
+    double isAllSearchResultBack() {
+        return search_monitor_number[0] == -1 && search_monitor_number[1] == -1;
     }
-
 
 	virtual long double utility(unsigned long total, unsigned long loss, double time, double rtt) {
 
 		long double norm_measurement_interval = time / rtt;
-		long double rtt_penalty = get_rtt(rtt);
-		long double utility;		
-		if (poly_utlity_) {
-		 	utility = ((long double)total - total * (long double) (alpha_* (pow((1+((long double)((double) loss/(double) total))), exponent_)-1))) / norm_measurement_interval - beta_ * total * pow(rtt_penalty, 1.02);
-		} else {
-			utility = ((long double)total - total * (long double) (alpha_ * pow(exponent_, 1 + ((long double)((double) loss/(double) total))))) / norm_measurement_interval - beta_ * total * pow(rtt_penalty, 1.02);
-		}
+		long double rtt_penalty = beta_ * total * get_rtt(rtt) * total;
+		long double utility = 4.5 * ((long double)total - (long double) (alpha_ * pow(loss, 1.2))) / norm_measurement_interval - pow(rtt_penalty, 1.02);
+		//cout << "total " << total << ". loss " << loss << " RTT " << get_rtt(rtt) << " rtt cont. " << - beta_ * get_rtt(rtt) << " utility = " << utility << " interval: " << norm_measurement_interval;
+		//cout << "RTT = " << rtt_penalty << " utility = " << utility << " total = " << total << endl;
+
 		return utility;
+
+		//long double a = 100;
+		//long double thresh = 1.05;
+		//double base = 2;
+		//long double loss_suffered = //(loss - thresh * total) / norm_measurement_interval;
+		//long double penelty = alpha_ * pow(base, a * (loss_rate - thresh));
+		//long double computed_utility = packets_recieved - penelty;
+
+		//cout << "Utility " << computed_utility << ". loss_rate = " << loss_rate << ". Loss = " << loss << ". packets received = " << packets_recieved << ". penelty = " << penelty << endl;
+		//return computed_utility;
 	}
 
+	static const double kMinRateMbps = 0.5;
 	static const long kMillisecondsDigit = 10 * 1000;
 
 	enum ConnectionState {
 		START,
-		HOLD,
-		SEARCH
+		SEARCH,
+		DECISION
 	} state_;
-	static const int kInitHoldCount = 3;
-	int hold_count_;
-	
+
 	int monitor_in_start_phase_;
 	double slow_start_factor_;
 	double alpha_;
 	double beta_;
-	double exponent_;
-	bool poly_utlity_;
 	double rate_;
+	double previous_rtt_;
+	unsigned long previous_loss_;
 	int monitor_in_prog_;
-	pthread_mutex_t mutex_;
+	double previous_utility_;
 	long double utility_sum_;
+	size_t no_loss_count_;
 	size_t measurement_intervals_;
+	pthread_mutex_t mutex_;
 	long double prev_utility_;
 	bool continue_slow_start_;
-	map<int, Measurement*> start_measurment_map_;
-	map<int, Measurement*> end_measurment_map_;
-	int current_start_monitor_;
 };
 
 #endif
