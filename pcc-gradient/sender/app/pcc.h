@@ -134,7 +134,7 @@ protected:
 		if (!latency_mode) {
 			beta_ = 0;
 		} else {
-			beta_ = 0.0007; 
+			beta_ = 0.001; 
 		}
 	}
 
@@ -145,7 +145,7 @@ protected:
 		continue_slow_start_ = true;
 	}
 	*/
-	
+	 
 	virtual void setRate(double mbps) {
 		//cout << "rate = " << mbps << endl;
 		if (mbps < kMinRateMbps) { mbps = kMinRateMbps; };
@@ -169,22 +169,11 @@ private:
 	virtual long double utility(unsigned long total, unsigned long loss, double time, double rtt) {
 
 		long double norm_measurement_interval = time / rtt;
-		long double rtt_penalty = beta_ * total * get_rtt(rtt) * total;
-		long double utility = 4.5 * ((long double)total - (long double) (alpha_ * pow(loss, 1.2))) / norm_measurement_interval - pow(rtt_penalty, 1.02);
-		//cout << "total " << total << ". loss " << loss << " RTT " << get_rtt(rtt) << " rtt cont. " << - beta_ * get_rtt(rtt) << " utility = " << utility << " interval: " << norm_measurement_interval;
-		//cout << "RTT = " << rtt_penalty << " utility = " << utility << " total = " << total << endl;
+		long double rtt_penalty = get_rtt(rtt);
+		long double utility = 4.5 * ((long double)total - (long double) (alpha_ * pow(loss, 1.2))) / norm_measurement_interval - beta_ * total * pow(rtt_penalty, 2);
 
 		return utility;
 
-		//long double a = 100;
-		//long double thresh = 1.05;
-		//double base = 2;
-		//long double loss_suffered = //(loss - thresh * total) / norm_measurement_interval;
-		//long double penelty = alpha_ * pow(base, a * (loss_rate - thresh));
-		//long double computed_utility = packets_recieved - penelty;
-
-		//cout << "Utility " << computed_utility << ". loss_rate = " << loss_rate << ". Loss = " << loss << ". packets received = " << packets_recieved << ". penelty = " << penelty << endl;
-		//return computed_utility;
 	}
 
 	static const double kMinRateMbps = 0.5;

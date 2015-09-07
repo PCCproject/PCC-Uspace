@@ -31,10 +31,16 @@ protected:
 		double gradient = (search_monitor_utility[0] - search_monitor_utility[1]) / (2 * kDelta);
 		double change = kEpsilon * gradient;
 		double ratio = 1 + change / base_rate_;
-		if (ratio > 1.1) base_rate_ *= 1.1;
-		else if (ratio < 0.9) base_rate_ *= 0.9;
-		else base_rate_ += change;
-		if (base_rate_ < kDelta) base_rate_ = kDelta;
+		if (ratio > 1.02) {
+			base_rate_ *= 1.02;
+		} else if (ratio < 0.98) {
+			base_rate_ *= 0.98;
+		} else {
+			base_rate_ += change;
+		}
+		if (base_rate_ < kDelta) {
+			base_rate_ = kDelta;
+		}
 	}
 
 private:
@@ -59,8 +65,8 @@ private:
 	double down_utility_;
 	size_t consecutive_big_changes_;
 
-	static const double kEpsilon = 0.02;
-	static const double kDelta = 0.5;
+	static const double kEpsilon = 0.04;
+	static const double kDelta = 0.5;//0.7;
 
 };
 
