@@ -22,17 +22,19 @@ protected:
 		guess();
 	}
 	virtual void decide(long double curr_utility) {
-		if (conditions_changed_too_much_){
+		/*if (conditions_changed_too_much_){
 			consecutive_big_changes_++;
 			return;
-		}
+		}*/
 		consecutive_big_changes_ = 0;
 
 		double gradient = (search_monitor_utility[0] - search_monitor_utility[1]) / (2 * kDelta);
 		double change = kEpsilon * gradient;
-		base_rate_ += change;
+		double ratio = 1 + change / base_rate_;
+		if (ratio > 1.1) base_rate_ *= 1.1;
+		else if (ratio < 0.9) base_rate_ *= 0.9;
+		else base_rate_ += change;
 		if (base_rate_ < kDelta) base_rate_ = kDelta;
-		//cout << "base_rate_ " << base_rate_ << endl;
 	}
 
 private:

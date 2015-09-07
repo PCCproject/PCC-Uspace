@@ -69,7 +69,7 @@ public:
 
 		//cout << "utility = " << curr_utility << endl;
 		bool continue_slow_start = (loss == 0) && (curr_utility >= prev_utility_);
-		long double tmp_prev_utility = prev_utility_;
+		//long double tmp_prev_utility = prev_utility_;
 		prev_utility_ = curr_utility;
 		if (continue_slow_start_) no_loss_count_++;
 		else no_loss_count_ = 0;
@@ -134,7 +134,7 @@ protected:
 		if (!latency_mode) {
 			beta_ = 0;
 		} else {
-			beta_ = 0.00052; 
+			beta_ = 0.0007; 
 		}
 	}
 
