@@ -43,7 +43,7 @@ public:
 			search();
             search_monitor_number[search_number] = current_monitor;
             search_number ++;
-            if(search_number == 2) {
+            if(search_number == kHistorySize ) {
 			    search_number = 0;
                 state_ = DECISION;
             }
@@ -92,14 +92,12 @@ public:
 				}
 			}
 		} else if (state_ == DECISION) {
-            if(endMonitor == search_monitor_number[0]) {
-                search_monitor_number[0] = -1;
-                search_monitor_utility[0] = curr_utility;
-            }
-            if(endMonitor == search_monitor_number[1]) {
-                search_monitor_number[1] = -1;
-                search_monitor_utility[1] = curr_utility;
-            }
+			for (int i = 0; i < kHistorySize ; i++) {
+	           if(endMonitor == search_monitor_number[i]) {
+    	           search_monitor_number[i] = -1;
+        	       search_monitor_utility[i] = curr_utility;
+	           }
+			}
 
             if(isAllSearchResultBack()) {
                 decide(curr_utility);
@@ -116,9 +114,10 @@ public:
 	}
 
 protected:
+	static const int kHistorySize = 2 * 10;
 	bool conditions_changed_too_much_;
-    long double search_monitor_utility[2];
-    int search_monitor_number[2];
+    long double search_monitor_utility[kHistorySize ];
+    int search_monitor_number[kHistorySize ];
     int search_number;
 	virtual void search() = 0;
 	virtual void decide(long double utility) = 0;
@@ -134,8 +133,12 @@ protected:
 		if (!latency_mode) {
 			beta_ = 0;
 		} else {
-			beta_ = 0.001; 
+			beta_ = 0.01; 
 		}
+		for (int i = 0; i < kHistorySize; i++) {
+			search_monitor_number[i] = -1;
+		}
+
 	}
 
 	/*
@@ -163,7 +166,10 @@ private:
 	}
 
     double isAllSearchResultBack() {
-        return search_monitor_number[0] == -1 && search_monitor_number[1] == -1;
+		for (int i = 0; i < kHistorySize; i++) {
+			if (search_monitor_number[i] != -1) return false;
+		}
+		return true;
     }
 
 	virtual long double utility(unsigned long total, unsigned long loss, double time, double rtt) {
