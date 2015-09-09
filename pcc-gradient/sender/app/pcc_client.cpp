@@ -11,6 +11,7 @@
 #include <iostream>
 #include <udt.h>
 #include <signal.h>
+#include<iomanip>
 
 #include "GradientDescentPCC.h"
 
@@ -125,6 +126,8 @@ int main(int argc, char* argv[])
       CreateThread(NULL, 0, monitor, &client, 0, NULL);
    #endif
 
+    std::cout << std::fixed;
+    std::cout << std::setprecision(5);
    for (int i = 0; i < 1000000; i ++)
    {
       int ssize = 0;
@@ -183,7 +186,7 @@ DWORD WINAPI monitor(LPVOID s)
          cout << "perfmon: " << UDT::getlasterror().getErrorMessage() << endl;
          break;
       }
-    cout << perf.mbpsSendRate << "\t\t"
+    cout << setprecision(3) << perf.mbpsSendRate << "\t\t"
            << perf.msRTT << "\t"
            <<  perf.pktSentTotal << "\t"
            << perf.pktSndLossTotal << "\t\t\t"

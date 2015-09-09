@@ -52,6 +52,11 @@ protected:
 		}
 	}
 
+	virtual void reduce_rate(double reduce_factor) {
+		PCC::reduce_rate(reduce_factor);
+		base_rate_ *= reduce_factor;
+	}
+
 private:
 	void guess() {
 		if (first_) {
@@ -74,8 +79,8 @@ private:
 	double down_utility_;
 	size_t consecutive_big_changes_;
 
-	static const double kEpsilon = 0.002;
-	static const double kDelta = 0.0125;//0.7;
+	static constexpr double kEpsilon = 0.01;
+	static constexpr double kDelta = 0.7;//0.7;
 
 };
 
