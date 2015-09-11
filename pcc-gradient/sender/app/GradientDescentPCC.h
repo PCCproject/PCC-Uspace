@@ -37,16 +37,9 @@ protected:
 		}
 
 
-		double gradient = (high/10 - low/10) / (2 * kDelta);
+		double gradient = (high/kHistorySize  - low/kHistorySize) / kDelta;
 		double change = kEpsilon * gradient;
-		double ratio = 1 + change / base_rate_;
-		if (ratio > 1.05) {
-			base_rate_ *= 1.05;
-		} else if (ratio < 0.95) {
-			base_rate_ *= 0.95;
-		} else {
-			base_rate_ += change;
-		}
+		base_rate_ += change;
 		if (base_rate_ < kDelta) {
 			base_rate_ = kDelta;
 		}
@@ -79,8 +72,8 @@ private:
 	double down_utility_;
 	size_t consecutive_big_changes_;
 
-	static constexpr double kEpsilon = 0.01;
-	static constexpr double kDelta = 0.7;//0.7;
+	static constexpr double kEpsilon = 0.00001;
+	static constexpr double kDelta = 0.1;//0.7;
 
 };
 

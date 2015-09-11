@@ -40,13 +40,13 @@ public:
 			}
 			monitor_in_start_phase_ = current_monitor;
 			//cout << "Start. STATE = " << state_ << " Monitor = " << monitor_in_start_phase_ << endl;
-			cout << rate() << "," << slow_start_factor_ << "-->" << rate() * slow_start_factor_ << endl;
+			//cout << rate() << "," << slow_start_factor_ << "-->" << rate() * slow_start_factor_ << endl;
 			setRate(rate() * slow_start_factor_);
 		} else if (state_ == SEARCH) {
 			search();
             search_monitor_number[search_number] = current_monitor;
             search_number ++;
-            if(search_number == kHistorySize ) {
+            if(search_number == kHistorySize) {
 			    search_number = 0;
                 state_ = DECISION;
             }
@@ -61,7 +61,7 @@ public:
 		if (previous_rtt_ == 0) previous_rtt_ = rtt;
 
 		rtt_history_.push_back(rtt);
-		if (rtt_history_.size() > 3) {
+		if (rtt_history_.size() > 10) {
 			rtt_history_.erase (rtt_history_.begin());
 		}
 
@@ -122,7 +122,7 @@ public:
 	}
 
 protected:
-	static const int kHistorySize = 2 * 10;
+	static const int kHistorySize = 2 * 1;
 	bool conditions_changed_too_much_;
     long double search_monitor_utility[kHistorySize ];
     int search_monitor_number[kHistorySize ];
@@ -162,9 +162,9 @@ protected:
 	double rate() const { return rate_; }
 
 	virtual void reduce_rate(double reduce_factor) {
-		cout << "saving the day " << rate();
+		//cout << "saving the day " << rate();
 		setRate(reduce_factor * rate());
-		cout << " --> " << rate() << endl;
+		//cout << " --> " << rate() << endl;
 	}
 
 private:
@@ -185,7 +185,7 @@ private:
 
 		long double norm_measurement_interval = time / rtt;
 		long double rtt_penalty = get_rtt(rtt);
-		long double utility = 4.5 * ((long double)total - (long double) (alpha_ * pow(loss, 1.2))) / norm_measurement_interval - beta_ * total * pow(rtt_penalty, 1.05);
+		long double utility = 4.5 * ((long double)total - (long double) (alpha_ * pow(loss, 1.2))) / norm_measurement_interval - beta_ * total * rtt_penalty;
 
 		return utility;
 
@@ -195,7 +195,7 @@ private:
 		while(true) {
 			pthread_mutex_lock(&mutex_);
 			double rtt_estimate = 0;
-			if (rtt_history_.size() >= 3) {
+			if (rtt_history_.size() >= 10) {
 
 				for (vector<double>::iterator it = rtt_history_.begin() ; it != rtt_history_.end(); ++it) {
 					rtt_estimate += *it;
@@ -203,16 +203,15 @@ private:
 				rtt_estimate /= rtt_history_.size();
 				milliseconds now = duration_cast< milliseconds >(system_clock::now().time_since_epoch());
 
-				if ((last_measurement_timestamp_.count() + 5 * rtt_estimate < now.count()) && (state_ != START)) {
+				if ((last_measurement_timestamp_.count() + 4 * rtt_estimate < now.count()) && (state_ != START)) {
 					state_ = SEARCH;
-					search_monitor_number[0] = -1;
-					search_monitor_number[1] = -1;
+					for (int i = 0; i < kHistorySize; i++) search_monitor_number[i] = -1;
 					rtt_history_.clear();
-					reduce_rate(0.95);
+					reduce_rate(0.5);
 				}
 			}
 			pthread_mutex_unlock(&mutex_);
-			usleep(10);
+			usleep(1);
 		}
 	}
 
