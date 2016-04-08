@@ -436,6 +436,9 @@ private: // Generation and processing of packets
    int processData(CUnit* unit);
    int listen(sockaddr* addr, CPacket& packet);
    void add_to_loss_record(int32_t loss1, int32_t loss2);
+   void timeout_monitors();
+   double estimate_rtt_for_timedout_monitors(int monitor);
+   int32_t deadlines[100];
 private: // Trace
    uint64_t m_StartTime;                        // timestamp when the UDT entity is started
    int64_t m_llSentTotal;                       // total number of sent data packets, including retransmissions
