@@ -12,7 +12,7 @@
 #include <udt.h>
 #include <signal.h>
 
-#include "GradientDescentPCC.h"
+#include "eval_pcc.h"
 
 using namespace std;
 
@@ -29,12 +29,7 @@ double base_loss = 0;
 double base_sent = 0;
 unsigned int iteration_count = 0;
 
-GradientDescentPCC* cchandle = NULL;
-
-double PCC::kAlpha(1);
-double PCC::kBeta(1);
-double PCC::kExponent(1);
-bool PCC::kPolyUtility(false);
+EvalPCC* cchandle = NULL;
 
 void intHandler(int dummy) {
 	if (iteration_count  > 0) {
@@ -50,23 +45,13 @@ void intHandler(int dummy) {
 
 int main(int argc, char* argv[])
 {
-   if ((argc < 3) || (0 == atoi(argv[2])))
+   if ((3 != argc) || (0 == atoi(argv[2])))
    {
-      cout << "usage: " << argv[0] << " server_ip server_port [alpha = 4] [beta = 55] [exponent = 1.5] [poly_utility = 1]" << endl;
+      cout << "usage: appclient server_ip server_port" << endl;
       return 0;
    }
 	signal(SIGINT, intHandler);
 
-	double alpha = 10;
-	double beta = 55;
-	double exponent = 2;
-	bool use_poly = true;
-
-	if (argc > 3) alpha = atof(argv[3]);
-	if (argc > 4) beta = atof(argv[4]);
-	if (argc > 5) exponent = atof(argv[5]);
-	if (argc > 6) use_poly = (0 == strcmp("1", argv[6])); 
-	GradientDescentPCC::set_utility_params(alpha, beta, exponent, use_poly);
 //sleep(1500);
    // use this function to initialize the UDT library
    UDT::startup();
@@ -89,7 +74,7 @@ int main(int argc, char* argv[])
    UDTSOCKET client = UDT::socket(local->ai_family, local->ai_socktype, local->ai_protocol);
 
    // UDT Options
-   UDT::setsockopt(client, 0, UDT_CC, new CCCFactory<GradientDescentPCC>, sizeof(CCCFactory<GradientDescentPCC>));
+   UDT::setsockopt(client, 0, UDT_CC, new CCCFactory<EvalPCC>, sizeof(CCCFactory<EvalPCC>));
    //UDT::setsockopt(client, 0, UDT_MSS, new int(9000), sizeof(int));
    //UDT::setsockopt(client, 0, UDT_SNDBUF, new int(10000000), sizeof(int));
    //UDT::setsockopt(client, 0, UDP_SNDBUF, new int(10000000), sizeof(int));
@@ -179,7 +164,7 @@ DWORD WINAPI monitor(LPVOID s)
 
    UDT::TRACEINFO perf;
 
-   cout << "SendRate(Mb/s)\tRTT(ms)\tCTotal\tLoss\tRecvACK\tRecvNAK" << endl;
+   cout << "SendRate(Mb/s)\t,RTT(ms)\t,CTotal\t,Loss\t,RecvACK\t,RecvNAK" << endl;
    int i=0;
    while (true)
    {
@@ -198,11 +183,11 @@ DWORD WINAPI monitor(LPVOID s)
          cout << "perfmon: " << UDT::getlasterror().getErrorMessage() << endl;
          break;
       }
-    cout << perf.mbpsSendRate << "\t\t"
-           << perf.msRTT << "\t"
-           <<  perf.pktSentTotal << "\t"
-           << perf.pktSndLossTotal << "\t\t\t"
-           << perf.pktRecvACKTotal << "\t"
+    cout << perf.mbpsSendRate << "\t\t,"
+           << perf.msRTT << "\t,"
+           <<  perf.pktSentTotal << "\t,"
+           << perf.pktSndLossTotal << "\t\t\t,"
+           << perf.pktRecvACKTotal << "\t,"
            << perf.pktRecvNAKTotal << endl;
 	if (perf.pktSentTotal == 0) {
 		avg_loss_rate = 0;

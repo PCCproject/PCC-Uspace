@@ -5,7 +5,7 @@
 
 using namespace std;
 
-class ExponentiatedWeightsPCC : public PCC {
+class ExponentiatedWeightsPCC: public PCC {
 public:
 	ExponentiatedWeightsPCC() : selection_ (0), is_first_(true), previous_utility_(0), count_(0) {
 		for (int i = 0; i < kNumStrategies; i++) {

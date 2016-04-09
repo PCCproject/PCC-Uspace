@@ -3,6 +3,9 @@
    #include <cstdlib>
    #include <cstring>
    #include <netdb.h>
+   #include <time.h>
+   #include <math.h>
+
 #else
    #include <winsock2.h>
    #include <ws2tcpip.h>
@@ -10,51 +13,57 @@
 #endif
 #include <iostream>
 #include <udt.h>
-#include <signal.h>
-
-#include "GradientDescentPCC.h"
+#include "cc_incast.h"
+#include <sys/time.h>
 
 using namespace std;
-
+int windowsize;
+char argv1[50],argv2[50];
+int Interval_avg;
+int tt;
+int trap;
+int safe;
 #ifndef WIN32
 void* monitor(void*);
+void* worker(void*);
 #else
 DWORD WINAPI monitor(LPVOID);
 #endif
-
-double base_loss = 0;
-double base_sent = 0;
-double avg_loss_rate = 0;
-double rate_sum = 0;
-double rtt_sum = 0;
-unsigned int iteration_count = 0;
-
-GradientDescentPCC* cchandle = NULL;
-
-void intHandler(int dummy) {
-	if (iteration_count  > 0) {
-		cout << "Avg. rate: " <<  rate_sum / iteration_count << " loss rate = " << avg_loss_rate << " avg. RTT = " << rtt_sum / iteration_count;
-		if (cchandle != NULL) {
-			cout<< " average utility = " << cchandle->avg_utility();
-		}
-		cout << endl;
-	}
-	exit(0);
-}
-
-
+int count=0;
+double avg_fluc;
+struct timeval current;
+int start_s, start_us;
+int data_length;
 int main(int argc, char* argv[])
 {
-   if ((3 != argc) || (0 == atoi(argv[2])))
-   {
-      cout << "usage: appclient server_ip server_port" << endl;
-      return 0;
-   }
-	signal(SIGINT, intHandler);
-
-//sleep(1500);
+   //sendinginterval=0;
+   start_s = atoi(argv[4]);
+   start_us = atoi(argv[5]);
+   pthread_t t;
+   tt=0;
+   Interval_avg=50;
+   avg_fluc=0.25;
+strcpy(argv1,argv[1]);
+strcpy(argv2,argv[2]);
+data_length = atoi(argv[3]);
    // use this function to initialize the UDT library
-   UDT::startup();
+int i=0;
+while(i<1){
+  i++;
+  pthread_create(&t, NULL, worker, NULL);
+  pthread_join(t,NULL);
+
+}
+   return 1;
+}
+void * worker(void * s)
+{
+cout<<endl;
+srand((unsigned)time(NULL));
+windowsize=data_length;//rand()%900+100;
+
+
+UDT::startup();
 
    struct addrinfo hints, *local, *peer;
 
@@ -74,7 +83,7 @@ int main(int argc, char* argv[])
    UDTSOCKET client = UDT::socket(local->ai_family, local->ai_socktype, local->ai_protocol);
 
    // UDT Options
-   UDT::setsockopt(client, 0, UDT_CC, new CCCFactory<GradientDescentPCC>, sizeof(CCCFactory<GradientDescentPCC>));
+   UDT::setsockopt(client, 0, UDT_CC, new CCCFactory<BBCC>, sizeof(CCCFactory<BBCC>));
    //UDT::setsockopt(client, 0, UDT_MSS, new int(9000), sizeof(int));
    //UDT::setsockopt(client, 0, UDT_SNDBUF, new int(10000000), sizeof(int));
    //UDT::setsockopt(client, 0, UDP_SNDBUF, new int(10000000), sizeof(int));
@@ -85,6 +94,7 @@ int main(int argc, char* argv[])
       UDT::setsockopt(client, 0, UDT_MSS, new int(1052), sizeof(int));
    #endif
 
+   // for rendezvous connection, enable the code below
    /*
    UDT::setsockopt(client, 0, UDT_RENDEZVOUS, new bool(true), sizeof(bool));
    if (UDT::ERROR == UDT::bind(client, local->ai_addr, local->ai_addrlen))
@@ -96,11 +106,12 @@ int main(int argc, char* argv[])
 
    freeaddrinfo(local);
 
-   if (0 != getaddrinfo(argv[1], argv[2], &hints, &peer))
+   if (0 != getaddrinfo(argv1, argv2, &hints, &peer))
    {
-      cout << "incorrect server/peer address. " << argv[1] << ":" << argv[2] << endl;
+      cout << "incorrect server/peer address. " << argv1 << ":" << argv2 << endl;
       return 0;
    }
+
 
    // connect to the server, implict bind
    if (UDT::ERROR == UDT::connect(client, peer->ai_addr, peer->ai_addrlen))
@@ -108,52 +119,96 @@ int main(int argc, char* argv[])
       cout << "connect: " << UDT::getlasterror().getErrorMessage() << endl;
       return 0;
    }
+
+;
    freeaddrinfo(peer);
 
    // using CC method
+   BBCC* cchandle = NULL;
    int temp;
    UDT::getsockopt(client, 0, UDT_CC, &cchandle, &temp);
-//   if (NULL != cchandle)
-//      cchandle->setRate(1);
+ //   if (NULL != cchandle)
+ //     cout<<"notNULL!"<<endl;
+ //   cchandle->setRate(5);
+//cchandle->m_dCWndSize=windowsize+100;
+//cout<<cchandle->m_dCWndSize<<endl;
 
-   int size = 100000;
-   char* data = new char[size];
+
+//cout<<"k"<<cchandle->m_dCWndSize<<endl;
+   int usize = 1456;
+   int size=0;
+
+
+
+
+
+	   size=usize*windowsize;
+   //cout<<"size"<<size<<endl;
+char* data = new char[size];
 
    #ifndef WIN32
-      pthread_create(new pthread_t, NULL, monitor, &client);
+
+  // count++;
+//cout<<count<<endl;
    #else
       CreateThread(NULL, 0, monitor, &client, 0, NULL);
    #endif
 
-   for (int i = 0; i < 1000000; i ++)
-   {
+
+
+
+
       int ssize = 0;
-      int ss;
-      while (ssize < size)
-      {
+      int ss=0;
+	do {
+		gettimeofday(&current, NULL);
+		if (current.tv_sec>=start_s+2 && current.tv_usec>=start_us)
+			break;
+	} while(1);
+
+//	cout<<start.tv_sec<<"."<<start.tv_usec<<endl;
+	cout<<"Start time "<<current.tv_sec<<"."<<current.tv_usec<<endl;
          if (UDT::ERROR == (ss = UDT::send(client, data + ssize, size - ssize, 0)))
          {
             cout << "send:" << UDT::getlasterror().getErrorMessage() << endl;
-            break;
-         }
+  //break;
 
-         ssize += ss;
-      }
+       }
+//cout<<ss<<endl;
+sleep(5);
+//cout<<cchandle->count2<<endl;
 
-      if (ssize < size)
-         break;
-   }
+//cout<<cchandle->m_dCWndSize<<endl;
+//cout<<"YES!!"<<cchandle->haslost<<endl;
+/*if(cchandle->haslost)
+  {cchandle->haslost=0; windowsize-=4;}
+if(cchandle->hasloss)
+{cchandle->hasloss=0;
+  windowsize-=7;
 
-   UDT::close(client);
+}
+  windowsize+=2;
+
+   if(ss==size)
+   //   cout<<"FINISH!"<<endl;
+
+
+
+*/
+//cout<<windowsize<<endl;
+  //sleep(5);
 
    delete [] data;
 
+
+
+UDT::close(client);
    // use this function to release the UDT library
    UDT::cleanup();
-
-   return 1;
+//cout<<"TIME,"<<time<<endl;
+sleep(3);
+return NULL;
 }
-
 #ifndef WIN32
 void* monitor(void* s)
 #else
@@ -164,45 +219,25 @@ DWORD WINAPI monitor(LPVOID s)
 
    UDT::TRACEINFO perf;
 
-   cout << "SendRate(Mb/s)\tRTT(ms)\tCTotal\tLoss\tRecvACK\tRecvNAK" << endl;
-   int i=0;
+   cout << "SendRate(Mb/s)\tRTT(ms)\tCWnd\tPktSndPeriod(us)\tRecvACK\tLoss" << endl;
+
    while (true)
    {
       #ifndef WIN32
-         usleep(1000000);
+	   sleep(100);
       #else
-         Sleep(1000);
+         Sleep(100);
       #endif
-    i++;
-    if(i>10000)
-        {
-        exit(1); 
-        }
+
       if (UDT::ERROR == UDT::perfmon(u, &perf))
       {
          cout << "perfmon: " << UDT::getlasterror().getErrorMessage() << endl;
          break;
       }
-    cout << perf.mbpsSendRate << "\t\t"
-           << perf.msRTT << "\t"
-           <<  perf.pktSentTotal << "\t"
-           << perf.pktSndLossTotal << "\t\t\t"
-           << perf.pktRecvACKTotal << "\t"
-           << perf.pktRecvNAKTotal << endl;
-	if (perf.pktSentTotal == 0) {
-		avg_loss_rate = 0;
-	} else {
-		avg_loss_rate = (1.0 * perf.pktSndLossTotal - base_loss) / (1.0 * perf.pktSentTotal - base_sent);
-	}
-	
-	if (i == 10) {
-		base_loss = 1.0 * perf.pktSndLossTotal;
-		base_sent = 1.0 * perf.pktSentTotal;
-	} else if (i > 10) {
-		rate_sum += perf.mbpsSendRate;
-		rtt_sum += perf.msRTT;
-		iteration_count++;		
-	}
+
+      cout
+           << perf.pktCongestionWindow
+           << endl;
    }
 
    #ifndef WIN32
@@ -211,4 +246,3 @@ DWORD WINAPI monitor(LPVOID s)
       return 0;
    #endif
 }
-
