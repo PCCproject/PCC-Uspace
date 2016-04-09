@@ -2379,6 +2379,7 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 	case 32767: //0x7FFF - reserved and user defined messages
 	{
 		//m_pCC->processCustomMsg(&ctrlpkt);
+		int32_t current_time;
 		int32_t* tsn_payload = (int32_t *)(ctrlpkt.m_pcData);
 		int last_position = (int)(ctrlpkt.getLength() / 4)-1;
 		int Mon = tsn_payload[last_position]>>16;
@@ -2401,11 +2402,10 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 			left[monitorNo]++;
 			//cout<<monitorNo<<' '<<SeqNoInMonitor<<endl;
 			recv_ack[monitorNo][SeqNoInMonitor] = true;
-			//current_time = CTimer::getTime();
+			current_time = CTimer::getTime();
 			//pkt_sending[monitorNo][SeqNoInMonitor] = ctrlpkt.m_iTimeStamp;
 			//cout<<pkt_sending[monitorNo][SeqNoInMonitor]<<endl;
-			timeout_monitors();
-			/*
+			
 			if (left_monitor) {
 
 				// find out the monitor which didn't end
@@ -2442,7 +2442,6 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 					tmp = (tmp+99)%100;
 				}
 			}
-			*/
 		}
 		
 		//cout<<()<<' '<<()<<endl;
@@ -3024,8 +3023,9 @@ void CUDT::start_monitor(int length)
 	//if(m_iRTT*(1.2)/m_pCC->m_dPktSndPeriod>10) length = m_iRTT*(0.5 + rand_factor)/m_pCC->m_dPktSndPeriod;
 	static int monitor_count = 0;
 	if (monitor_count > 2) {
-		deadlines[current_monitor] = CTimer::getTime() + m_iRTT*(2);
-		cout << "monitor " << current_monitor << ", deadline is in " << m_iRTT*(2) << endl;
+		int x = m_iRTT*(2)/1000;
+		deadlines[current_monitor] = time(NULL) + x;
+		cout << "monitor " << current_monitor << ", deadline is " << deadlines[current_monitor] << " --> " << time(NULL) << ", " << x << endl;
 	} else {
 		deadlines[current_monitor] = 1000000000;
 	}
@@ -3045,6 +3045,7 @@ void CUDT::start_monitor(int length)
 	//	if (monitor_ttl>0)
 	//		end_monitor(false);
 	monitor_ttl = length;
+	cout << "sending " << monitor_ttl << endl;
 	left[current_monitor]=0;
     rtt_count[current_monitor]=0;
     rtt_value[current_monitor]=0;
@@ -3069,7 +3070,8 @@ void CUDT::start_monitor(int length)
 
 
 void CUDT::timeout_monitors() {
-	int32_t current_time = CTimer::getTime();
+	int32_t current_time = time(NULL);
+	cout <<"timeout called " << time(NULL) << endl;
 	for (int tmp = 0; tmp < 100; tmp++) {
 		if (((state[tmp]==1) || (state[tmp]==2)) && (deadlines[tmp] < current_time)) {
 			int count=0;
@@ -3086,6 +3088,7 @@ void CUDT::timeout_monitors() {
 			left_monitor--;
 			m_pCC->onMonitorEnds(total[tmp],total[tmp]-left[tmp],(end_transmission_time[tmp]-start_time[tmp])/1000000,current_monitor,tmp, estimate_rtt_for_timedout_monitors(tmp));
 			m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
+			start_monitor(10000);
 		}
 	}
 }
