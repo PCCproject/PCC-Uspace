@@ -3023,9 +3023,9 @@ void CUDT::start_monitor(int length)
 	//if(m_iRTT*(1.2)/m_pCC->m_dPktSndPeriod>10) length = m_iRTT*(0.5 + rand_factor)/m_pCC->m_dPktSndPeriod;
 	static int monitor_count = 0;
 	if (monitor_count > 2) {
-		int x = m_iRTT*(2)/1000;
-		deadlines[current_monitor] = time(NULL) + x;
-		cout << "monitor " << current_monitor << ", deadline is " << deadlines[current_monitor] << " --> " << time(NULL) << ", " << x << endl;
+		uint64_t x = m_iRTT*(4);
+		deadlines[current_monitor] = CTimer::getTime() + x;
+		cout << "monitor " << current_monitor << ", deadline is " << deadlines[current_monitor] << " --> " << x << endl;
 	} else {
 		deadlines[current_monitor] = 1000000000;
 	}
@@ -3045,7 +3045,6 @@ void CUDT::start_monitor(int length)
 	//	if (monitor_ttl>0)
 	//		end_monitor(false);
 	monitor_ttl = length;
-	cout << "sending " << monitor_ttl << endl;
 	left[current_monitor]=0;
     rtt_count[current_monitor]=0;
     rtt_value[current_monitor]=0;
@@ -3070,12 +3069,12 @@ void CUDT::start_monitor(int length)
 
 
 void CUDT::timeout_monitors() {
-	int32_t current_time = time(NULL);
-	cout <<"timeout called " << time(NULL) << endl;
+	uint64_t current_time = CTimer::getTime();
 	for (int tmp = 0; tmp < 100; tmp++) {
-		if (((state[tmp]==1) || (state[tmp]==2)) && (deadlines[tmp] < current_time)) {
+		if (((state[tmp]==1) || (state[tmp]==2))) {
+                    if(deadlines[tmp] < current_time){
 			int count=0;
-			cout << "killing monitor " << tmp << endl;
+                    cout<<"killing "<<tmp<<"\t"<<deadlines[tmp]<<"\t"<<current_time<<endl;
 			for(int i=0;i<total[tmp];i++){
 				if(recv_ack[tmp][i]){
 					count++;
@@ -3088,7 +3087,8 @@ void CUDT::timeout_monitors() {
 			left_monitor--;
 			m_pCC->onMonitorEnds(total[tmp],total[tmp]-left[tmp],(end_transmission_time[tmp]-start_time[tmp])/1000000,current_monitor,tmp, estimate_rtt_for_timedout_monitors(tmp));
 			m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
-		}
+		     }
+              }
 	}
 }
 
