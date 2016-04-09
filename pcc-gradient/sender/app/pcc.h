@@ -58,8 +58,13 @@ public:
 				start_measurment_map_.insert(pair<int,Measurement*>(current_monitor, new Measurement(base_rate_)));
 				current_start_monitor_ = current_monitor;
 			} else {
-				end_measurment_map_.insert(pair<int,Measurement*>(current_monitor, new Measurement(base_rate_,current_start_monitor_)));
-				start_measurment_map_.at(current_start_monitor_)->other_monitor_ = current_monitor;
+				if (start_measurment_map_.find(current_start_monitor_) != start_measurment_map_.end()) {
+					end_measurment_map_.insert(pair<int,Measurement*>(current_monitor, new Measurement(base_rate_,current_start_monitor_)));
+					start_measurment_map_.at(current_start_monitor_)->other_monitor_ = current_monitor;
+				} else {
+					start_measurment_map_.clear();
+					end_measurment_map_.clear();
+				}
 			}
 			search();
 			start_measurement_ = !start_measurement_;
@@ -205,12 +210,12 @@ protected:
 
 	virtual void search() = 0;
 	virtual void decide(long double start_utility, long double end_utility, long double base_rate, bool condition_change) = 0;
-
+	
 	void restart() {
 		cout <<"restart!"<<endl;
 		continue_slow_start_ = true;
 		start_measurement_ = true;
-		slow_start_factor_ = 1.05;
+		slow_start_factor_ = 1.03;
 		start_measurment_map_.clear();
 		end_measurment_map_.clear();
 		state_ = START;
@@ -269,7 +274,7 @@ private:
 		if (poly_utlity_) {
 		 	utility = ((long double)total - total * (long double) (alpha_* (pow((1+((long double)((double) loss/(double) total))), exponent_)-1))) / norm_measurement_interval - beta_ * total * pow(rtt_penalty, 1.02);
 		} else {
-			utility = (total - loss - (long double) (alpha_ * pow(2, loss))) / norm_measurement_interval - 10 * total * pow(1000 * rtt, 1.15);
+			utility = (total - loss - (long double) (alpha_ * pow(2.3, loss))) / norm_measurement_interval - 10 * total * pow(1000 * rtt, 1.15);
 			//((long double)total - total * (long double) (alpha_ * pow(exponent_, 1 + ((long double)((double) loss/(double) total))))) / norm_measurement_interval - beta_ * total * pow(rtt_penalty, 1.02);
 		}
 		/*if (loss > 0) {
