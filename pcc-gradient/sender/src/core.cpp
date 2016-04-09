@@ -134,7 +134,7 @@ CUDT::CUDT()
 	m_bBroken = false;
 	m_bPeerHealth = true;
 	m_ullLingerExpiration = 0;
-	
+
 	for (int i = 0; i < 100; i++) state[i] = 0;
 }
 
@@ -189,7 +189,7 @@ CUDT::CUDT(const CUDT& ancestor)
 	m_bBroken = false;
 	m_bPeerHealth = true;
 	m_ullLingerExpiration = 0;
-	
+
 	for (int i = 0; i < 100; i++) state[i] = 0;
 }
 
@@ -2014,7 +2014,7 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 	CTimer::rdtsc(currtime);
 	m_ullLastRspTime = currtime;
 
-	//int32_t current_time, 
+	//int32_t current_time,
 	int32_t SeqNoInMonitor;
 	int monitorNo;
 
@@ -2392,7 +2392,7 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 			latency_time_end[Mon] = ctrlpkt.m_iTimeStamp;
 			latency_seq_end[Mon] = tsn_payload[last_position] & 0xFFFF;
 		}
-		
+
 		for (int i = 0, n = (int)(ctrlpkt.getLength() / 4); i < n; ++ i) {
 			monitorNo = tsn_payload[i] >> 16;
 			SeqNoInMonitor = tsn_payload[i] & 0xFFFF;
@@ -2405,7 +2405,7 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 			current_time = CTimer::getTime();
 			//pkt_sending[monitorNo][SeqNoInMonitor] = ctrlpkt.m_iTimeStamp;
 			//cout<<pkt_sending[monitorNo][SeqNoInMonitor]<<endl;
-			
+
 			if (left_monitor) {
 
 				// find out the monitor which didn't end
@@ -2443,7 +2443,7 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 				}
 			}
 		}
-		
+
 		//cout<<()<<' '<<()<<endl;
 		//cout<<tmp<<endl;
 		// update CC parameters
@@ -2464,6 +2464,7 @@ int CUDT::packData(CPacket& packet, uint64_t& ts)
 	bool probe = false;
 	uint64_t entertime;
 	CTimer::rdtsc(entertime);
+	timeout_monitors();
 	if ((0 != m_ullTargetTime) && (entertime > m_ullTargetTime))
 		m_ullTimeDiff += entertime - m_ullTargetTime;
 	// Loss retransmission always has higher priority.
@@ -2512,7 +2513,6 @@ int CUDT::packData(CPacket& packet, uint64_t& ts)
 			//left[current_monitor]++;
 			retransmission[current_monitor]++;
 			monitor_ttl--;
-			timeout_monitors();
 			//pkt_sending[current_monitor][m_iMonitorCurrSeqNo] = CTimer::getTime();
 			if (test==1){
 				//			cout<<"this is a retransmission for seq. No. "<<packet.m_iSeqNo<<endl;
@@ -3011,10 +3011,10 @@ void CUDT::start_monitor(int length)
 	m_iMonitorCurrSeqNo=0;
 	previous_monitor = current_monitor;
 	current_monitor = (current_monitor+1)%100;
-	
+
 	//int tmp = (current_monitor + 96) % 100;
 	//int count = 0;
-	
+
 	//ygi: hack here!
 	m_pCC->onMonitorStart(current_monitor);
 	m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
@@ -3030,7 +3030,7 @@ void CUDT::start_monitor(int length)
 		deadlines[current_monitor] = 1000000000;
 	}
 	monitor_count++;
-	
+
 	double rand_factor = (rand() %10) / 100.;
 	if(m_iRTT*(1.2)/m_pCC->m_dPktSndPeriod>10) length = m_iRTT*(0.5 + rand_factor)/m_pCC->m_dPktSndPeriod;
 	else length=(10>(5000/m_pCC->m_dPktSndPeriod))?10:(5000/m_pCC->m_dPktSndPeriod);
@@ -3088,7 +3088,6 @@ void CUDT::timeout_monitors() {
 			left_monitor--;
 			m_pCC->onMonitorEnds(total[tmp],total[tmp]-left[tmp],(end_transmission_time[tmp]-start_time[tmp])/1000000,current_monitor,tmp, estimate_rtt_for_timedout_monitors(tmp));
 			m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
-			start_monitor(10000);
 		}
 	}
 }
