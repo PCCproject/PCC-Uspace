@@ -3023,7 +3023,7 @@ void CUDT::start_monitor(int length)
 	//if(m_iRTT*(1.2)/m_pCC->m_dPktSndPeriod>10) length = m_iRTT*(0.5 + rand_factor)/m_pCC->m_dPktSndPeriod;
 	static int monitor_count = 0;
 	if (monitor_count > 1) {
-		deadlines[current_monitor] = CTimer::getTime() + m_iRTT*(3);
+		deadlines[current_monitor] = CTimer::getTime() + m_iRTT*(5);
 		//cout << "monitor " << current_monitor << ", deadline is " << deadlines[current_monitor] << " --> " << x << endl;
 	} else {
 		deadlines[current_monitor] = CTimer::getTime() + 1000000000;
@@ -3038,6 +3038,7 @@ void CUDT::start_monitor(int length)
 // length = 10;
 // #endif
 	// add the transmition time
+	if (length > 100) length = 100;
 	deadlines[current_monitor] += length * m_pCC->m_dPktSndPeriod;
 	state[current_monitor] = 1;
 	latency[current_monitor]=0;
@@ -3071,25 +3072,26 @@ void CUDT::start_monitor(int length)
 
 void CUDT::timeout_monitors() {
 	uint64_t current_time = CTimer::getTime();
-	for (int tmp = 0; tmp < 100; tmp++) {
-		if (((state[tmp]==1) || (state[tmp]==2))) {
-                    if(deadlines[tmp] < current_time){
-			int count=0;
-                    cout<<"killing "<<tmp<<endl;
-			for(int i=0;i<total[tmp];i++){
-				if(recv_ack[tmp][i]){
-					count++;
+	for (int mon_index = 0; mon_index < 100; mon_index++) {
+		int tmp = (mon_index + current_monitor + 1) % 100;
+		if ((state[tmp]==1) || (state[tmp]==2)) {
+			if(deadlines[tmp] < current_time){
+				int count=0;
+				cout<<"killing "<<tmp<<endl;
+				for(int i=0;i<total[tmp];i++){
+					if(recv_ack[tmp][i]){
+						count++;
+					}
 				}
+				if(count>0) latency[tmp] /= count;
+				state[tmp] = 3;
+				lost[tmp]=total[tmp]-left[tmp];
+				end_time[tmp] = current_time;
+				left_monitor--;
+				m_pCC->onMonitorEnds(total[tmp],total[tmp]-left[tmp],(end_transmission_time[tmp]-start_time[tmp])/1000000,current_monitor,tmp, estimate_rtt_for_timedout_monitors(tmp));
+				m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
 			}
-			if(count>0) latency[tmp] /= count;
-			state[tmp] = 3;
-			lost[tmp]=total[tmp]-left[tmp];
-			end_time[tmp] = current_time;
-			left_monitor--;
-			m_pCC->onMonitorEnds(total[tmp],total[tmp]-left[tmp],(end_transmission_time[tmp]-start_time[tmp])/1000000,current_monitor,tmp, estimate_rtt_for_timedout_monitors(tmp));
-			m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
-		     }
-              }
+		}
 	}
 }
 
