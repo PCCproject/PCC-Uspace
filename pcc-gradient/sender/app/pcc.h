@@ -206,7 +206,7 @@ protected:
     int search_monitor_number[2];
     bool start_measurement_;
 	double base_rate_;
-	static const double kMinRateMbps = 0.01;
+	static constexpr double kMinRateMbps = 0.01;
 
 	virtual void search() = 0;
 	virtual void decide(long double start_utility, long double end_utility, long double base_rate, bool condition_change) = 0;
@@ -285,14 +285,14 @@ private:
 		return utility;
 	}
 
-	static const long kMillisecondsDigit = 10 * 1000;
+	static constexpr long kMillisecondsDigit = 10 * 1000;
 
 	enum ConnectionState {
 		START,
 		HOLD,
 		SEARCH
 	} state_;
-	static const int kInitHoldCount = 2;
+	static constexpr int kInitHoldCount = 2;
 	int hold_count_;
 	
 	int monitor_in_start_phase_;
