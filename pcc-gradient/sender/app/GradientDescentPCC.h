@@ -93,7 +93,7 @@ private:
 	int curr_;
 	double prev_gradiants_[100];
 
-	static const int kRobustness = 3;
+	static constexpr int kRobustness = 3;
 	static constexpr double kEpsilon = 0.075;
 	static constexpr double kDelta = 1;
 

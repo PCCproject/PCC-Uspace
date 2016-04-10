@@ -9,7 +9,6 @@
 #include<cmath>
 #include <deque>
 #include <time.h>
-#include <pthread.h>
 #include <map>
 
 using namespace std;
@@ -41,10 +40,8 @@ public:
 	virtual void onACK(const int& ack){}
 
 	virtual void onMonitorStart(int current_monitor) {
-		pthread_mutex_lock(&mutex_);
 		if (state_ == START) {
 			if (monitor_in_start_phase_ != -1) {
-				pthread_mutex_unlock(&mutex_);
 				return;
 			}
 			monitor_in_start_phase_ = current_monitor;
@@ -69,11 +66,18 @@ public:
 			search();
 			start_measurement_ = !start_measurement_;
 		}
-		pthread_mutex_unlock(&mutex_);
 	}
 
 	virtual void onMonitorEnds(unsigned long total, unsigned long loss, double in_time, int current, int endMonitor, double rtt) {
-		pthread_mutex_lock(&mutex_);
+		/*
+		if (rtt == -1) {
+			start_measurment_map_.clear();
+			end_measurment_map_.clear();
+			setrate(total/(timeout - 0.5 * m_iRTT))
+			return;
+		}
+		*/
+		
 		rtt /= (1000 * 1000);
 		if (rtt == 0) rtt = 0.0001;
 
@@ -186,7 +190,6 @@ public:
 				}
             }
 		}
-		pthread_mutex_unlock(&mutex_);
 	}
 
 	static void set_utility_params(double alpha = 4, double beta = 54, double exponent = 1.5, bool polyUtility = true) {
@@ -283,14 +286,14 @@ private:
 		return utility;
 	}
 
-	static const long kMillisecondsDigit = 10 * 1000;
+	static constexpr long kMillisecondsDigit = 10 * 1000;
 
 	enum ConnectionState {
 		START,
 		HOLD,
 		SEARCH
 	} state_;
-	static const int kInitHoldCount = 2;
+	static constexpr int kInitHoldCount = 2;
 	int hold_count_;
 	
 	int monitor_in_start_phase_;
@@ -301,7 +304,6 @@ private:
 	bool poly_utlity_;
 	double rate_;
 	int monitor_in_prog_;
-	pthread_mutex_t mutex_;
 	long double utility_sum_;
 	size_t measurement_intervals_;
 	long double prev_utility_;
