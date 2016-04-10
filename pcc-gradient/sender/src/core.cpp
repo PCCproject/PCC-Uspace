@@ -3088,6 +3088,7 @@ void CUDT::timeout_monitors() {
 				lost[tmp]=total[tmp]-left[tmp];
 				end_time[tmp] = current_time;
 				left_monitor--;
+				m_pCC->onTimeout();
 				m_pCC->onMonitorEnds(total[tmp],total[tmp]-left[tmp],(end_transmission_time[tmp]-start_time[tmp])/1000000,current_monitor,tmp, estimate_rtt_for_timedout_monitors(tmp));
 				m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
 			}
@@ -3096,5 +3097,5 @@ void CUDT::timeout_monitors() {
 }
 
 double CUDT::estimate_rtt_for_timedout_monitors(int) {
-	return -1;
+	return m_iRTT;
 }
