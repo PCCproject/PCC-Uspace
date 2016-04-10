@@ -3096,5 +3096,5 @@ void CUDT::timeout_monitors() {
 }
 
 double CUDT::estimate_rtt_for_timedout_monitors(int) {
-	return 100;
+	return -1;
 }
