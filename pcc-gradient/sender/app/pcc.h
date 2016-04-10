@@ -105,6 +105,7 @@ public:
 						//cout << "slow_start_factor_ = " << slow_start_factor_ << endl; 
 						hold_count_ = kInitHoldCount;
 						if (slow_start_factor_ < 1) {
+							cout << "Slow start done, rate = " << rate() << endl;
 							state_ = SEARCH;
 						}
 					} else {
@@ -211,6 +212,7 @@ protected:
 	virtual void decide(long double start_utility, long double end_utility, long double base_rate, bool condition_change) = 0;
 	
 	void restart() {
+		cout <<"restart!"<<endl;
 		continue_slow_start_ = true;
 		start_measurement_ = true;
 		slow_start_factor_ = 1.03;
