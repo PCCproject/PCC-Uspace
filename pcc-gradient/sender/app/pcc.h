@@ -36,7 +36,7 @@ public:
 	}
 
 	virtual void onLoss(const int32_t*, const int&) {}
-	virtual void onTimeout(){}
+	virtual void onTimeout(){ cout << "timeout!" <<endl;}
 	virtual void onACK(const int& ack){}
 
 	virtual void onMonitorStart(int current_monitor) {
@@ -241,7 +241,11 @@ protected:
 	}
 
 	virtual void setRate(double mbps) {
-		if (mbps < kMinRateMbps) { mbps = kMinRateMbps; };
+		cout << "set rate: " << rate_ << " --> " << mbps << endl;
+		if (mbps < kMinRateMbps) { 
+			cout << "rate is mimimal, changing to " << kMinRateMbps << " instead" << endl;
+			mbps = kMinRateMbps; 
+		};
 		rate_ = mbps;
 		m_dPktSndPeriod = (m_iMSS * 8.0) / mbps;
 	}

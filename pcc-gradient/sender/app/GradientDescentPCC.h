@@ -55,7 +55,7 @@ private:
 			sum += prev_gradiants_[base % 100];
 			//cout << "gradient " << prev_gradiants_[base % 100] << " ";
 		}
-		//cout <<"--> " << sum / 2 << endl;
+		cout <<"Gradient = " << kEpsilon * sum / kRobustness << endl;
 		return sum / kRobustness;
 	}
 	void guess() {
