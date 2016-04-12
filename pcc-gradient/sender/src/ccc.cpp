@@ -299,7 +299,7 @@ void CUDTCC::onLoss(const int32_t* losslist, const int&)
    }
 }
 
-void CUDTCC::onTimeout()
+void CUDTCC::onTimeout(int)
 {
    if (m_bSlowStart)
    {
