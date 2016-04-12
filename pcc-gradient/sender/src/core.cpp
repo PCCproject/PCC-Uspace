@@ -3025,7 +3025,7 @@ void CUDT::start_monitor(int length)
     //double rand_factor = double(rand()%10)/100.0;
 	//if(m_iRTT*(1.2)/m_pCC->m_dPktSndPeriod>10) length = m_iRTT*(0.5 + rand_factor)/m_pCC->m_dPktSndPeriod;
 	if (m_monitor_count > 20) {
-		allocated_times_[current_monitor] = 1.3 * m_last_rtt;
+		allocated_times_[current_monitor] = 1.5 * m_last_rtt;
 		
 		//cout << "monitor " << current_monitor << ", deadline is " << deadlines[current_monitor] << " --> " << x << endl;
 	} else {
