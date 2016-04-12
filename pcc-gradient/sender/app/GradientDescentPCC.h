@@ -21,7 +21,7 @@ protected:
 		
 		consecutive_big_changes_ = 0;
 
-		double gradient = (start_utility - end_utility) / (2 * kDelta);
+		double gradient = -(start_utility - end_utility) / (2 * kDelta);
 		prev_gradiants_[curr_] = gradient;
 		if (gradient * prev_gradiants_[(curr_ + 99) % 100] > 0) {
 			trend_count_++;
@@ -106,7 +106,7 @@ private:
 	double prev_gradiants_[100];
 
 	static constexpr int kRobustness = 4;
-	static constexpr double kEpsilon = -0.03;
+	static constexpr double kEpsilon = 0.03;
 	static constexpr double kDelta = 1;
 
 };

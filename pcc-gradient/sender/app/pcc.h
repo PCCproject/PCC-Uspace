@@ -36,10 +36,14 @@ public:
 	}
 
 	virtual void onLoss(const int32_t*, const int&) {}
-	virtual void onTimeout(int monitor){ 
+	virtual bool onTimeout(int monitor){ 
 		cout << "timeout!" <<endl; 
 		state_ = SEARCH; 
-		if (end_measurment_map_.find(monitor) != end_measurment_map_.end()) kPrint = true;
+		if (end_measurment_map_.find(monitor) != end_measurment_map_.end()) {
+			kPrint = true;
+			return true;
+		}
+		return false;
 	}
 	virtual void onACK(const int& ack){}
 
