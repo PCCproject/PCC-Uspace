@@ -255,7 +255,7 @@ private:
 		//static long double previous_utility;
 		if (poly_utlity_) {
 			
-		 	utility = ((long double)total - total * (long double) (alpha_* (pow((1+((long double)((double) loss/(double) total))), exponent_)-1))) / norm_measurement_interval - 0.01 * total * pow(rtt_penalty, 1.1);
+		 	utility = ((long double)total - total * (long double) (alpha_* (pow((1+((long double)((double) loss/(double) total))), exponent_)-1))) / norm_measurement_interval - 0.01 * total * pow(rtt_penalty, 1.02);
 			//cout << "Total: " << total << " RTT part:" << rtt << "  utility: " << utility << " total = " << total << endl;
 		} else {
 			utility = (total - loss - (long double) (alpha_ * pow(2.3, loss))) / norm_measurement_interval - 10 * total * pow(1000 * rtt, 1.15);

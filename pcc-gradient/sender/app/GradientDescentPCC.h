@@ -39,7 +39,7 @@ protected:
 
 		base_rate_ = base_rate;
 		//cout << "trend: " << trend_count_ / kRobustness << endl;
-		if ((change > 0) && (trend_count_ > 30 * kRobustness)) {
+		if ((change > 0) && (trend_count_ > 40 * kRobustness)) {
 			init();
 			restart();
 		}
