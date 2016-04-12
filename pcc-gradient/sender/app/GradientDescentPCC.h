@@ -34,18 +34,19 @@ protected:
 		}
 		//trend_count_ = 0;
 		
-		//cout << "rate:" << base_rate_ << endl;
+		if (kPrint) cout << "rate:" << base_rate_ << endl;
 		double change = kEpsilon * avg_gradient();
 
 		base_rate_ = base_rate;
 		//cout << "trend: " << trend_count_ / kRobustness << endl;
-		if ((change > 0) && (trend_count_ > 40 * kRobustness)) {
+		if ((change > 0) && (trend_count_ > 30 * kRobustness)) {
 			init();
 			restart();
 		}
 
 		base_rate_ += change;
 		if (base_rate_ < kMinRateMbps) base_rate_ = kMinRateMbps;
+		kPrint = false;
 	}
 	
 private:
@@ -57,7 +58,7 @@ private:
 			sum += prev_gradiants_[base % 100];
 			//cout << "gradient " << prev_gradiants_[base % 100] << " ";
 		}
-		//cout <<"Gradient = " << kEpsilon * sum / kRobustness << endl;
+		if (kPrint) cout <<"Gradient = " << kEpsilon * sum / kRobustness << endl;
 		return sum / kRobustness;
 	}
 	void guess() {

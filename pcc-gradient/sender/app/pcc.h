@@ -36,7 +36,7 @@ public:
 	}
 
 	virtual void onLoss(const int32_t*, const int&) {}
-	virtual void onTimeout(){ cout << "timeout!" <<endl;}
+	virtual void onTimeout(){ cout << "timeout!" <<endl; state_ = SEARCH; kPrint = true;}
 	virtual void onACK(const int& ack){}
 
 	virtual void onMonitorStart(int current_monitor) {
@@ -90,10 +90,10 @@ public:
 			if (monitor_in_start_phase_ == endMonitor) {
 				monitor_in_start_phase_ = -1;
 				if (!continue_slow_start) {
-					//cout << "changing to Hold, rate =  " << rate() << endl;
-					//cout << "previous utility = " << tmp_prev_utility << ", this utility = " << curr_utility << endl;
 					setRate(rate() / slow_start_factor_);
 					state_ = SEARCH;
+					cout << "exit slow start, rate =  " << rate() << endl;
+					//cout << "previous utility = " << tmp_prev_utility << ", this utility = " << curr_utility << endl;
 				}
 			}
 		} else if(state_ == SEARCH) {
@@ -182,7 +182,9 @@ protected:
     int search_monitor_number[2];
     bool start_measurement_;
 	double base_rate_;
+	bool kPrint;
 	static constexpr double kMinRateMbps = 0.01;
+	
 
 	virtual void search() = 0;
 	virtual void decide(long double start_utility, long double end_utility, long double base_rate, bool condition_change) = 0;
@@ -197,7 +199,7 @@ protected:
 		monitor_in_start_phase_ = -1;
 	}
 	
-	PCC() : start_measurement_(true), base_rate_(1.0), state_(START), monitor_in_start_phase_(-1), slow_start_factor_(2),
+	PCC() : start_measurement_(true), base_rate_(1.0), kPrint(false), state_(START), monitor_in_start_phase_(-1), slow_start_factor_(2),
 			alpha_(kAlpha), beta_(kBeta), exponent_(kExponent), poly_utlity_(kPolyUtility), rate_(1.0), monitor_in_prog_(-1), utility_sum_(0), measurement_intervals_(0), prev_utility_(-10000000), continue_slow_start_(true) {
 		m_dPktSndPeriod = 10000;
 		m_dCWndSize = 100000.0;
@@ -247,11 +249,14 @@ private:
 	virtual long double utility(unsigned long total, unsigned long loss, double time, double rtt) {
 
 		long double norm_measurement_interval = time / rtt;
-		long double rtt_penalty = get_rtt(rtt);
+		// convert to milliseconds
+		long double rtt_penalty = 1000 * rtt;
 		long double utility;		
 		//static long double previous_utility;
 		if (poly_utlity_) {
-		 	utility = ((long double)total - total * (long double) (alpha_* (pow((1+((long double)((double) loss/(double) total))), exponent_)-1))) / norm_measurement_interval - beta_ * total * pow(rtt_penalty, 1.03);
+			
+		 	utility = ((long double)total - total * (long double) (alpha_* (pow((1+((long double)((double) loss/(double) total))), exponent_)-1))) / norm_measurement_interval - 0.01 * total * pow(rtt_penalty, 1.1);
+			//cout << "Total: " << total << " RTT part:" << rtt << "  utility: " << utility << " total = " << total << endl;
 		} else {
 			utility = (total - loss - (long double) (alpha_ * pow(2.3, loss))) / norm_measurement_interval - 10 * total * pow(1000 * rtt, 1.15);
 			//((long double)total - total * (long double) (alpha_ * pow(exponent_, 1 + ((long double)((double) loss/(double) total))))) / norm_measurement_interval - beta_ * total * pow(rtt_penalty, 1.02);
