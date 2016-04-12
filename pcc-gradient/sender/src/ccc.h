@@ -137,9 +137,9 @@ public:
 
    virtual void processCustomMsg(const CPacket*) {}
 
-   virtual void onMonitorEnds(unsigned long total, unsigned long loss, double time, int skip,int num, double rtt){}
+   virtual void onMonitorEnds(unsigned long /*total*/, unsigned long /*loss*/, double /*time*/, int /*skip*/, int /*num*/, double /*rtt*/){}
 
-   virtual void onMonitorStart(int monitor_number){}
+   virtual void onMonitorStart(int /*monitor_number*/){}
 
 protected:
 

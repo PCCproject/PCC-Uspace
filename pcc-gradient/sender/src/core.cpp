@@ -526,6 +526,7 @@ void CUDT::open()
 	m_pRNode->m_bOnList = false;
 
 	m_iRTT = 10 * m_iSYNInterval;
+	m_last_rtt = 10 * m_iSYNInterval;
 	m_iRTTVar = m_iRTT >> 1;
 	m_ullCPUFrequency = CTimer::getCPUFrequency();
 
@@ -2432,9 +2433,10 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 //						cerr<<"latency info"<<" "<<double(latency_time_end[tmp]-latency_time_start[tmp])/left[tmp]/m_pCC->m_dPktSndPeriod<<endl;
 //						cerr<<"latency info"<<" "<<latency_time_end[tmp]<<" "<<latency_time_start[tmp]<<" "<<m_pCC->m_dPktSndPeriod<<" "<<latency_seq_end[tmp]<<" "<<latency_seq_start[tmp]<<endl;
 						if(rtt_count[Mon]==0){
-                        rtt_value[Mon]=0;
-                        rtt_count[Mon]=1;
+							rtt_value[Mon]=0;
+							rtt_count[Mon]=1;
                         }
+						m_last_rtt = rtt_value[Mon]/((double) rtt_count[Mon]);
 						m_pCC->onMonitorEnds(total[tmp],total[tmp]-left[tmp],(end_transmission_time[tmp]-start_time[tmp])/1000000,current_monitor,tmp, rtt_value[Mon]/double(rtt_count[Mon]));
 						m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
 						if (!left_monitor) break;
@@ -3023,10 +3025,11 @@ void CUDT::start_monitor(int length)
 	//if(m_iRTT*(1.2)/m_pCC->m_dPktSndPeriod>10) length = m_iRTT*(0.5 + rand_factor)/m_pCC->m_dPktSndPeriod;
 	static int monitor_count = 0;
 	if (monitor_count > 1) {
-		deadlines[current_monitor] = CTimer::getTime() + m_iRTT*(5);
+		allocated_times_[current_monitor] = 1.2 * m_last_rtt;
+		
 		//cout << "monitor " << current_monitor << ", deadline is " << deadlines[current_monitor] << " --> " << x << endl;
 	} else {
-		deadlines[current_monitor] = CTimer::getTime() + 1000000000;
+		allocated_times_[current_monitor] = 10000000000;
 	}
 	monitor_count++;
 
@@ -3039,7 +3042,7 @@ void CUDT::start_monitor(int length)
 // #endif
 	// add the transmition time
 	if (length > 100) length = 100;
-	deadlines[current_monitor] += length * m_pCC->m_dPktSndPeriod;
+	deadlines[current_monitor] = CTimer::getTime() + allocated_times_[current_monitor] + length * m_pCC->m_dPktSndPeriod;
 	state[current_monitor] = 1;
 	latency[current_monitor]=0;
 	test=1;
@@ -3089,13 +3092,14 @@ void CUDT::timeout_monitors() {
 				end_time[tmp] = current_time;
 				left_monitor--;
 				m_pCC->onTimeout();
-				m_pCC->onMonitorEnds(total[tmp],total[tmp]-left[tmp],(end_transmission_time[tmp]-start_time[tmp])/1000000,current_monitor,tmp, estimate_rtt_for_timedout_monitors(tmp));
+				m_last_rtt = estimate_rtt_for_timedout_monitors(tmp);
+				m_pCC->onMonitorEnds(total[tmp],0,(end_transmission_time[tmp]-start_time[tmp])/1000000,current_monitor,tmp, m_last_rtt);
 				m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
 			}
 		}
 	}
 }
 
-double CUDT::estimate_rtt_for_timedout_monitors(int) {
-	return m_iRTT;
+double CUDT::estimate_rtt_for_timedout_monitors(int monitor) {
+	return allocated_times_[monitor];
 }

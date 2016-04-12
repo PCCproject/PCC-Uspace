@@ -364,6 +364,7 @@ private: // Status
    int m_iEXPCount;                             // Expiration counter
    int m_iBandwidth;                            // Estimated bandwidth, number of packets per second
    int m_iRTT;                                  // RTT, in microseconds
+   double m_last_rtt;
    int m_iRTTVar;                               // RTT variance
    int m_iDeliveryRate;				// Packet arrival rate at the receiver side
 
@@ -439,6 +440,7 @@ private: // Generation and processing of packets
    void timeout_monitors();
    double estimate_rtt_for_timedout_monitors(int monitor);
    uint64_t deadlines[100];
+   uint64_t allocated_times_[100];
 private: // Trace
    uint64_t m_StartTime;                        // timestamp when the UDT entity is started
    int64_t m_llSentTotal;                       // total number of sent data packets, including retransmissions
