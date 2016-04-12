@@ -93,10 +93,7 @@ public:
 					//cout << "changing to Hold, rate =  " << rate() << endl;
 					//cout << "previous utility = " << tmp_prev_utility << ", this utility = " << curr_utility << endl;
 					setRate(rate() / slow_start_factor_);
-					slow_start_factor_ /= 1.2;
-					if (slow_start_factor_ < 1) {
-						state_ = SEARCH;
-					}
+					state_ = SEARCH;
 				}
 			}
 		} else if(state_ == SEARCH) {
@@ -200,8 +197,8 @@ protected:
 		monitor_in_start_phase_ = -1;
 	}
 	
-	PCC() : start_measurement_(true), base_rate_(5.0), state_(START), monitor_in_start_phase_(-1), slow_start_factor_(2),
-			alpha_(kAlpha), beta_(kBeta), exponent_(kExponent), poly_utlity_(kPolyUtility), rate_(5.0), monitor_in_prog_(-1), utility_sum_(0), measurement_intervals_(0), prev_utility_(-10000000), continue_slow_start_(true) {
+	PCC() : start_measurement_(true), base_rate_(1.0), state_(START), monitor_in_start_phase_(-1), slow_start_factor_(2),
+			alpha_(kAlpha), beta_(kBeta), exponent_(kExponent), poly_utlity_(kPolyUtility), rate_(1.0), monitor_in_prog_(-1), utility_sum_(0), measurement_intervals_(0), prev_utility_(-10000000), continue_slow_start_(true) {
 		m_dPktSndPeriod = 10000;
 		m_dCWndSize = 100000.0;
 		setRTO(100000000);
