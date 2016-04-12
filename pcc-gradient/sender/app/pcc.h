@@ -216,7 +216,7 @@ protected:
 	void restart() {
 		continue_slow_start_ = true;
 		start_measurement_ = true;
-		slow_start_factor_ = 1.03;
+		slow_start_factor_ = 1.02;
 		start_measurment_map_.clear();
 		end_measurment_map_.clear();
 		state_ = START;
@@ -241,9 +241,9 @@ protected:
 	}
 
 	virtual void setRate(double mbps) {
-		cout << "set rate: " << rate_ << " --> " << mbps << endl;
+		//cout << "set rate: " << rate_ << " --> " << mbps << endl;
 		if (mbps < kMinRateMbps) { 
-			cout << "rate is mimimal, changing to " << kMinRateMbps << " instead" << endl;
+			//cout << "rate is mimimal, changing to " << kMinRateMbps << " instead" << endl;
 			mbps = kMinRateMbps; 
 		};
 		rate_ = mbps;

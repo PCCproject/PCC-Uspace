@@ -12,10 +12,12 @@ protected:
 		guess();
 	}
 	virtual void decide(long double start_utility, long double end_utility, long double base_rate, bool condition_changed) {
+		/*
 		if ((condition_changed) && (consecutive_big_changes_ < 5)) {
 			consecutive_big_changes_++;
 			return;
 		}
+		*/
 		consecutive_big_changes_ = 0;
 
 		double gradient = (start_utility - end_utility) / (2 * kDelta);
@@ -36,8 +38,8 @@ protected:
 		double change = kEpsilon * avg_gradient();
 
 		base_rate_ = base_rate;
-		//cout << "trend_count_ " << trend_count_ << endl; 
-		if ((change > 0) && (trend_count_ > 40 * kRobustness)) {
+		//cout << "trend: " << trend_count_ / kRobustness << endl;
+		if ((change > 0) && (trend_count_ > 50 * kRobustness)) {
 			init();
 			restart();
 		}
@@ -55,7 +57,7 @@ private:
 			sum += prev_gradiants_[base % 100];
 			//cout << "gradient " << prev_gradiants_[base % 100] << " ";
 		}
-		cout <<"Gradient = " << kEpsilon * sum / kRobustness << endl;
+		//cout <<"Gradient = " << kEpsilon * sum / kRobustness << endl;
 		return sum / kRobustness;
 	}
 	void guess() {
