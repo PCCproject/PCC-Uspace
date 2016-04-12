@@ -3034,14 +3034,15 @@ void CUDT::start_monitor(int length)
 	m_monitor_count++;
 
 	double rand_factor = (rand() %10) / 100.;
-	if(m_iRTT*(1.2)/m_pCC->m_dPktSndPeriod>10) length = m_iRTT*(0.5 + rand_factor)/m_pCC->m_dPktSndPeriod;
+	const int send_period = 10 * 1000; // 10 milliseconds
+	if(send_period/m_pCC->m_dPktSndPeriod>10) length = send_period*(0.5 + rand_factor)/m_pCC->m_dPktSndPeriod;
 	else length=(10>(5000/m_pCC->m_dPktSndPeriod))?10:(5000/m_pCC->m_dPktSndPeriod);
 //#ifdef EXPERIMENTAL_FEATURE_CONTINOUS_SEND
 	//	length=50000/m_pCC->m_dPktSndPeriod;
 // length = 10;
 // #endif
 	// add the transmition time
-	if (length > 100) length = 100;
+	//if (length > 100) length = 100;
 	deadlines[current_monitor] = CTimer::getTime() + allocated_times_[current_monitor] + length * m_pCC->m_dPktSndPeriod;
 	state[current_monitor] = 1;
 	latency[current_monitor]=0;
