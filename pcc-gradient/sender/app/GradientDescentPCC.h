@@ -12,12 +12,13 @@ protected:
 		guess();
 	}
 	virtual void decide(long double start_utility, long double end_utility, long double base_rate, bool condition_changed) {
-		/*
-		if ((condition_changed) && (consecutive_big_changes_ < 5)) {
+		
+		if ((condition_changed) && (consecutive_big_changes_ < 5) && (!kPrint)) {
 			consecutive_big_changes_++;
+			trend_count_ = 0;
 			return;
 		}
-		*/
+		
 		consecutive_big_changes_ = 0;
 
 		double gradient = (start_utility - end_utility) / (2 * kDelta);
@@ -29,23 +30,31 @@ protected:
 		}
 		curr_ = (curr_ + 1) % 100;
 		
-		if ((trend_count_ == 0) || (trend_count_ % kRobustness != 0)) {
+		if (((trend_count_ == 0) || (trend_count_ % kRobustness != 0)) && (!kPrint)) {
 			return;
 		}
 		//trend_count_ = 0;
 		
 		if (kPrint) cout << "rate:" << base_rate_ << endl;
 		double change = kEpsilon * avg_gradient();
+		if (kPrint) change *= 2;
 
-		base_rate_ = base_rate;
+		//base_rate_ = base_rate;
 		//cout << "trend: " << trend_count_ / kRobustness << endl;
+		
 		if ((change > 0) && (trend_count_ > 40 * kRobustness)) {
 			init();
 			restart();
 		}
-
+		
+		if (kPrint) cout << "base rate: " << base_rate_ << " --> ";
+		
 		base_rate_ += change;
 		if (base_rate_ < kMinRateMbps) base_rate_ = kMinRateMbps;
+		
+		if (kPrint) cout << base_rate_ << endl;
+		if (kPrint) setRate(base_rate_);
+		if (kPrint) init();
 		kPrint = false;
 	}
 	
@@ -67,16 +76,16 @@ private:
 			if (!start_measurement_) first_ = false;
 		}
 		if (start_measurement_) {
-			setRate(base_rate_ + kDelta);
-		} else {
 			setRate(base_rate_ - kDelta);
+		} else {
+			setRate(base_rate_ + kDelta);
 		}
 
 	}
 	void adapt() {
 	}
 	
-	void init() {
+	virtual void init() {
 		trend_count_ = 0;
 		curr_ = 0;
 		first_ = true;
@@ -96,8 +105,8 @@ private:
 	int curr_;
 	double prev_gradiants_[100];
 
-	static constexpr int kRobustness = 3;
-	static constexpr double kEpsilon = 0.075;
+	static constexpr int kRobustness = 4;
+	static constexpr double kEpsilon = -0.03;
 	static constexpr double kDelta = 1;
 
 };
