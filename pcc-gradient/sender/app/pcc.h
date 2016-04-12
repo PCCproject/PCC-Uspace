@@ -46,10 +46,6 @@ public:
 			}
 			monitor_in_start_phase_ = current_monitor;
 			setRate(rate() * slow_start_factor_);
-		} else if (state_ == HOLD) {
-			if (monitor_in_start_phase_ == -1) {
-				monitor_in_start_phase_ = current_monitor;
-			}
 		} else if (state_ == SEARCH) {
 			if (start_measurement_) {
 				start_measurment_map_.insert(pair<int,Measurement*>(current_monitor, new Measurement(base_rate_)));
@@ -87,7 +83,7 @@ public:
 		measurement_intervals_++;
 
 		bool continue_slow_start = (loss == 0) && (curr_utility > prev_utility_);
-		long double tmp_prev_utility = prev_utility_;
+		//long double tmp_prev_utility = prev_utility_;
 		prev_utility_ = curr_utility;
 		
 		if(state_ == START) {
@@ -96,31 +92,12 @@ public:
 				if (!continue_slow_start) {
 					//cout << "changing to Hold, rate =  " << rate() << endl;
 					//cout << "previous utility = " << tmp_prev_utility << ", this utility = " << curr_utility << endl;
-					state_ = HOLD;
-				}
-			}
-		} else if(state_ == HOLD) {
-			if (monitor_in_start_phase_ == endMonitor) {
-				if (!continue_slow_start) {
-					hold_count_--;
-					if (hold_count_ == 0) {
-						setRate(rate() / slow_start_factor_);
-						slow_start_factor_ /= 1.2;
-						//cout << "slow_start_factor_ = " << slow_start_factor_ << endl; 
-						hold_count_ = kInitHoldCount;
-						if (slow_start_factor_ < 1) {
-							state_ = SEARCH;
-						}
-					} else {
-						//cout << "Holding rate " << rate() << endl;
-						prev_utility_ = tmp_prev_utility;
+					setRate(rate() / slow_start_factor_);
+					slow_start_factor_ /= 1.2;
+					if (slow_start_factor_ < 1) {
+						state_ = SEARCH;
 					}
-				} else {
-					//cout << "slow start back again.." << endl;
-					hold_count_ = kInitHoldCount;
-					state_ = START;
 				}
-				monitor_in_start_phase_ = -1;
 			}
 		} else if(state_ == SEARCH) {
             if(start_measurment_map_.find(endMonitor) != start_measurment_map_.end()) {
@@ -216,14 +193,14 @@ protected:
 	void restart() {
 		continue_slow_start_ = true;
 		start_measurement_ = true;
-		slow_start_factor_ = 1.02;
+		slow_start_factor_ = 1.03;
 		start_measurment_map_.clear();
 		end_measurment_map_.clear();
 		state_ = START;
-		hold_count_ = kInitHoldCount;
+		monitor_in_start_phase_ = -1;
 	}
 	
-	PCC() : start_measurement_(true), base_rate_(5.0), state_(START), hold_count_(kInitHoldCount), monitor_in_start_phase_(-1), slow_start_factor_(2),
+	PCC() : start_measurement_(true), base_rate_(5.0), state_(START), monitor_in_start_phase_(-1), slow_start_factor_(2),
 			alpha_(kAlpha), beta_(kBeta), exponent_(kExponent), poly_utlity_(kPolyUtility), rate_(5.0), monitor_in_prog_(-1), utility_sum_(0), measurement_intervals_(0), prev_utility_(-10000000), continue_slow_start_(true) {
 		m_dPktSndPeriod = 10000;
 		m_dCWndSize = 100000.0;
@@ -277,7 +254,7 @@ private:
 		long double utility;		
 		//static long double previous_utility;
 		if (poly_utlity_) {
-		 	utility = ((long double)total - total * (long double) (alpha_* (pow((1+((long double)((double) loss/(double) total))), exponent_)-1))) / norm_measurement_interval - beta_ * total * pow(rtt_penalty, 1.02);
+		 	utility = ((long double)total - total * (long double) (alpha_* (pow((1+((long double)((double) loss/(double) total))), exponent_)-1))) / norm_measurement_interval - beta_ * total * pow(rtt_penalty, 1.03);
 		} else {
 			utility = (total - loss - (long double) (alpha_ * pow(2.3, loss))) / norm_measurement_interval - 10 * total * pow(1000 * rtt, 1.15);
 			//((long double)total - total * (long double) (alpha_ * pow(exponent_, 1 + ((long double)((double) loss/(double) total))))) / norm_measurement_interval - beta_ * total * pow(rtt_penalty, 1.02);
@@ -294,11 +271,8 @@ private:
 
 	enum ConnectionState {
 		START,
-		HOLD,
 		SEARCH
 	} state_;
-	static constexpr int kInitHoldCount = 2;
-	int hold_count_;
 	
 	int monitor_in_start_phase_;
 	double slow_start_factor_;
