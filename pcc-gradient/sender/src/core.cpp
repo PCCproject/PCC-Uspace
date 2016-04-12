@@ -3093,11 +3093,12 @@ void CUDT::timeout_monitors() {
 				lost[tmp]=total[tmp]-left[tmp];
 				end_time[tmp] = current_time;
 				left_monitor--;
-				m_pCC->onTimeout(tmp);
-				m_last_rtt = estimate_rtt_for_timedout_monitors(tmp);
-				//total[tmp]-left[tmp]
-				m_pCC->onMonitorEnds(total[tmp],0,(end_transmission_time[tmp]-start_time[tmp])/1000000,current_monitor,tmp, m_last_rtt);
-				m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
+				if (m_pCC->onTimeout(tmp)) {
+					m_last_rtt = estimate_rtt_for_timedout_monitors(tmp);
+					//total[tmp]-left[tmp]
+					m_pCC->onMonitorEnds(total[tmp],total[tmp]-left[tmp],(end_transmission_time[tmp]-start_time[tmp])/1000000,current_monitor,tmp, m_last_rtt);
+					m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
+				}
 			}
 		}
 	}

@@ -299,7 +299,7 @@ void CUDTCC::onLoss(const int32_t* losslist, const int&)
    }
 }
 
-void CUDTCC::onTimeout(int)
+bool CUDTCC::onTimeout(int)
 {
    if (m_bSlowStart)
    {
@@ -317,4 +317,5 @@ void CUDTCC::onTimeout(int)
       m_iLastDecSeq = m_iLastAck;
       */
    }
+   return false;
 }
