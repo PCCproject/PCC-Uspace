@@ -5,7 +5,7 @@
 
 class GradientDescentPCC: public PCC {
 public:
-	GradientDescentPCC() : first_(true), up_utility_(0), down_utility_(0), seq_large_incs_(0), consecutive_big_changes_(0), trend_count_(0), decision_count_(0), curr_(0), prev_change_(0) {}
+	GradientDescentPCC() : first_(true), up_utility_(0), down_utility_(0), seq_large_incs_(0), consecutive_big_changes_(0), trend_count_(0), curr_(0) {}
 
 protected:
 	virtual void search() {
@@ -16,13 +16,12 @@ protected:
 		if ((condition_changed) && (consecutive_big_changes_ < 5) && (!kPrint)) {
 			consecutive_big_changes_++;
 			trend_count_ = 0;
-			decision_count_ = 0;
 			return;
 		}
 		
 		consecutive_big_changes_ = 0;
 
-		double gradient = -1 * (start_utility - end_utility) / (2 * kDelta * base_rate_ * 0.05);
+		double gradient = -(start_utility - end_utility) / (2 * kDelta);
 		prev_gradiants_[curr_] = gradient;
 		if (gradient * prev_gradiants_[(curr_ + 99) % 100] > 0) {
 			trend_count_++;
@@ -31,21 +30,19 @@ protected:
 		}
 		curr_ = (curr_ + 1) % 100;
 		
-		if (((trend_count_ == 0) || (trend_count_ == kRobustness)) && (!kPrint)) {
+		if (((trend_count_ == 0) || (trend_count_ % kRobustness != 0)) && (!kPrint)) {
 			return;
 		}
-		trend_count_ = 0;
+		//trend_count_ = 0;
 		
-		if (kPrint) cout << "rate:" << rate() << endl;
-		double change = (rate() / 100.) * kEpsilon * avg_gradient();
+		if (kPrint) cout << "rate:" << base_rate_ << endl;
+		double change = kEpsilon * avg_gradient();
 		if (kPrint) change *= 2;
-		if (change * prev_change_ > 0) decision_count_++;
-		else decision_count_ = 0;
-		prev_change_ = change;
 
 		//base_rate_ = base_rate;
-		//cout << "trend: " << decision_count_ << ". change " << change << " ratio " <<  rate() / 100. << endl;
-		if ((change > 0) && (decision_count_ == 50)) {
+		//cout << "trend: " << trend_count_ / kRobustness << endl;
+		
+		if ((change > 0) && (trend_count_ > 40 * kRobustness)) {
 			init();
 			restart();
 		}
@@ -53,8 +50,7 @@ protected:
 		if (kPrint) cout << "base rate: " << base_rate_ << " --> ";
 		
 		base_rate_ += change;
-		if (base_rate_ < kDelta) base_rate_ = kDelta;
-		//cout << "base rate = " << base_rate_ << endl;
+		if (base_rate_ < kMinRateMbps) base_rate_ = kMinRateMbps;
 		
 		if (kPrint) cout << base_rate_ << endl;
 		if (kPrint) setRate(base_rate_);
@@ -80,9 +76,9 @@ private:
 			if (!start_measurement_) first_ = false;
 		}
 		if (start_measurement_) {
-			setRate(base_rate_ - kDelta * base_rate_ * 0.05);
+			setRate(base_rate_ - kDelta);
 		} else {
-			setRate(base_rate_ + kDelta * base_rate_ * 0.05);
+			setRate(base_rate_ + kDelta);
 		}
 
 	}
@@ -97,7 +93,6 @@ private:
 		down_utility_ = 0;
 		seq_large_incs_ = 0;
 		consecutive_big_changes_ = 0;
-		decision_count_ = 0;
 	}
 
 	bool first_;
@@ -105,14 +100,13 @@ private:
 	double down_utility_;
 	int seq_large_incs_;
 	size_t consecutive_big_changes_;
+
 	int trend_count_;
-	int decision_count_;
 	int curr_;
 	double prev_gradiants_[100];
-	double prev_change_;
 
 	static constexpr int kRobustness = 4;
-	static constexpr double kEpsilon = 0.06;
+	static constexpr double kEpsilon = 0.03;
 	static constexpr double kDelta = 1;
 
 };
