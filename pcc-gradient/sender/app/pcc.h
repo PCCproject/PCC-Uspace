@@ -37,12 +37,9 @@ public:
 
 	virtual void onLoss(const int32_t*, const int&) {}
 	virtual bool onTimeout(int monitor){ 
+		setRate(0.9 * rate());
 		cout << "timeout!" <<endl; 
-		state_ = SEARCH; 
-		if (end_measurment_map_.find(monitor) != end_measurment_map_.end()) {
-			kPrint = true;
-			return true;
-		}
+		state_ = SEARCH;
 		return false;
 	}
 	virtual void onACK(const int& ack){}
@@ -102,7 +99,9 @@ public:
 					state_ = SEARCH;
 					cout << "exit slow start, rate =  " << rate() << endl;
 					//cout << "previous utility = " << tmp_prev_utility << ", this utility = " << curr_utility << endl;
-				}
+				} /*else {
+					cout << "current rate: " << rate() << " current utility " << curr_utility << " going forward." << endl; 
+				}*/
 			}
 		} else if(state_ == SEARCH) {
             if(start_measurment_map_.find(endMonitor) != start_measurment_map_.end()) {
@@ -265,8 +264,7 @@ private:
 		long double utility;		
 		//static long double previous_utility;
 		if (poly_utlity_) {
-			
-		 	utility = ((long double)total - total * (long double) (alpha_* (pow((1+((long double)((double) loss/(double) total))), exponent_)-1))) / norm_measurement_interval - 0.0001 * total * pow(rtt_penalty, 1.02);
+		 	utility = ((long double)total - total * (long double) (alpha_* (pow((1+((long double)((double) loss/(double) total))), exponent_)-1))) / norm_measurement_interval - 0.0001 * total *pow(rtt_penalty, 1.2);
 			//cout << "Total: " << total << " RTT part:" << rtt << "  utility: " << utility << " total = " << total << endl;
 		} else {
 			utility = (total - loss - (long double) (alpha_ * pow(2.3, loss))) / norm_measurement_interval - 10 * total * pow(1000 * rtt, 1.15);
