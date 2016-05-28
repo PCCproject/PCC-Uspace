@@ -526,7 +526,7 @@ void CUDT::open()
 	m_pRNode->m_bOnList = false;
 
 	m_iRTT = 10 * m_iSYNInterval;
-	for (int i = 0; i < 5; i++) m_last_rtt[i] = 5 * m_iSYNInterval;
+	for (int i = 0; i < 5; i++) m_last_rtt[i] = 0;
 	m_monitor_count = 0;
 	m_iRTTVar = m_iRTT >> 1;
 	m_ullCPUFrequency = CTimer::getCPUFrequency();
@@ -3035,22 +3035,23 @@ void CUDT::start_monitor(int length)
     time_interval[current_monitor] = m_pCC->m_dPktSndPeriod;
     //double rand_factor = double(rand()%10)/100.0;
 	//if(m_iRTT*(1.2)/m_pCC->m_dPktSndPeriod>10) length = m_iRTT*(0.5 + rand_factor)/m_pCC->m_dPktSndPeriod;
+	uint64_t minrtt;
 	if (m_monitor_count >= 5) {
 		//cout << "min RTT is " << get_min_rtt() << endl;
-		allocated_times_[current_monitor] = 1.5 * get_min_rtt();
+		minrtt = 1.5 * get_min_rtt();
 		//cout << "m_iRTT: " << m_iRTT << ". Min RTT = " << get_min_rtt() << endl;
 		//cout << "monitor " << current_monitor << ", deadline is " << deadlines[current_monitor] << " --> " << x << endl;
 	} else {
-		uint64_t minrtt = 1000000000000;
+		minrtt = 1000000000000;
 		for (int i = 0; i < current_monitor; i++) {
-			if (m_last_rtt[i] <= 5 * m_iSYNInterval) break;
+			if (m_last_rtt[i] == 0) break;
 			if (m_last_rtt[i] < minrtt) {
 				minrtt = m_last_rtt[i];
 			}
 		}
-		//cout << "using minrtt = " << minrtt << endl;
-		allocated_times_[current_monitor] = 1.5 * minrtt;
+		//cout << current_monitor << ": using minrtt = " << minrtt << endl;
 	}
+	allocated_times_[current_monitor] = 1.5 * minrtt;
 	m_monitor_count++;
 
 	double rand_factor = (rand() %10) / 100.;
@@ -3103,7 +3104,7 @@ void CUDT::init_state() {
 	loss_record1.clear();
 	loss_record2.clear();
 	for (unsigned int mon_index = 0; mon_index < 100; mon_index++) {
-		state[mon_index] = 3;
+		state[mon_index] = 0;
 		total[mon_index] = 0; 
 		lost[mon_index] = 0;
 		retransmission[mon_index] = 0;
@@ -3115,8 +3116,8 @@ void CUDT::init_state() {
 		time_interval[mon_index] = 0;
 		rtt_count[mon_index] = 0;
 		rtt_value[mon_index] = 0;
-		deadlines[mon_index] = 0;
-		allocated_times_[mon_index] = 0;
+		allocated_times_[mon_index] = 100000000000;
+		deadlines[mon_index] = CTimer::getTime() + allocated_times_[mon_index];
 	}
 	monitor = true;
 	left_monitor = 0;
@@ -3124,9 +3125,9 @@ void CUDT::init_state() {
 	m_iRTT = 10 * m_iSYNInterval;
 	//return;
 	for (unsigned int i = 0; i < 5; i++) {
-		m_last_rtt[i] = 5 * m_iSYNInterval;
+		m_last_rtt[i] = 0;//5 * m_iSYNInterval;
 	}
-	cout << "initialized " << 5 << " in the m_last_rtt to be "<< 5 * m_iSYNInterval << endl;
+	//cout << "initialized the m_last_rtt to be "<< 5 * m_iSYNInterval << endl;
 	
 
 	//if (m_pSndLossList) delete m_pSndLossList;
