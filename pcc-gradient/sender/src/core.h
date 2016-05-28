@@ -365,7 +365,7 @@ private: // Status
    int m_iBandwidth;                            // Estimated bandwidth, number of packets per second
    int m_iRTT;                                  // RTT, in microseconds
    double m_last_rtt[5];
-   int m_monitor_count;
+   unsigned int m_monitor_count;
    int m_iRTTVar;                               // RTT variance
    int m_iDeliveryRate;				// Packet arrival rate at the receiver side
 
