@@ -3181,7 +3181,7 @@ void CUDT::timeout_monitors() {
 				break;
 			}
 		}
-    tmp = (current_monitor + 1) % 100;
+    tmp = (tmp + 1) % 100;
 	}
 }
 
