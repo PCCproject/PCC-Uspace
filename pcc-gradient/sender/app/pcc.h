@@ -37,8 +37,12 @@ public:
 	
 	virtual void onLoss(const int32_t*, const int&) {}
 	virtual bool onTimeout(int monitor){ 
+		if (start_measurment_map_.find(monitor) == start_measurment_map_.end() && 
+			end_measurment_map_.find(monitor) == end_measurment_map_.end()) {
+			return false;
+		}
 		setRate(0.5 * rate());
-		cout << "timeout!" <<endl; 
+		cout << "timeout!" <<endl;
 		clear_state();
 		return false;
 	}
@@ -97,7 +101,7 @@ public:
 				if (!continue_slow_start) {
 					setRate(rate() / slow_start_factor_);
 					state_ = SEARCH;
-					//cout << "exit slow start, rate =  " << rate() << endl;
+					cout << "exit slow start, rate =  " << rate() << endl;
 					//cout << "previous utility = " << tmp_prev_utility << ", this utility = " << curr_utility << endl;
 				} /*else {
 					cout << "current rate: " << rate() << " current utility " << curr_utility << " going forward." << endl; 
