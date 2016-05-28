@@ -97,7 +97,7 @@ public:
 				if (!continue_slow_start) {
 					setRate(rate() / slow_start_factor_);
 					state_ = SEARCH;
-					cout << "exit slow start, rate =  " << rate() << endl;
+					//cout << "exit slow start, rate =  " << rate() << endl;
 					//cout << "previous utility = " << tmp_prev_utility << ", this utility = " << curr_utility << endl;
 				} /*else {
 					cout << "current rate: " << rate() << " current utility " << curr_utility << " going forward." << endl; 
@@ -190,7 +190,7 @@ protected:
     bool start_measurement_;
 	double base_rate_;
 	bool kPrint;
-	static constexpr double kMinRateMbps = 0.01;
+	static const double kMinRateMbps = 0.01;
 	
 
 	virtual void search() = 0;
@@ -278,7 +278,7 @@ private:
 		return utility;
 	}
 
-	static constexpr long kMillisecondsDigit = 10 * 1000;
+	static const long kMillisecondsDigit = 10 * 1000;
 
 	enum ConnectionState {
 		START,
