@@ -3132,6 +3132,7 @@ void CUDT::timeout_monitors() {
 	uint64_t current_time = CTimer::getTime();
 	int tmp = (current_monitor + 1) % 100;
 	while (tmp != current_monitor) {
+        cout<<"checking "<<tmp<<endl;
 		if ((state[tmp]==1) || (state[tmp]==2)) {
 			if((deadlines[tmp] < current_time) && (allocated_times_[tmp] > 0)) {
 				int count=0;
