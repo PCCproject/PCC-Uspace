@@ -3037,7 +3037,7 @@ void CUDT::start_monitor(int length)
 	//if(m_iRTT*(1.2)/m_pCC->m_dPktSndPeriod>10) length = m_iRTT*(0.5 + rand_factor)/m_pCC->m_dPktSndPeriod;
 	if (m_monitor_count > 10) {
 		//cout << "min RTT is " << get_min_rtt() << endl;
-		allocated_times_[current_monitor] = 1.9 * get_min_rtt();
+		allocated_times_[current_monitor] = 1.1 * get_min_rtt();
 		//cout << "m_iRTT: " << m_iRTT << ". Min RTT = " << get_min_rtt() << endl;
 		//cout << "monitor " << current_monitor << ", deadline is " << deadlines[current_monitor] << " --> " << x << endl;
 	} else {
