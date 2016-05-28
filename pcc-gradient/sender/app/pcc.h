@@ -87,7 +87,7 @@ public:
 		utility_sum_ += curr_utility;
 		measurement_intervals_++;
 
-		bool continue_slow_start = (loss == 0) && (curr_utility > prev_utility_);
+		bool continue_slow_start = (curr_utility > prev_utility_);
 		//long double tmp_prev_utility = prev_utility_;
 		prev_utility_ = curr_utility;
 		

@@ -57,7 +57,7 @@ protected:
 
 		//base_rate_ = base_rate;
 		//cout << "trend: " << decision_count_ << ". change " << change << " ratio " <<  rate() / 100. << endl;
-		if ((change > 0) && (decision_count_ == 50)) {
+		if ((change > 0) && (decision_count_ == 30)) {
 			init();
 			restart();
 		}
