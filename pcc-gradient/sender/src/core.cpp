@@ -3021,6 +3021,7 @@ double CUDT::get_min_rtt() const {
 
 void CUDT::start_monitor(int length)
 {
+	//cout << "start monitor!" << endl;
 	m_iMonitorCurrSeqNo=0;
 	previous_monitor = current_monitor;
 	current_monitor = (current_monitor+1)%100;
@@ -3035,8 +3036,8 @@ void CUDT::start_monitor(int length)
     //double rand_factor = double(rand()%10)/100.0;
 	//if(m_iRTT*(1.2)/m_pCC->m_dPktSndPeriod>10) length = m_iRTT*(0.5 + rand_factor)/m_pCC->m_dPktSndPeriod;
 	if (m_monitor_count > 10) {
-		allocated_times_[current_monitor] = 5 * get_min_rtt();
-		
+		allocated_times_[current_monitor] = 1.5 * get_min_rtt();
+		//cout << "m_iRTT: " << m_iRTT << ". Min RTT = " << get_min_rtt() << endl;
 		//cout << "monitor " << current_monitor << ", deadline is " << deadlines[current_monitor] << " --> " << x << endl;
 	} else {
 		allocated_times_[current_monitor] = 1000000000000;
