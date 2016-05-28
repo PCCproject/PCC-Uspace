@@ -818,8 +818,8 @@ int CUDT::connect(const CPacket& response) throw ()
 	//   	retransmission_list[i*3+0] = 0;
 	//   max_retransmission_list = 0;
 	//   min_retransmission_list_seqNo = -1;
-	current_monitor = -1;
-	previous_monitor = -1;
+	current_monitor = 0;
+	previous_monitor = 0;
 	left_monitor = 0;
 	monitor_ttl = 0;
 //	start_monitor(500000);
