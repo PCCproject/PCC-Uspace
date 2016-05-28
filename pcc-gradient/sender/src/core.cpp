@@ -3128,6 +3128,7 @@ void CUDT::init_state() {
 }
 
 void CUDT::timeout_monitors() {
+    cout<<"timing out monitors"<<endl;
 	uint64_t current_time = CTimer::getTime();
 	int tmp = (current_monitor + 1) % 100;
 	while (tmp != current_monitor) {
