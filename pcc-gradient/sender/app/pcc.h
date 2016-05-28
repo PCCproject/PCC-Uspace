@@ -34,12 +34,12 @@ public:
 		}
 		return 0;
 	}
-
+	
 	virtual void onLoss(const int32_t*, const int&) {}
 	virtual bool onTimeout(int monitor){ 
-		setRate(0.9 * rate());
+		setRate(0.5 * rate());
 		cout << "timeout!" <<endl; 
-		state_ = SEARCH;
+		clear_state();
 		return false;
 	}
 	virtual void onACK(const int& ack){}
@@ -196,6 +196,18 @@ protected:
 	virtual void search() = 0;
 	virtual void decide(long double start_utility, long double end_utility, long double base_rate, bool condition_change) = 0;
 	
+	virtual void clear_state() {
+		continue_slow_start_ = true;
+		start_measurement_ = true;
+		slow_start_factor_ = 1.03;
+		start_measurment_map_.clear();
+		end_measurment_map_.clear();
+		state_ = SEARCH;
+		monitor_in_start_phase_ = -1;
+		prev_utility_ = -10000000;
+		kPrint = false;
+	}
+
 	void restart() {
 		continue_slow_start_ = true;
 		start_measurement_ = true;

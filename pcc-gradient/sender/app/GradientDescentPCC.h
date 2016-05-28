@@ -11,6 +11,18 @@ protected:
 	virtual void search() {
 		guess();
 	}
+	virtual void clear_state() {
+		PCC::clear_state();
+		first_ = true;
+		up_utility_ = 0;
+		down_utility_ = 0;
+		seq_large_incs_ = 0;
+		consecutive_big_changes_ = 0;
+		trend_count_ = 0;
+		decision_count_ = 0;
+		curr_ = 0;
+		prev_change_ = 0;
+	}
 	virtual void decide(long double start_utility, long double end_utility, long double base_rate, bool condition_changed) {
 		
 		if ((condition_changed) && (consecutive_big_changes_ < 5) && (!kPrint)) {
