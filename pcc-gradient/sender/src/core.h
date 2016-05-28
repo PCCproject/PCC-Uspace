@@ -364,7 +364,7 @@ private: // Status
    int m_iEXPCount;                             // Expiration counter
    int m_iBandwidth;                            // Estimated bandwidth, number of packets per second
    int m_iRTT;                                  // RTT, in microseconds
-   double m_last_rtt;
+   double m_last_rtt[5];
    int m_monitor_count;
    int m_iRTTVar;                               // RTT variance
    int m_iDeliveryRate;				// Packet arrival rate at the receiver side
@@ -430,6 +430,7 @@ private: // synchronization: mutexes and conditions
    void initSynch();
    void destroySynch();
    void releaseSynch();
+   double get_min_rtt() const;
 
 private: // Generation and processing of packets
    void sendCtrl(const int& pkttype, void* lparam = NULL, void* rparam = NULL, const int& size = 0);

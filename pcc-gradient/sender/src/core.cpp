@@ -526,7 +526,7 @@ void CUDT::open()
 	m_pRNode->m_bOnList = false;
 
 	m_iRTT = 10 * m_iSYNInterval;
-	m_last_rtt = 10 * m_iSYNInterval;
+	for (int i = 0; i < 5; i++) m_last_rtt[i] = 5 * m_iSYNInterval;
 	m_monitor_count = 0;
 	m_iRTTVar = m_iRTT >> 1;
 	m_ullCPUFrequency = CTimer::getCPUFrequency();
@@ -2437,7 +2437,7 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 							rtt_value[Mon]=0;
 							rtt_count[Mon]=1;
                         }
-						m_last_rtt = rtt_value[Mon]/((double) rtt_count[Mon]);
+						m_last_rtt[Mon % 5] = rtt_value[Mon]/((double) rtt_count[Mon]);
 						m_pCC->onMonitorEnds(total[tmp],total[tmp]-left[tmp],(end_transmission_time[tmp]-start_time[tmp])/1000000,current_monitor,tmp, rtt_value[Mon]/double(rtt_count[Mon]));
 						m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
 						if (!left_monitor) break;
@@ -3009,6 +3009,16 @@ void CUDT::removeEPoll(const int eid)
 	s_UDTUnited.m_EPoll.disable_write(m_SocketID, m_sPollID);
 }
 
+double CUDT::get_min_rtt() const {
+	double min = m_last_rtt[0];
+	for (int i = 1; i < 5; i++) {
+		if (m_last_rtt[i] < min) {
+			min = m_last_rtt[i];
+		}
+	}
+	return min;
+}
+
 void CUDT::start_monitor(int length)
 {
 	m_iMonitorCurrSeqNo=0;
@@ -3024,8 +3034,8 @@ void CUDT::start_monitor(int length)
     time_interval[current_monitor] = m_pCC->m_dPktSndPeriod;
     //double rand_factor = double(rand()%10)/100.0;
 	//if(m_iRTT*(1.2)/m_pCC->m_dPktSndPeriod>10) length = m_iRTT*(0.5 + rand_factor)/m_pCC->m_dPktSndPeriod;
-	if (m_monitor_count > 20) {
-		allocated_times_[current_monitor] = 1.5 * m_last_rtt;
+	if (m_monitor_count > 10) {
+		allocated_times_[current_monitor] = 5 * get_min_rtt();
 		
 		//cout << "monitor " << current_monitor << ", deadline is " << deadlines[current_monitor] << " --> " << x << endl;
 	} else {
@@ -3034,9 +3044,12 @@ void CUDT::start_monitor(int length)
 	m_monitor_count++;
 
 	double rand_factor = (rand() %10) / 100.;
-	const int send_period = 10 * 1000; // 10 milliseconds
+	const int send_period = 1.2*m_iRTT; //100 * 1000; // 100 milliseconds
+	//length = send_period*(0.5 + rand_factor)/m_pCC->m_dPktSndPeriod;
+	
 	if(send_period/m_pCC->m_dPktSndPeriod>10) length = send_period*(0.5 + rand_factor)/m_pCC->m_dPktSndPeriod;
 	else length=(10>(5000/m_pCC->m_dPktSndPeriod))?10:(5000/m_pCC->m_dPktSndPeriod);
+	
 //#ifdef EXPERIMENTAL_FEATURE_CONTINOUS_SEND
 	//	length=50000/m_pCC->m_dPktSndPeriod;
 // length = 10;
@@ -3054,6 +3067,7 @@ void CUDT::start_monitor(int length)
 	left[current_monitor]=0;
     rtt_count[current_monitor]=0;
     rtt_value[current_monitor]=0;
+	//cout <<"length = " << length << endl;
 
 	for (int i=0;i<length;++i)
     {
@@ -3081,7 +3095,8 @@ void CUDT::timeout_monitors() {
 		if ((state[tmp]==1) || (state[tmp]==2)) {
 			if(deadlines[tmp] < current_time){
 				int count=0;
-				cout<<"killing "<<tmp<<endl;
+				//cout<<"killing "<<tmp<<endl;
+				//cout << "waited more than " << allocated_times_[tmp] <<endl;
 				m_monitor_count = 0;
 				for(int i=0;i<total[tmp];i++){
 					if(recv_ack[tmp][i]){
@@ -3094,9 +3109,9 @@ void CUDT::timeout_monitors() {
 				end_time[tmp] = current_time;
 				left_monitor--;
 				if (m_pCC->onTimeout(tmp)) {
-					m_last_rtt = estimate_rtt_for_timedout_monitors(tmp);
+					m_last_rtt[tmp % 5] = estimate_rtt_for_timedout_monitors(tmp);
 					//total[tmp]-left[tmp]
-					m_pCC->onMonitorEnds(total[tmp],total[tmp]-left[tmp],(end_transmission_time[tmp]-start_time[tmp])/1000000,current_monitor,tmp, m_last_rtt);
+					m_pCC->onMonitorEnds(total[tmp],total[tmp]-left[tmp],(end_transmission_time[tmp]-start_time[tmp])/1000000,current_monitor,tmp, m_last_rtt[tmp % 5]);
 					m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
 				}
 			}
