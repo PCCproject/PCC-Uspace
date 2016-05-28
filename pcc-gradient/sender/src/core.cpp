@@ -3012,7 +3012,7 @@ void CUDT::removeEPoll(const int eid)
 double CUDT::get_min_rtt() const {
 	double min = m_last_rtt[0];
 	for (int i = 1; i < 5; i++) {
-		if (m_last_rtt[i] < min) {
+		if ((m_last_rtt[i] < min) && (m_last_rtt[i] != 0)) {
 			min = m_last_rtt[i];
 		}
 	}
@@ -3035,14 +3035,13 @@ void CUDT::start_monitor(int length)
     time_interval[current_monitor] = m_pCC->m_dPktSndPeriod;
     //double rand_factor = double(rand()%10)/100.0;
 	//if(m_iRTT*(1.2)/m_pCC->m_dPktSndPeriod>10) length = m_iRTT*(0.5 + rand_factor)/m_pCC->m_dPktSndPeriod;
-	uint64_t minrtt;
-	if (m_monitor_count >= 5) {
+	uint64_t minrtt = 1000000000000;
+	if (m_monitor_count > 5) {
 		//cout << "min RTT is " << get_min_rtt() << endl;
-		minrtt = 1.5 * get_min_rtt();
+		minrtt = get_min_rtt();
 		//cout << "m_iRTT: " << m_iRTT << ". Min RTT = " << get_min_rtt() << endl;
 		//cout << "monitor " << current_monitor << ", deadline is " << deadlines[current_monitor] << " --> " << x << endl;
 	} else {
-		minrtt = 1000000000000;
 		for (int i = 0; i < current_monitor; i++) {
 			if (m_last_rtt[i] == 0) break;
 			if (m_last_rtt[i] < minrtt) {
@@ -3051,6 +3050,7 @@ void CUDT::start_monitor(int length)
 		}
 		//cout << current_monitor << ": using minrtt = " << minrtt << endl;
 	}
+	//cout << current_monitor << ": using minrtt " <<minrtt << endl;
 	allocated_times_[current_monitor] = 1.5 * minrtt;
 	m_monitor_count++;
 
