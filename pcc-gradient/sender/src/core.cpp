@@ -3165,7 +3165,7 @@ void CUDT::timeout_monitors() {
 					m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
 				}
 				init_state();
-				cout << "done handling timeout" << endl;
+				cout << "done handling timeout!" << endl;
 				break;
 			}
 		}
