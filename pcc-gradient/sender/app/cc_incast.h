@@ -54,15 +54,6 @@ public:
 		}
 	}
 
-	virtual void onTimeout()
-	{
-		m_issthresh = getPerfInfo()->pktFlightSize / 2;
-		if (m_issthresh < 2)
-			m_issthresh = 2;
-
-		m_bSlowStart = true;
-		m_dCWndSize = 2.0;
-	}
 
 protected:
 	virtual void ACKAction()
@@ -170,9 +161,6 @@ public:
 public:
 
 		virtual void onLoss(const int32_t*, const int&) {
-
-	}
-	virtual void onTimeout(){
 
 	}
 	/*	int findmax(double arr[]){

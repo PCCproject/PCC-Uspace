@@ -37,24 +37,32 @@ public:
 	
 	virtual void onLoss(const int32_t*, const int&) {}
 	virtual bool onTimeout(int monitor){ 
+		//cout << "handling timeout in PCC! for monitor " << monitor << endl;
 		if (state_ != START) {
 			if (start_measurment_map_.find(monitor) == start_measurment_map_.end() && end_measurment_map_.find(monitor) == end_measurment_map_.end()) {
 				cout << "NOT IN START: monitor " << monitor << " already gone!" << endl;
 				return false;
+			} else {
+				cout << "we're still waiting for monitor: " << monitor << endl;
 			}
 		} /*else if (monitor_in_start_phase_ != monitor) {
 			cout << "START: monitor " << monitor << " already gone! current monitor: " << monitor_in_start_phase_ << endl;
 			return false;			
 		}*/
-		state_ = SEARCH;
+		//state_ = SEARCH;
 		setRate(0.5 * rate());
-		cout << "timeout!" <<endl;
-		clear_state();
+		base_rate_ = rate();
+		cout << "timeout! new rate is " << rate() << endl;
+		restart();
+		//clear_state();
+		//start_measurment_map_.clear();
+		//end_measurment_map_.clear();
 		return false;
 	}
 	virtual void onACK(const int& ack){}
 
 	virtual void onMonitorStart(int current_monitor) {
+		//cout << "starting monitor " << current_monitor << endl;
 		if (state_ == START) {
 			if (monitor_in_start_phase_ != -1) {
 				return;
@@ -79,7 +87,7 @@ public:
 		}
 	}
 
-	virtual void onMonitorEnds(unsigned long total, unsigned long loss, double in_time, int current, int endMonitor, double rtt) {
+	virtual void onMonitorEnds(int total, int loss, double in_time, int current, int endMonitor, double rtt) {
 		/*
 		if (rtt == -1) {
 			start_measurment_map_.clear();
@@ -218,7 +226,7 @@ protected:
 		kPrint = false;
 	}
 
-	void restart() {
+	virtual void restart() {
 		continue_slow_start_ = true;
 		start_measurement_ = true;
 		slow_start_factor_ = 1.03;
@@ -237,6 +245,7 @@ protected:
 		m_dCWndSize = 100000.0;
 		setRTO(100000000);
 		srand(time(NULL));
+		beta_ = 100;
 		cout << "configuration: alpha = " << alpha_ << ", beta = " << beta_   << ", exponent = " << exponent_ << " poly utility = " << poly_utlity_ << endl;
 		
 		/*

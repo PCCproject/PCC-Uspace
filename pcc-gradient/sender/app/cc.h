@@ -4,15 +4,15 @@
 #include<cmath>
 
 #define MAXCOUNT 1000
-#define GRANULARITY 0.01
+#define GRANULARITY 0.05
 #define MUTATION_TH 300
 #define JUMP_RANGE 0.05
-#define NUMBER_OF_PROBE 4
+#define NUMBER_OF_PROBE 2
 #define MAX_COUNTINOUS_GUESS 5
 #define MAX_COUNTINOUS_SEND 1
 #define MAX_MONITOR_NUMBER 100
-//#define DEBUGCC
-//#define UTILITY_TRACE
+#define DEBUGCC
+#define UTILITY_TRACE
 using namespace std;
 class CTCP: public CCC
 {
@@ -55,7 +55,7 @@ public:
 		}
 	}
 
-	virtual void onTimeout()
+	virtual bool onTimeout()
 	{
 		m_issthresh = getPerfInfo()->pktFlightSize / 2;
 		if (m_issthresh < 2)
@@ -63,6 +63,7 @@ public:
 
 		m_bSlowStart = true;
 		m_dCWndSize = 2.0;
+		return false;
 	}
 
 protected:
@@ -138,8 +139,6 @@ public:
         int start_previous_monitor;
         double start_previous_utility;
         double previous_rtt;
-	long double utility_sum_;
-	size_t measurement_intervals_;
 
 
 
@@ -151,9 +150,9 @@ public:
 		m_dPktSndPeriod = 10000;
 		m_dCWndSize = 100000.0;
 		setRTO(100000000);
-		starting_phase=1;
+		starting_phase=0;
 		target_monitor = 0;
-		make_guess = 0;
+		make_guess = 1;
 		guess_result = 0;
 		moving_phase = 0;
 		moving_phase_initial = 0;
@@ -175,25 +174,41 @@ public:
                 start_previous_monitor = -1;
                 start_previous_utility = -10000;
                 previous_rtt = 0;
-		utility_sum_ = 0;
-		measurement_intervals_ = 0;
 	}
-
-	long double avg_utility() {
-		if (measurement_intervals_ > 0) {
-			return utility_sum_ / measurement_intervals_;
-		}
-		return 0;
-	}
-
 
 public:
 
 		virtual void onLoss(const int32_t*, const int&) {
 
 	}
-	virtual void onTimeout(){
-
+	virtual bool onTimeout(){
+		make_guess = 1;
+		guess_result = 0;
+		moving_phase = 0;
+		moving_phase_initial = 0;
+		change_direction=0;
+		change_intense=1;
+		guess_time = 0;
+		continous_guess_count = 0;
+		continous_send = 0;
+		continous_send_count =0;
+		previous_utility = 0;
+        if(current_rate /2 <1) {
+        current_rate = 1;
+        } else {
+        current_rate = current_rate/2;
+        }
+        setRate(current_rate);
+		previous_rate = current_rate;
+		recording_guess_result = 0;
+		recorded_number = 0;
+        for(int i=0;i<100;i++)
+          start_rate_array[i] = 0;
+        start_previous_monitor = -1;
+        start_previous_utility = -10000;
+        previous_rtt = 0;
+        cout<<"timeout!! everything reset"<<endl;
+		return false;
 	}
 	/*	int findmax(double arr[]){
 		int tmp=0;
@@ -294,47 +309,35 @@ cerr<<"clear continous send"<<endl;
 
 	}
 
-	static const long kMillisecondsDigit = 10 * 1000;
-	double get_rtt(double rtt) const {
-		double conv_diff = (double)(((long) (rtt * 1000 * 1000)) % kMillisecondsDigit);
-		return conv_diff / (1000.0 * 1000.0);
-	}
+	virtual void onMonitorEnds(int total, int loss, double time, int current, int endMonitor, double rtt){
 
-	virtual void onMonitorEnds(unsigned long total, unsigned long loss, double time, int current, int endMonitor, double rtt){
-
-		long double utility;
+		double utility;
 		double t=total;
 		double l=loss;
+		//int random_direciton;
 		if(l<0)
 			l=0;
 //utility = ((t-l)/time-20*l/time);
+cerr<<rtt<<endl;
 if(rtt==0) {
 cerr<<"RTT cannot be 0!!!"<<endl;
 }
 if(previous_rtt==0)
 previous_rtt = rtt;
 //utility = ((t-l)/time*(1-1/(1+exp(-100*(l/t-0.05))))-1*l/time);
-//utility = ((t-l)/time*(1-1/(1+exp(-100*(l/t-0.05))))* (1-1/(1+exp(-10*(1-previous_rtt/rtt)))) -1*l/time)/rtt*1000;
-
-//ygi
-	rtt /= 1000000;
-	long double norm_measurement_interval = time / rtt;
-	utility = ((long double)total - (long double) (6 * total * (1 - pow(1 - (double)loss/(double)total, 1.4)))) / norm_measurement_interval - 0 * get_rtt(rtt) * total;
-
-//cout << "utility = " << utility << " total = " << total << " loss " << (6 * total * (1 - pow(1 - (double)loss/(double)total, 1.4)))<< " time " << time << " rtt " << rtt << endl;
+//utility = ((t-l)/time*(1-1/(1+exp(-100*(l/t-0.05))))* (1-1/(1+exp(-1*(1-previous_rtt/rtt)))) -1*l/time)/rtt*1000;
+utility = ((t-l)/time*(1-1/(1+exp(-100*(l/t-0.05))))-1*l/time)*(1/rtt)*1000;
 previous_rtt = rtt;
 if(endMonitor == 0 && starting_phase)
 utility /=2;
 #ifdef UTILITY_TRACE
-		cerr<<current_rate<<'\t'<<(t-l)*12/time/1000<<'\t'<<t<<'\t'<<l<<'\t'<<time<<"\t"<<utility<<"\t"<<rtt<<endl;
+		cerr<<current_rate<<'\t'<<(t-l)*12/time/1000<<'\t'<<t<<'\t'<<l<<'\t'<<time<<"\t"<<utility<<"\t"<<m_iRTT<<endl;
 #endif
 
 //		utility = (t-l)/time*(1-l/t)*(1-l/t)*(1-l/t)*(1-l/t)*(1-l/t);(m_iRTT/1000);(m_iRTT/1000);
 #ifdef DEBUGCC
                 cerr<<"end number"<<endMonitor<<endl;
 #endif
-		utility_sum_ += utility;
-		measurement_intervals_++;
 		if(starting_phase){
                         if(endMonitor - 1 > start_previous_monitor){
                              if(start_previous_monitor == -1){
@@ -556,4 +559,3 @@ cerr<<"first time moving"<<endl;
 		m_dPktSndPeriod = (m_iMSS * 8.0) / mbps;
 	}
 };
-

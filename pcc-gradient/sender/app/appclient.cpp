@@ -26,9 +26,9 @@ BBCC* cchandle = NULL;
 void intHandler(int dummy) {
 	if (iteration_count  > 0) {
 		cout << "Avg. rate: " <<  rate_sum / iteration_count << " loss rate = " << avg_loss_rate << " avg. RTT = " << rtt_sum / iteration_count;
-		if (cchandle != NULL) {
-			cout<< " average utility = " << cchandle->avg_utility();
-		}
+		//if (cchandle != NULL) {
+			//cout<< " average utility = " << cchandle->avg_utility();
+		//}
 		cout << endl;
 	}
 	exit(0);
