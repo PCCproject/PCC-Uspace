@@ -42,11 +42,11 @@ public:
 				cout << "NOT IN START: monitor " << monitor << " already gone!" << endl;
 				return false;
 			}
-		} else if (monitor_in_start_phase_ != monitor) {
-			cout << "START: monitor " << monitor << " already gone!" << endl;
+		} /*else if (monitor_in_start_phase_ != monitor) {
+			cout << "START: monitor " << monitor << " already gone! current monitor: " << monitor_in_start_phase_ << endl;
 			return false;			
-		}
-
+		}*/
+		state_ = SEARCH;
 		setRate(0.5 * rate());
 		cout << "timeout!" <<endl;
 		clear_state();
