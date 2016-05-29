@@ -299,7 +299,7 @@ void CUDTCC::onLoss(const int32_t* losslist, const int&)
    }
 }
 
-bool CUDTCC::onTimeout(int)
+bool CUDTCC::onTimeout(int /*monitor*/)
 {
    if (m_bSlowStart)
    {

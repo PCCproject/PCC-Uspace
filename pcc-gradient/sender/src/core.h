@@ -364,9 +364,8 @@ private: // Status
    int m_iEXPCount;                             // Expiration counter
    int m_iBandwidth;                            // Estimated bandwidth, number of packets per second
    int m_iRTT;                                  // RTT, in microseconds
-   static const int kRTTHistory = 5;
-   double m_last_rtt[kRTTHistory];
-   unsigned int m_monitor_count;
+   double m_last_rtt[100];
+   int m_monitor_count;
    int m_iRTTVar;                               // RTT variance
    int m_iDeliveryRate;				// Packet arrival rate at the receiver side
 

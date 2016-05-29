@@ -526,7 +526,7 @@ void CUDT::open()
 	m_pRNode->m_bOnList = false;
 
 	m_iRTT = 10 * m_iSYNInterval;
-	for (int i = 0; i < kRTTHistory; i++) m_last_rtt[i] = 0;
+	for (int i = 0; i < 100; i++) m_last_rtt[i] = 5 * m_iSYNInterval;
 	m_monitor_count = 0;
 	m_iRTTVar = m_iRTT >> 1;
 	m_ullCPUFrequency = CTimer::getCPUFrequency();
@@ -818,8 +818,8 @@ int CUDT::connect(const CPacket& response) throw ()
 	//   	retransmission_list[i*3+0] = 0;
 	//   max_retransmission_list = 0;
 	//   min_retransmission_list_seqNo = -1;
-	current_monitor = -1;
-	previous_monitor = -1;
+	current_monitor = 0;
+	previous_monitor = 0;
 	left_monitor = 0;
 	monitor_ttl = 0;
 //	start_monitor(500000);
@@ -2394,7 +2394,6 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 			latency_time_end[Mon] = ctrlpkt.m_iTimeStamp;
 			latency_seq_end[Mon] = tsn_payload[last_position] & 0xFFFF;
 		}
-
 		for (int i = 0, n = (int)(ctrlpkt.getLength() / 4); i < n; ++ i) {
 			monitorNo = tsn_payload[i] >> 16;
 			SeqNoInMonitor = tsn_payload[i] & 0xFFFF;
@@ -2437,7 +2436,9 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 							rtt_value[Mon]=0;
 							rtt_count[Mon]=1;
                         }
-						m_last_rtt[Mon % kRTTHistory] = rtt_value[Mon]/((double) rtt_count[Mon]);
+						m_last_rtt[Mon % 100] = rtt_value[Mon]/((double) rtt_count[Mon]);
+                                                //cout<<"Fill in rtt value as"<<m_last_rtt[Mon % 100]<<endl;
+                                                //cerr<<"Monitor"<<tmp<<"ends at"<<CTimer::getTime()<<endl;
 						m_pCC->onMonitorEnds(total[tmp],total[tmp]-left[tmp],(end_transmission_time[tmp]-start_time[tmp])/1000000,current_monitor,tmp, rtt_value[Mon]/double(rtt_count[Mon]));
 						m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
 						if (!left_monitor) break;
@@ -3011,11 +3012,18 @@ void CUDT::removeEPoll(const int eid)
 
 double CUDT::get_min_rtt() const {
 	double min = m_last_rtt[0];
-	for (int i = 1; i < kRTTHistory; i++) {
-		if ((m_last_rtt[i] < min) && (m_last_rtt[i] != 0)) {
+	for (int i = 0; i < 100; i++) {
+                cout<<"last rtts"<< m_last_rtt[i]<<endl;
+                if (min == 0) {
+                    min = m_last_rtt[i];
+                }
+		if (m_last_rtt[i] < min && m_last_rtt[i] > 0) {
 			min = m_last_rtt[i];
 		}
 	}
+        if(min == 0) {
+         min = 500000;
+        }
 	return min;
 }
 
@@ -3035,32 +3043,29 @@ void CUDT::start_monitor(int length)
     time_interval[current_monitor] = m_pCC->m_dPktSndPeriod;
     //double rand_factor = double(rand()%10)/100.0;
 	//if(m_iRTT*(1.2)/m_pCC->m_dPktSndPeriod>10) length = m_iRTT*(0.5 + rand_factor)/m_pCC->m_dPktSndPeriod;
-	uint64_t minrtt = 1000000000000;
-	if (m_monitor_count > kRTTHistory) {
 		//cout << "min RTT is " << get_min_rtt() << endl;
-		minrtt = get_min_rtt();
+		allocated_times_[current_monitor] = 5 * m_iRTT;//get_min_rtt();
+                if(allocated_times_[current_monitor]> 1000000) {
+                    allocated_times_[current_monitor] = 1000000;
+                } 
 		//cout << "m_iRTT: " << m_iRTT << ". Min RTT = " << get_min_rtt() << endl;
 		//cout << "monitor " << current_monitor << ", deadline is " << deadlines[current_monitor] << " --> " << x << endl;
-	} else {
-		for (int i = 0; i < current_monitor; i++) {
-			if (m_last_rtt[i] == 0) break;
-			if (m_last_rtt[i] < minrtt) {
-				minrtt = m_last_rtt[i];
-			}
-		}
-		//cout << current_monitor << ": using minrtt = " << minrtt << endl;
-	}
-	//cout << current_monitor << ": using minrtt " <<minrtt << endl;
-	allocated_times_[current_monitor] = 1.5 * minrtt;
 	m_monitor_count++;
 
 	double rand_factor = (rand() %10) / 100.;
-	const int send_period = 1.2*m_iRTT; //100 * 1000; // 100 milliseconds
+	int send_period = 1*m_iRTT; //100 * 1000; // 100 milliseconds
 	//length = send_period*(0.5 + rand_factor)/m_pCC->m_dPktSndPeriod;
-	
-	if(send_period/m_pCC->m_dPktSndPeriod>10) length = send_period*(1 + rand_factor)/m_pCC->m_dPktSndPeriod;
-	else length=(10>(5000/m_pCC->m_dPktSndPeriod))?10:(5000/m_pCC->m_dPktSndPeriod);
-	
+            if(send_period > 1000000) {
+               send_period = 300000;
+            }
+
+	if(send_period/m_pCC->m_dPktSndPeriod>10) {
+            length = send_period/m_pCC->m_dPktSndPeriod;
+        }
+	else {
+            length=(10>(5000/m_pCC->m_dPktSndPeriod))?10:(5000/m_pCC->m_dPktSndPeriod);
+        }
+
 //#ifdef EXPERIMENTAL_FEATURE_CONTINOUS_SEND
 	//	length=50000/m_pCC->m_dPktSndPeriod;
 // length = 10;
@@ -3068,7 +3073,7 @@ void CUDT::start_monitor(int length)
 	// add the transmition time
 	//if (length > 100) length = 100;
 	deadlines[current_monitor] = CTimer::getTime() + allocated_times_[current_monitor] + length * m_pCC->m_dPktSndPeriod;
-	//cout << "allocated time: " << allocated_times_[current_monitor] << ", deadline is: " << deadlines[current_monitor] << 
+    //cerr<<"start monitor "<<current_monitor<< " at:"<<CTimer::getTime()<<" with allocated timeout of "<<allocated_times_[current_monitor]<<" and send period of "        <<length * m_pCC->m_dPktSndPeriod<<endl;
 	state[current_monitor] = 1;
 	latency[current_monitor]=0;
 	test=1;
@@ -3104,8 +3109,8 @@ void CUDT::init_state() {
 	loss_record1.clear();
 	loss_record2.clear();
 	for (unsigned int mon_index = 0; mon_index < 100; mon_index++) {
-		state[mon_index] = 0;
-		total[mon_index] = 0; 
+		state[mon_index] = 3;
+		total[mon_index] = 0;
 		lost[mon_index] = 0;
 		retransmission[mon_index] = 0;
 		new_transmission[mon_index] = 0;
@@ -3116,8 +3121,8 @@ void CUDT::init_state() {
 		time_interval[mon_index] = 0;
 		rtt_count[mon_index] = 0;
 		rtt_value[mon_index] = 0;
-		allocated_times_[mon_index] = 100000000000;
-		deadlines[mon_index] = CTimer::getTime() + allocated_times_[mon_index];
+		deadlines[mon_index] = 0;
+		allocated_times_[mon_index] = 0;
 	}
 	monitor = true;
 	left_monitor = 0;
@@ -3125,27 +3130,27 @@ void CUDT::init_state() {
 	m_iRTT = 10 * m_iSYNInterval;
 	//return;
 	for (unsigned int i = 0; i < 5; i++) {
-		m_last_rtt[i] = 0;//5 * m_iSYNInterval;
+		m_last_rtt[i] = 5 * m_iSYNInterval;
 	}
-	//cout << "initialized the m_last_rtt to be "<< 5 * m_iSYNInterval << endl;
-	
+	cout << "initialized " << 5 << " in the m_last_rtt to be "<< 5 * m_iSYNInterval << endl;
+
 
 	//if (m_pSndLossList) delete m_pSndLossList;
 	//m_pSndLossList = new CSndLossList(m_iFlowWindowSize * 2);
-	
+
 	//if (m_pRcvLossList) delete m_pRcvLossList;
-	//m_pRcvLossList = new CRcvLossList(m_iFlightFlagSize);	
-	
+	//m_pRcvLossList = new CRcvLossList(m_iFlightFlagSize);
+
 }
 
 void CUDT::timeout_monitors() {
 	uint64_t current_time = CTimer::getTime();
-	for (int mon_index = 0; mon_index < 100; mon_index++) {
-		int tmp = (mon_index + current_monitor + 1) % 100;
+	int tmp = (current_monitor + 1) % 100;
+	while (tmp != current_monitor) {
 		if ((state[tmp]==1) || (state[tmp]==2)) {
 			if((deadlines[tmp] < current_time) && (allocated_times_[tmp] > 0)) {
 				int count=0;
-				cout<<"killing "<<tmp<<endl;
+				cout<<"killing "<<tmp<<" at "<<current_time<<endl;
 				cout << "waited more than " << allocated_times_[tmp] <<endl;
 				m_monitor_count = 0;
 				for(int i=0;i<total[tmp];i++){
@@ -3159,16 +3164,41 @@ void CUDT::timeout_monitors() {
 				end_time[tmp] = current_time;
 				left_monitor--;
 				if (m_pCC->onTimeout(tmp)) {
-					m_last_rtt[tmp % kRTTHistory] = estimate_rtt_for_timedout_monitors(tmp);
+					m_last_rtt[tmp % 100] = estimate_rtt_for_timedout_monitors(tmp);
 					//total[tmp]-left[tmp]
-					m_pCC->onMonitorEnds(total[tmp],lost[tmp],(end_transmission_time[tmp]-start_time[tmp])/1000000 + allocated_times_[tmp], current_monitor,tmp, m_last_rtt[tmp % kRTTHistory]);
+					m_pCC->onMonitorEnds(total[tmp],total[tmp]-left[tmp],(end_transmission_time[tmp]-start_time[tmp])/1000000,current_monitor,tmp, m_last_rtt[tmp % 100]);
 					m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
 				}
-				init_state();
-				cout << "done handling timeout!" << endl;
+				m_iRTT = allocated_times_[tmp];
+	            loss_record1.clear();
+	            loss_record2.clear();
+	            for (unsigned int mon_index = 0; mon_index < 100; mon_index++) {
+	            	state[mon_index] = 3;
+	            	total[mon_index] = 0;
+	            	lost[mon_index] = 0;
+	            	retransmission[mon_index] = 0;
+	            	new_transmission[mon_index] = 0;
+	            	latency[mon_index] = 0;
+	            	latency_seq_end[mon_index] = 0;
+	            	latency_time_start[mon_index] = 0;
+	            	latency_time_end[mon_index] = 0;
+	            	time_interval[mon_index] = 0;
+	            	rtt_count[mon_index] = 0;
+	            	rtt_value[mon_index] = 0;
+	            	deadlines[mon_index] = 0;
+	            	allocated_times_[mon_index] = 0;
+                        m_last_rtt[mon_index] = 0;
+	            }
+				
+	            monitor = true;
+	            left_monitor = 0;
+	            m_monitor_count = 0;
+				cout << "done handling timeout" << endl;
+                start_monitor(0);
 				break;
 			}
 		}
+    tmp = (tmp + 1) % 100;
 	}
 }
 

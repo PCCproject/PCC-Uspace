@@ -106,7 +106,7 @@ public:
       // Returned value:
       //    None.
 
-   virtual bool onTimeout(int /*monitor*/) {return false;}
+   virtual bool onTimeout(int) {return false;}
 
       // Functionality:
       //    Callback function to be called when a data is sent.
@@ -137,7 +137,7 @@ public:
 
    virtual void processCustomMsg(const CPacket*) {}
 
-   virtual void onMonitorEnds(unsigned long /*total*/, unsigned long /*loss*/, double /*time*/, int /*skip*/, int /*num*/, double /*rtt*/){}
+   virtual void onMonitorEnds(int /*total*/, int /*loss*/, double /*time*/, int /*skip*/,int /*num*/, double /*rtt*/){}
 
    virtual void onMonitorStart(int /*monitor_number*/){}
 
