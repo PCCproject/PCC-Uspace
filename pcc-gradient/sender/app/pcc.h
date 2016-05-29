@@ -37,10 +37,16 @@ public:
 	
 	virtual void onLoss(const int32_t*, const int&) {}
 	virtual bool onTimeout(int monitor){ 
-		if (start_measurment_map_.find(monitor) == start_measurment_map_.end() && 
-			end_measurment_map_.find(monitor) == end_measurment_map_.end()) {
-			return false;
+		if (state_ != START) {
+			if (start_measurment_map_.find(monitor) == start_measurment_map_.end() && end_measurment_map_.find(monitor) == end_measurment_map_.end()) {
+				cout << "NOT IN START: monitor " << monitor << " already gone!" << endl;
+				return false;
+			}
+		} else if (monitor_in_start_phase_ != monitor) {
+			cout << "START: monitor " << monitor << " already gone!" << endl;
+			return false;			
 		}
+
 		setRate(0.5 * rate());
 		cout << "timeout!" <<endl;
 		clear_state();
