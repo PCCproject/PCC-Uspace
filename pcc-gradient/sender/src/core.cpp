@@ -526,7 +526,7 @@ void CUDT::open()
 	m_pRNode->m_bOnList = false;
 
 	m_iRTT = 10 * m_iSYNInterval;
-	for (int i = 0; i < 5; i++) m_last_rtt[i] = 0;
+	for (int i = 0; i < kRTTHistory; i++) m_last_rtt[i] = 0;
 	m_monitor_count = 0;
 	m_iRTTVar = m_iRTT >> 1;
 	m_ullCPUFrequency = CTimer::getCPUFrequency();
@@ -2437,7 +2437,7 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 							rtt_value[Mon]=0;
 							rtt_count[Mon]=1;
                         }
-						m_last_rtt[Mon % 5] = rtt_value[Mon]/((double) rtt_count[Mon]);
+						m_last_rtt[Mon % kRTTHistory] = rtt_value[Mon]/((double) rtt_count[Mon]);
 						m_pCC->onMonitorEnds(total[tmp],total[tmp]-left[tmp],(end_transmission_time[tmp]-start_time[tmp])/1000000,current_monitor,tmp, rtt_value[Mon]/double(rtt_count[Mon]));
 						m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
 						if (!left_monitor) break;
@@ -3011,7 +3011,7 @@ void CUDT::removeEPoll(const int eid)
 
 double CUDT::get_min_rtt() const {
 	double min = m_last_rtt[0];
-	for (int i = 1; i < 5; i++) {
+	for (int i = 1; i < kRTTHistory; i++) {
 		if ((m_last_rtt[i] < min) && (m_last_rtt[i] != 0)) {
 			min = m_last_rtt[i];
 		}
@@ -3036,7 +3036,7 @@ void CUDT::start_monitor(int length)
     //double rand_factor = double(rand()%10)/100.0;
 	//if(m_iRTT*(1.2)/m_pCC->m_dPktSndPeriod>10) length = m_iRTT*(0.5 + rand_factor)/m_pCC->m_dPktSndPeriod;
 	uint64_t minrtt = 1000000000000;
-	if (m_monitor_count > 5) {
+	if (m_monitor_count > kRTTHistory) {
 		//cout << "min RTT is " << get_min_rtt() << endl;
 		minrtt = get_min_rtt();
 		//cout << "m_iRTT: " << m_iRTT << ". Min RTT = " << get_min_rtt() << endl;
@@ -3159,9 +3159,9 @@ void CUDT::timeout_monitors() {
 				end_time[tmp] = current_time;
 				left_monitor--;
 				if (m_pCC->onTimeout(tmp)) {
-					m_last_rtt[tmp % 5] = estimate_rtt_for_timedout_monitors(tmp);
+					m_last_rtt[tmp % kRTTHistory] = estimate_rtt_for_timedout_monitors(tmp);
 					//total[tmp]-left[tmp]
-					m_pCC->onMonitorEnds(total[tmp],total[tmp]-left[tmp],(end_transmission_time[tmp]-start_time[tmp])/1000000,current_monitor,tmp, m_last_rtt[tmp % 5]);
+					m_pCC->onMonitorEnds(total[tmp],lost[tmp],(end_transmission_time[tmp]-start_time[tmp])/1000000 + allocated_times_[tmp], current_monitor,tmp, m_last_rtt[tmp % kRTTHistory]);
 					m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
 				}
 				init_state();
