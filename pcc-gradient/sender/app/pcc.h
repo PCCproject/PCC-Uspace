@@ -69,6 +69,7 @@ public:
 			}
 			monitor_in_start_phase_ = current_monitor;
 			setRate(rate() * slow_start_factor_);
+			//cout << "doubling the rate --> " << rate() << endl;
 		} else if (state_ == SEARCH) {
 			if (start_measurement_) {
 				start_measurment_map_.insert(pair<int,Measurement*>(current_monitor, new Measurement(base_rate_)));
@@ -144,40 +145,45 @@ public:
 				if (start_measurment_map_.find(endMonitor) != start_measurment_map_.end()) {
 					start_utility = start_measurment_map_.at(endMonitor)->utility_;
 					other_monitor = start_measurment_map_.at(endMonitor)->other_monitor_;
-					end_utility = end_measurment_map_.at(other_monitor)->utility_;
 					
-					start_base = start_measurment_map_.at(endMonitor)->base_rate_;
-					end_base = end_measurment_map_.at(other_monitor)->base_rate_;
+					if (end_measurment_map_.find(other_monitor) != end_measurment_map_.end()) {
+						end_utility = end_measurment_map_.at(other_monitor)->utility_;
+						
+						start_base = start_measurment_map_.at(endMonitor)->base_rate_;
+						end_base = end_measurment_map_.at(other_monitor)->base_rate_;
 
-					start_rtt = start_measurment_map_.at(endMonitor)->rtt_;
-					start_loss = start_measurment_map_.at(endMonitor)->loss_;
-					end_rtt = end_measurment_map_.at(other_monitor)->rtt_;
-					end_loss = end_measurment_map_.at(other_monitor)->loss_;
+						start_rtt = start_measurment_map_.at(endMonitor)->rtt_;
+						start_loss = start_measurment_map_.at(endMonitor)->loss_;
+						end_rtt = end_measurment_map_.at(other_monitor)->rtt_;
+						end_loss = end_measurment_map_.at(other_monitor)->loss_;
 
-					
+						delete end_measurment_map_.at(other_monitor);
+						end_measurment_map_.erase(other_monitor);
+					}
 					delete start_measurment_map_.at(endMonitor);
-					delete end_measurment_map_.at(other_monitor);
 					start_measurment_map_.erase(endMonitor);
-					end_measurment_map_.erase(other_monitor);
+					
 				} else {
 					end_utility = end_measurment_map_.at(endMonitor)->utility_;
 					other_monitor = end_measurment_map_.at(endMonitor)->other_monitor_;
-					start_utility = start_measurment_map_.at(other_monitor)->utility_;
 					
-					start_base = start_measurment_map_.at(other_monitor)->base_rate_;
-					end_base = end_measurment_map_.at(endMonitor)->base_rate_;
+					if (start_measurment_map_.find(other_monitor) != start_measurment_map_.end()) {
+						start_utility = start_measurment_map_.at(other_monitor)->utility_;
+						
+						start_base = start_measurment_map_.at(other_monitor)->base_rate_;
+						end_base = end_measurment_map_.at(endMonitor)->base_rate_;
 
 
-					start_rtt = start_measurment_map_.at(other_monitor)->rtt_;
-					start_loss = start_measurment_map_.at(other_monitor)->loss_;
-					end_rtt = end_measurment_map_.at(endMonitor)->rtt_;
-					end_loss = end_measurment_map_.at(endMonitor)->loss_;
-
+						start_rtt = start_measurment_map_.at(other_monitor)->rtt_;
+						start_loss = start_measurment_map_.at(other_monitor)->loss_;
+						end_rtt = end_measurment_map_.at(endMonitor)->rtt_;
+						end_loss = end_measurment_map_.at(endMonitor)->loss_;
+						delete start_measurment_map_.at(other_monitor);
+						start_measurment_map_.erase(other_monitor);
+					}
 
 					delete end_measurment_map_.at(endMonitor);
-					delete start_measurment_map_.at(other_monitor);
 					end_measurment_map_.erase(endMonitor);
-					start_measurment_map_.erase(other_monitor);
 				}
 
 				bool contidutions_changed_too_much = false;
@@ -208,7 +214,7 @@ protected:
     bool start_measurement_;
 	double base_rate_;
 	bool kPrint;
-	static const double kMinRateMbps = 0.01;
+	static const double kMinRateMbps = 0.2;
 	
 
 	virtual void search() = 0;
@@ -239,8 +245,8 @@ protected:
 		prev_utility_ = -10000000;
 	}
 	
-	PCC() : start_measurement_(true), base_rate_(1.0), kPrint(false), state_(START), monitor_in_start_phase_(-1), slow_start_factor_(2),
-			alpha_(kAlpha), beta_(kBeta), exponent_(kExponent), poly_utlity_(kPolyUtility), rate_(1.0), monitor_in_prog_(-1), utility_sum_(0), measurement_intervals_(0), prev_utility_(-10000000), continue_slow_start_(true) {
+	PCC() : start_measurement_(true), base_rate_(kMinRateMbps), kPrint(false), state_(START), monitor_in_start_phase_(-1), slow_start_factor_(2),
+			alpha_(kAlpha), beta_(kBeta), exponent_(kExponent), poly_utlity_(kPolyUtility), rate_(kMinRateMbps), monitor_in_prog_(-1), utility_sum_(0), measurement_intervals_(0), prev_utility_(-10000000), continue_slow_start_(true) {
 		m_dPktSndPeriod = 10000;
 		m_dCWndSize = 100000.0;
 		setRTO(100000000);
@@ -260,11 +266,14 @@ protected:
 	virtual void setRate(double mbps) {
 		//cout << "set rate: " << rate_ << " --> " << mbps << endl;
 		if (mbps < kMinRateMbps) { 
-			//cout << "rate is mimimal, changing to " << kMinRateMbps << " instead" << endl;
+			cout << "rate is mimimal, changing to " << kMinRateMbps << " instead" << endl;
 			mbps = kMinRateMbps; 
-		};
+		} else if (mbps < 0.5) {
+			cout << "rate is pretty low" << endl;
+		}
 		rate_ = mbps;
 		m_dPktSndPeriod = (m_iMSS * 8.0) / mbps;
+		//cout << "setting rate: mbps = " << mbps << endl;
 	}
 
 	double rate() const { return rate_; }
