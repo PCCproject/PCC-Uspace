@@ -3044,7 +3044,7 @@ void CUDT::start_monitor(int length)
     //double rand_factor = double(rand()%10)/100.0;
 	//if(m_iRTT*(1.2)/m_pCC->m_dPktSndPeriod>10) length = m_iRTT*(0.5 + rand_factor)/m_pCC->m_dPktSndPeriod;
 		//cout << "min RTT is " << get_min_rtt() << endl;
-		allocated_times_[current_monitor] = 5 * m_iRTT;//get_min_rtt();
+		allocated_times_[current_monitor] = 6 * m_iRTT;//get_min_rtt();
                 if(allocated_times_[current_monitor]> 1000000) {
                     allocated_times_[current_monitor] = 1000000;
                 } 
