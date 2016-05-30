@@ -11,6 +11,8 @@
 #include <time.h>
 #include <map>
 
+//#define DEBUG_PRINT
+
 using namespace std;
 
 class Measurement {
@@ -40,19 +42,21 @@ public:
 		//cout << "handling timeout in PCC! for monitor " << monitor << endl;
 		if (state_ != START) {
 			if (start_measurment_map_.find(monitor) == start_measurment_map_.end() && end_measurment_map_.find(monitor) == end_measurment_map_.end()) {
-				cout << "NOT IN START: monitor " << monitor << " already gone!" << endl;
+				#ifdef DEBUG_PRINT
+					cout << "NOT IN START: monitor " << monitor << " already gone!" << endl;
+				#endif
 				return false;
-			} else {
-				cout << "we're still waiting for monitor: " << monitor << endl;
 			}
 		} /*else if (monitor_in_start_phase_ != monitor) {
 			cout << "START: monitor " << monitor << " already gone! current monitor: " << monitor_in_start_phase_ << endl;
 			return false;			
 		}*/
 		//state_ = SEARCH;
-		setRate(0.5 * rate());
+		setRate(0.75 * rate());
 		base_rate_ = rate();
-		cout << "timeout! new rate is " << rate() << endl;
+		#ifdef DEBUG_PRINT
+			cout << "timeout! new rate is " << rate() << endl;
+		#endif
 		restart();
 		//clear_state();
 		//start_measurment_map_.clear();
@@ -116,7 +120,9 @@ public:
 				if (!continue_slow_start) {
 					setRate(rate() / slow_start_factor_);
 					state_ = SEARCH;
-					cout << "exit slow start, rate =  " << rate() << endl;
+					#ifdef DEBUG_PRINT
+						cout << "exit slow start, rate =  " << rate() << endl;
+					#endif
 					//cout << "previous utility = " << tmp_prev_utility << ", this utility = " << curr_utility << endl;
 				} /*else {
 					cout << "current rate: " << rate() << " current utility " << curr_utility << " going forward." << endl; 
@@ -136,11 +142,16 @@ public:
             }
 
             if(isAllSearchResultBack(endMonitor)) {
-				int start_utility, end_utility;
+				int start_utility = 0;
+				int end_utility = 0;
 				int other_monitor;
 
-				double start_rtt, start_loss, end_rtt, end_loss;
-				double start_base, end_base;
+				double start_rtt = 0;
+				double start_loss = 0;
+				double start_base = 0;
+				double end_base = 1;
+				double end_rtt = 0;
+				double end_loss = 0;
 
 				if (start_measurment_map_.find(endMonitor) != start_measurment_map_.end()) {
 					start_utility = start_measurment_map_.at(endMonitor)->utility_;
@@ -223,7 +234,7 @@ protected:
 	virtual void clear_state() {
 		continue_slow_start_ = true;
 		start_measurement_ = true;
-		slow_start_factor_ = 1.03;
+		slow_start_factor_ = 1.15;
 		start_measurment_map_.clear();
 		end_measurment_map_.clear();
 		state_ = SEARCH;
@@ -251,7 +262,7 @@ protected:
 		m_dCWndSize = 100000.0;
 		setRTO(100000000);
 		srand(time(NULL));
-		beta_ = 100;
+		beta_ = 15;
 		cout << "configuration: alpha = " << alpha_ << ", beta = " << beta_   << ", exponent = " << exponent_ << " poly utility = " << poly_utlity_ << endl;
 		
 		/*
@@ -266,10 +277,10 @@ protected:
 	virtual void setRate(double mbps) {
 		//cout << "set rate: " << rate_ << " --> " << mbps << endl;
 		if (mbps < kMinRateMbps) { 
-			cout << "rate is mimimal, changing to " << kMinRateMbps << " instead" << endl;
+			#ifdef DEBUG_PRINT
+				cout << "rate is mimimal, changing to " << kMinRateMbps << " instead" << endl;
+			#endif
 			mbps = kMinRateMbps; 
-		} else if (mbps < 0.5) {
-			cout << "rate is pretty low" << endl;
 		}
 		rate_ = mbps;
 		m_dPktSndPeriod = (m_iMSS * 8.0) / mbps;
@@ -304,7 +315,7 @@ private:
 		long double utility;		
 		//static long double previous_utility;
 		if (poly_utlity_) {
-		 	utility = ((long double)total - total * (long double) (alpha_* (pow((1+((long double)((double) loss/(double) total))), exponent_)-1))) / norm_measurement_interval - 0.0001 * total *pow(rtt_penalty, 1.2);
+		 	utility = ((long double)total - total * (long double) (alpha_* (pow((1+((long double)((double) loss/(double) total))), exponent_)-1))) / norm_measurement_interval - 0.01 * total *pow(rtt_penalty, 1.2);
 			//cout << "Total: " << total << " RTT part:" << rtt << "  utility: " << utility << " total = " << total << endl;
 		} else {
 			utility = (total - loss - (long double) (alpha_ * pow(2.3, loss))) / norm_measurement_interval - 10 * total * pow(1000 * rtt, 1.15);

@@ -34,7 +34,7 @@ protected:
 		prev_gradiants_[curr_] = gradient;
 
 		/*
-		if (gradient * prev_gradiants_[(curr_ + 99) % 100] > 0) {
+		if (gradient * prev_gradiants_[(curr_ + 99) % 100] >= 0) {
 			trend_count_++;
 		} else {
 			trend_count_ = 0;
@@ -54,8 +54,10 @@ protected:
 		else decision_count_ = 0;
 		prev_change_ = change;
 
-		if ((change > 0) && (decision_count_ == 10)) {
-			cout << "restart." << endl;
+		if ((change > 0) && (decision_count_ == 3)) {
+			#ifdef DEBUG_PRINT
+				cout << "restart." << endl;
+			#endif
 			restart();
 		}
 		
@@ -113,8 +115,8 @@ private:
 	double prev_gradiants_[100];
 	double prev_change_;
 
-	static const int kRobustness = 4;
-	static const double kEpsilon = 0.006;
+	static const int kRobustness = 2;
+	static const double kEpsilon = 0.06;
 	static const double kDelta = 0.05; 
 	double next_delta;
 };
