@@ -262,7 +262,7 @@ protected:
 		m_dCWndSize = 100000.0;
 		setRTO(100000000);
 		srand(time(NULL));
-		beta_ = 15;
+		beta_ = 55;
 		cout << "configuration: alpha = " << alpha_ << ", beta = " << beta_   << ", exponent = " << exponent_ << " poly utility = " << poly_utlity_ << endl;
 		
 		/*
