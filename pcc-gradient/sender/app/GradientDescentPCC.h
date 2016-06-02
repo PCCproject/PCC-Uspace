@@ -29,7 +29,7 @@ protected:
 		curr_ = 0;
 		prev_change_ = 0;
 	}
-	virtual void decide(long double start_utility, long double end_utility, long double base_rate, bool condition_changed) {
+	virtual void decide(long double start_utility, long double end_utility, bool force_change) {
 		double gradient = -1 * (start_utility - end_utility) / (2 * kDelta * base_rate_ * 0.05);
 		prev_gradiants_[curr_] = gradient;
 
@@ -42,26 +42,35 @@ protected:
 		*/
 		trend_count_++;
 		curr_ = (curr_ + 1) % 100;		
-		if ((trend_count_ == 0) || (trend_count_ == kRobustness)) {
+		if (((trend_count_ == 0) || (trend_count_ == kRobustness)) && (!force_change)) {
 			return;
 		}
 		trend_count_ = 0;
 		
-		double change = 2 * rate()/1000 * kEpsilon * avg_gradient();		
+		double change = 2 * rate()/1000 * kEpsilon * avg_gradient();	
+
+		if (force_change) {
+			cout << "computed change: " << change << endl;
+		}
+		
 		if ((change >= 0) && (change < kMinRateMbps)) change = kMinRateMbps;
 		
 		if (change * prev_change_ >= 0) decision_count_++;
 		else decision_count_ = 0;
 		prev_change_ = change;
 
-		if ((change > 0) && (decision_count_ == 4)) {
+		if ((change > 0) && (decision_count_ == 10)) {
 			#ifdef DEBUG_PRINT
 			cout << "restart." << endl;
 			#endif
 			restart();
 		}
-		
+				
 		base_rate_ += change;
+		if (force_change) {
+			setRate(base_rate_);
+		}
+
 		if (base_rate_ < 0) base_rate_ = 1.05 * kMinRateMbps;
 	}
 	
