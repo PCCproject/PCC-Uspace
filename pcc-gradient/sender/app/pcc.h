@@ -92,12 +92,16 @@ public:
 			//cout << "doubling the rate --> " << rate() << endl;
 		} else if (state_ == SEARCH) {
 			if (start_measurement_) {
-				start_measurment_map_.insert(pair<int,unique_ptr<Measurement> >(current_monitor, unique_ptr<Measurement>(new Measurement(base_rate_))));
-				current_start_monitor_ = current_monitor;
+				if (start_measurment_map_.find(current_monitor) == start_measurment_map_.end()) {
+					start_measurment_map_.insert(pair<int,shared_ptr<Measurement> >(current_monitor, shared_ptr<Measurement>(new Measurement(base_rate_))));
+					current_start_monitor_ = current_monitor;
+				}
 			} else {
 				if (start_measurment_map_.find(current_start_monitor_) != start_measurment_map_.end()) {
-					end_measurment_map_.insert(pair<int,unique_ptr<Measurement> >(current_monitor, unique_ptr<Measurement>(new Measurement(base_rate_,current_start_monitor_))));
-					start_measurment_map_.at(current_start_monitor_)->other_monitor_ = current_monitor;
+					if (end_measurment_map_.find(current_monitor) == end_measurment_map_.end()) {
+						end_measurment_map_.insert(pair<int,shared_ptr<Measurement> >(current_monitor, shared_ptr<Measurement>(new Measurement(base_rate_,current_start_monitor_))));
+						start_measurment_map_.at(current_start_monitor_)->other_monitor_ = current_monitor;
+					}
 				} else {
 					start_measurment_map_.clear();
 					end_measurment_map_.clear();
@@ -390,8 +394,8 @@ private:
 	size_t measurement_intervals_;
 	long double prev_utility_;
 	bool continue_slow_start_;
-	map<int, unique_ptr<Measurement> > start_measurment_map_;
-	map<int, unique_ptr<Measurement> > end_measurment_map_;
+	map<int, shared_ptr<Measurement> > start_measurment_map_;
+	map<int, shared_ptr<Measurement> > end_measurment_map_;
 	int current_start_monitor_;
 	long double last_utility_;
 };
