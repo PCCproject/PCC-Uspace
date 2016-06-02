@@ -117,7 +117,7 @@ private:
 
 	static const int kRobustness = 2;
 	static const double kEpsilon = 0.006;
-	static const double kDelta = 0.05; 
+	static const double kDelta = 0.04; 
 	double next_delta;
 };
 
