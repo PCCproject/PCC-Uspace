@@ -262,7 +262,6 @@ protected:
 		m_dCWndSize = 100000.0;
 		setRTO(100000000);
 		srand(time(NULL));
-		beta_ = 55;
 		cout << "configuration: alpha = " << alpha_ << ", beta = " << beta_   << ", exponent = " << exponent_ << " poly utility = " << poly_utlity_ << endl;
 		
 		/*
@@ -312,8 +311,12 @@ private:
 		long double norm_measurement_interval = time / rtt;
 		// convert to milliseconds
 		long double rtt_penalty = 1000 * rtt;
-		long double utility;		
+		long double utility;
+			//cout <<"RTT: " << rtt_penalty << endl;
 		//static long double previous_utility;
+		 	utility = ((long double)total - total * (long double) (alpha_* (pow((1+((long double)((double) loss/(double) total))), exponent_)-1))) / norm_measurement_interval - beta_ * rtt_penalty;//0.01 * total *pow(rtt_penalty, 1.4);
+
+/*
 		if (poly_utlity_) {
 		 	utility = ((long double)total - total * (long double) (alpha_* (pow((1+((long double)((double) loss/(double) total))), exponent_)-1))) / norm_measurement_interval - 0.01 * total *pow(rtt_penalty, 1.2);
 			//cout << "Total: " << total << " RTT part:" << rtt << "  utility: " << utility << " total = " << total << endl;
@@ -321,11 +324,8 @@ private:
 			utility = (total - loss - (long double) (alpha_ * pow(2.3, loss))) / norm_measurement_interval - 10 * total * pow(1000 * rtt, 1.15);
 			//((long double)total - total * (long double) (alpha_ * pow(exponent_, 1 + ((long double)((double) loss/(double) total))))) / norm_measurement_interval - beta_ * total * pow(rtt_penalty, 1.02);
 		}
-		/*if (loss > 0) {
-			cout << previous_utility << " --> " << utility << " at rate: " << rate() << endl;
-		}*/
 		//previous_utility = utility;
-		
+*/	
 		return utility;
 	}
 
