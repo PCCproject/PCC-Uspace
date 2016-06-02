@@ -124,9 +124,9 @@ private:
 	double prev_gradiants_[100];
 	double prev_change_;
 
-	static const int kRobustness = 2;
-	static const double kEpsilon = 0.006;
-	static const double kDelta = 0.04; 
+	static constexpr int kRobustness = 2;
+	static constexpr double kEpsilon = 0.006;
+	static constexpr double kDelta = 0.04; 
 	double next_delta;
 };
 

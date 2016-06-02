@@ -1,4 +1,4 @@
-C++ = g++ 
+C++ = g++ -std=c++0x
 
 ifndef os
    os = LINUX
@@ -38,7 +38,7 @@ endif
 
 DIR = $(shell pwd)
 
-APP = appclient gradient_descent_pcc_client
+APP = gradient_descent_pcc_client
 
 all: $(APP)
 

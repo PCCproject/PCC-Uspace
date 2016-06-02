@@ -10,7 +10,7 @@
 #include <deque>
 #include <time.h>
 #include <map>
-
+#include <memory>
 //#define DEBUG_PRINT
 
 using namespace std;
@@ -92,11 +92,11 @@ public:
 			//cout << "doubling the rate --> " << rate() << endl;
 		} else if (state_ == SEARCH) {
 			if (start_measurement_) {
-				start_measurment_map_.insert(pair<int,Measurement*>(current_monitor, new Measurement(base_rate_)));
+				start_measurment_map_.insert(pair<int,unique_ptr<Measurement> >(current_monitor, unique_ptr<Measurement>(new Measurement(base_rate_))));
 				current_start_monitor_ = current_monitor;
 			} else {
 				if (start_measurment_map_.find(current_start_monitor_) != start_measurment_map_.end()) {
-					end_measurment_map_.insert(pair<int,Measurement*>(current_monitor, new Measurement(base_rate_,current_start_monitor_)));
+					end_measurment_map_.insert(pair<int,unique_ptr<Measurement> >(current_monitor, unique_ptr<Measurement>(new Measurement(base_rate_,current_start_monitor_))));
 					start_measurment_map_.at(current_start_monitor_)->other_monitor_ = current_monitor;
 				} else {
 					start_measurment_map_.clear();
@@ -186,10 +186,10 @@ public:
 						//end_rtt = end_measurment_map_.at(other_monitor)->rtt_;
 						//end_loss = end_measurment_map_.at(other_monitor)->loss_;
 
-						delete end_measurment_map_.at(other_monitor);
+						//delete end_measurment_map_.at(other_monitor);
 						end_measurment_map_.erase(other_monitor);
 					}
-					delete start_measurment_map_.at(endMonitor);
+					//delete start_measurment_map_.at(endMonitor);
 					start_measurment_map_.erase(endMonitor);
 					
 				} else {
@@ -207,11 +207,11 @@ public:
 						//start_loss = start_measurment_map_.at(other_monitor)->loss_;
 						//end_rtt = end_measurment_map_.at(endMonitor)->rtt_;
 						//end_loss = end_measurment_map_.at(endMonitor)->loss_;
-						delete start_measurment_map_.at(other_monitor);
+						//delete start_measurment_map_.at(other_monitor);
 						start_measurment_map_.erase(other_monitor);
 					}
 
-					delete end_measurment_map_.at(endMonitor);
+					//delete end_measurment_map_.at(endMonitor);
 					end_measurment_map_.erase(endMonitor);
 				}
 
@@ -243,8 +243,8 @@ protected:
     bool start_measurement_;
 	double base_rate_;
 	bool kPrint;
-	static const double kMinRateMbps = 0.2;
-	static const double kMaxRateMbps = 1024.0;
+	static constexpr double kMinRateMbps = 0.2;
+	static constexpr double kMaxRateMbps = 1024.0;
 	
 
 	virtual void search() = 0;
@@ -390,8 +390,8 @@ private:
 	size_t measurement_intervals_;
 	long double prev_utility_;
 	bool continue_slow_start_;
-	map<int, Measurement*> start_measurment_map_;
-	map<int, Measurement*> end_measurment_map_;
+	map<int, unique_ptr<Measurement> > start_measurment_map_;
+	map<int, unique_ptr<Measurement> > end_measurment_map_;
 	int current_start_monitor_;
 	long double last_utility_;
 };
