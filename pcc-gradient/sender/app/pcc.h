@@ -85,6 +85,8 @@ public:
 				} else {
 					start_measurment_map_.clear();
 					end_measurment_map_.clear();
+					start_measurement_ = true;
+					return;
 				}
 			}
 			search();
@@ -119,10 +121,14 @@ public:
 				monitor_in_start_phase_ = -1;
 				if (!continue_slow_start) {
 					setRate(rate() / slow_start_factor_);
-					state_ = SEARCH;
-					#ifdef DEBUG_PRINT
-						cout << "exit slow start, rate =  " << rate() << endl;
-					#endif
+					
+					slow_start_factor_ /= 1.5;
+					if (slow_start_factor_ < 1.2) {
+						state_ = SEARCH;
+						#ifdef DEBUG_PRINT
+							cout << "exit slow start, rate =  " << rate() << endl;
+						#endif
+					}					
 					//cout << "previous utility = " << tmp_prev_utility << ", this utility = " << curr_utility << endl;
 				} /*else {
 					cout << "current rate: " << rate() << " current utility " << curr_utility << " going forward." << endl; 
@@ -234,7 +240,7 @@ protected:
 	virtual void clear_state() {
 		continue_slow_start_ = true;
 		start_measurement_ = true;
-		slow_start_factor_ = 1.15;
+		slow_start_factor_ = 1.2;
 		start_measurment_map_.clear();
 		end_measurment_map_.clear();
 		state_ = SEARCH;
@@ -310,11 +316,13 @@ private:
 
 		long double norm_measurement_interval = time / rtt;
 		// convert to milliseconds
-		long double rtt_penalty = 1000 * rtt;
+		long double rtt_penalty_1 = 1000 * rtt;
+		unsigned long rtt_penalty = rtt_penalty_1 / 5;
 		long double utility;
 			//cout <<"RTT: " << rtt_penalty << endl;
 		//static long double previous_utility;
-		 	utility = ((long double)total - total * (long double) (alpha_* (pow((1+((long double)((double) loss/(double) total))), exponent_)-1))) / norm_measurement_interval - beta_ * rtt_penalty;//0.01 * total *pow(rtt_penalty, 1.4);
+		exponent_ = 5;
+		 	utility = ((long double)total - total * (long double) (alpha_* (pow((1+((long double)((double) loss/(double) total))), exponent_)-1))) / norm_measurement_interval - 3 * pow(rtt_penalty,1.5);//0.01 * total *pow(rtt_penalty, 1.4);
 
 /*
 		if (poly_utlity_) {

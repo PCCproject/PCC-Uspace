@@ -54,7 +54,7 @@ protected:
 		else decision_count_ = 0;
 		prev_change_ = change;
 
-		if ((change > 0) && (decision_count_ == 5)) {
+		if ((change > 0) && (decision_count_ == 4)) {
 			#ifdef DEBUG_PRINT
 			cout << "restart." << endl;
 			#endif
