@@ -2960,7 +2960,7 @@ void CUDT::checkTimers()
                                 cout<<"insert"<<endl;
 			}
 
-			m_pCC->onTimeout(-1);
+			m_pCC->onTimeout(1, 1, 1, 1, -1, 1);
 			// update CC parameters
 			m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
 			m_dCongestionWindow = m_pCC->m_dCWndSize;
@@ -3166,12 +3166,8 @@ void CUDT::timeout_monitors() {
 				lost[tmp]=total[tmp]-left[tmp];
 				end_time[tmp] = current_time;
 				left_monitor--;
-				if (m_pCC->onTimeout(tmp)) {
-					m_last_rtt[tmp % 100] = estimate_rtt_for_timedout_monitors(tmp);
-					//total[tmp]-left[tmp]
-					m_pCC->onMonitorEnds(total[tmp],total[tmp]-left[tmp],(end_transmission_time[tmp]-start_time[tmp])/1000000,current_monitor,tmp, m_last_rtt[tmp % 100]);
-					m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
-				}
+				m_pCC->onTimeout(total[tmp],total[tmp]-left[tmp],(end_transmission_time[tmp]-start_time[tmp])/1000000,current_monitor,tmp, allocated_times_[tmp]/1000);
+				
 				m_iRTT = allocated_times_[tmp];
 	            loss_record1.clear();
 	            loss_record2.clear();

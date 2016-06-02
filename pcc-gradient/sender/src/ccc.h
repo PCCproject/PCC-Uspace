@@ -106,7 +106,7 @@ public:
       // Returned value:
       //    None.
 
-   virtual bool onTimeout(int) {return false;}
+   virtual bool onTimeout(int /*total*/, int /*loss*/, double /*in_time*/, int /*current*/, int /*endMonitor*/, double /*rtt*/) {return false;}
 
       // Functionality:
       //    Callback function to be called when a data is sent.
@@ -263,7 +263,7 @@ public:
    virtual void init();
    virtual void onACK(const int32_t&);
    virtual void onLoss(const int32_t*, const int&);
-   virtual bool onTimeout(int monitor);
+   virtual bool onTimeout(int /*total*/, int /*loss*/, double /*in_time*/, int /*current*/, int /*endMonitor*/, double /*rtt*/);
 
 private:
    int m_iRCInterval;			// UDT Rate control interval

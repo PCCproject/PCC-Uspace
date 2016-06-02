@@ -302,7 +302,6 @@ void CUDTCC::onLoss(const int32_t* losslist, const int&)
    }
 }
 
-bool CUDTCC::onTimeout(int /*monitor*/)
-{
+bool CUDTCC::onTimeout(int /*total*/, int /*loss*/, double /*in_time*/, int /*current*/, int /*endMonitor*/, double /*rtt*/) {
 	return false;
 }
