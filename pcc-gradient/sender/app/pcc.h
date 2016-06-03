@@ -253,7 +253,7 @@ protected:
     bool start_measurement_;
 	double base_rate_;
 	bool kPrint;
-	static constexpr double kMinRateMbps = 0.4;
+	static constexpr double kMinRateMbps = 0.3;
 	static constexpr double kMaxRateMbps = 1024.0;
 	
 
@@ -365,11 +365,11 @@ private:
 
 		// convert to milliseconds
 		double rtt_penalty = rtt / get_min_rtt();
-		if (rtt_penalty > 4) rtt_penalty  = 4;
+		if (rtt_penalty > 2.5) rtt_penalty  = 2.5;
 		exponent_ = 2.5;
 	
 		long double loss_contribution = total * (long double) (alpha_* (pow((1+((long double)((double) loss/(double) total))), exponent_)-1));
-		long double rtt_contribution = 2 * total*(pow(rtt_penalty,1.9) - 1); 
+		long double rtt_contribution = 2.5 * total*(pow(rtt_penalty,1.9) - 1); 
 		long double utility = ((long double)total - loss_contribution - rtt_contribution)/norm_measurement_interval;	
 	
 		//cout << "utility = " << utility << ". RTT penelty = " << rtt_contribution << ". RTT = " << rtt << ", min rtt = " << get_min_rtt() << ". Total = " << total << endl;
@@ -413,7 +413,7 @@ private:
 	int current_start_monitor_;
 	long double last_utility_;
 	deque<double> rtt_history_;
-	static constexpr size_t kHistorySize = 20;
+	static constexpr size_t kHistorySize = 10;
 };
 
 #endif

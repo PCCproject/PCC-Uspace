@@ -61,7 +61,7 @@ protected:
 		else decision_count_ = 0;
 		prev_change_ = change;
 
-		if ((change > 0) && (decision_count_ == 10)) {
+		if ((change > 0) && (decision_count_ == 7)) {
 			#ifdef DEBUG_PRINT
 			cout << "restart." << endl;
 			#endif
