@@ -247,7 +247,7 @@ protected:
     bool start_measurement_;
 	double base_rate_;
 	bool kPrint;
-	static constexpr double kMinRateMbps = 0.2;
+	static constexpr double kMinRateMbps = 0.8;
 	static constexpr double kMaxRateMbps = 1024.0;
 	
 
