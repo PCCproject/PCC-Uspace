@@ -62,12 +62,13 @@ public:
 			last_utility_ = curr_utility;
 			return true;
 		}
-		//#ifdef DEBUG_PRINT
+		#ifdef DEBUG_PRINT
 		cout << "computing utility: total = " << total << ", loss = " << loss << " in_time = " << in_time << ", rtt = " << rtt << endl;
 		cout << "current utility = " << curr_utility << " and previous utility = " << last_utility_ << endl;
 		cout << "current rate " << rate() << " --> ";
+		#endif
 		decide(last_utility_, curr_utility, true);
-		//#endif
+		
 		
 		
 		
@@ -81,7 +82,7 @@ public:
 		//start_measurment_map_.clear();
 		//end_measurment_map_.clear();
 		kInTimeout = false;
-		cout << "new rate: " << rate() << base_rate_ << endl;
+		//cout << "new rate: " << rate() << base_rate_ << endl;
 		return false;
 	}
 	virtual void onACK(const int& ack){}
@@ -148,7 +149,7 @@ public:
 					setRate(rate() / slow_start_factor_);
 					state_ = SEARCH;
 						//#ifdef DEBUG_PRINT
-						cout << "exit slow start, rate =  " << rate() << endl;
+						//cout << "exit slow start, rate =  " << rate() << endl;
 						//#endif
 					//cout << "previous utility = " << tmp_prev_utility << ", this utility = " << curr_utility << endl;
 				} /*else {
@@ -252,7 +253,7 @@ protected:
     bool start_measurement_;
 	double base_rate_;
 	bool kPrint;
-	static constexpr double kMinRateMbps = 0.5;
+	static constexpr double kMinRateMbps = 0.4;
 	static constexpr double kMaxRateMbps = 1024.0;
 	
 
@@ -412,7 +413,7 @@ private:
 	int current_start_monitor_;
 	long double last_utility_;
 	deque<double> rtt_history_;
-	static constexpr size_t kHistorySize = 10;
+	static constexpr size_t kHistorySize = 20;
 };
 
 #endif
