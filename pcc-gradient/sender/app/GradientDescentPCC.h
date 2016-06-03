@@ -49,9 +49,11 @@ protected:
 		
 		double change = 2 * rate()/1000 * kEpsilon * avg_gradient();	
 
+		/*
 		if (force_change) {
 			cout << "computed change: " << change << endl;
 		}
+		*/
 		
 		if ((change >= 0) && (change < kMinRateMbps)) change = kMinRateMbps;
 		
@@ -124,7 +126,7 @@ private:
 	double prev_gradiants_[100];
 	double prev_change_;
 
-	static constexpr int kRobustness = 3;
+	static constexpr int kRobustness = 2;
 	static constexpr double kEpsilon = 0.006;
 	static constexpr double kDelta = 0.05; 
 	double next_delta;
