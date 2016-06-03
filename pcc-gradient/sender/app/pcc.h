@@ -58,6 +58,10 @@ public:
 	
 		kInTimeout = true;
 		long double curr_utility = utility(total, 0, in_time, rtt);
+		if (curr_utility > last_utility_) {
+			last_utility_ = curr_utility;
+			return true;
+		}
 		//#ifdef DEBUG_PRINT
 		cout << "computing utility: total = " << total << ", loss = " << loss << " in_time = " << in_time << ", rtt = " << rtt << endl;
 		cout << "current utility = " << curr_utility << " and previous utility = " << last_utility_ << endl;
