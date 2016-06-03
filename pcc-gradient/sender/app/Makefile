@@ -56,9 +56,9 @@ recvfile: recvfile.o
 incast_client: incast_client.o
 	$(C++) $^ -o $@ $(LDFLAGS)
 gradient_descent_pcc_client: gradient_descent_pcc_client.o
-	$(C++) -g $^ -o $@ $(LDFLAGS)
+	$(C++) $^ -o $@ $(LDFLAGS)
 exponentiated_weights_pcc_client: exponentiated_weights_pcc_client.o
-	$(C++) -g $^ -o $@ $(LDFLAGS)
+	$(C++) $^ -o $@ $(LDFLAGS)
 
 clean:
 	rm -f *.o $(APP)
