@@ -364,7 +364,7 @@ private:
 
 		// convert to milliseconds
 		double rtt_penalty = rtt / get_min_rtt();
-		if (rtt_penalty > 6) rtt_penalty  = 10;
+		if (rtt_penalty > 4) rtt_penalty  = 4;
 		exponent_ = 2.5;
 	
 		long double loss_contribution = total * (long double) (alpha_* (pow((1+((long double)((double) loss/(double) total))), exponent_)-1));
