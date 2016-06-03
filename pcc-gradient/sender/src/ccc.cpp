@@ -265,6 +265,8 @@ RATE_LIMIT:
 
 void CUDTCC::onLoss(const int32_t* losslist, const int&)
 {
+	return;
+	/*
    //Slow Start stopped, if it hasn't yet
    if (m_bSlowStart)
    {
@@ -300,6 +302,7 @@ void CUDTCC::onLoss(const int32_t* losslist, const int&)
       m_dPktSndPeriod = ceil(m_dPktSndPeriod * 1.125);
       m_iLastDecSeq = m_iSndCurrSeqNo;
    }
+   */
 }
 
 bool CUDTCC::onTimeout(int /*total*/, int /*loss*/, double /*in_time*/, int /*current*/, int /*endMonitor*/, double /*rtt*/) {
