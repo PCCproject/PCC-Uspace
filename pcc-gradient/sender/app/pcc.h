@@ -77,7 +77,7 @@ public:
 		//start_measurment_map_.clear();
 		//end_measurment_map_.clear();
 		kInTimeout = false;
-		cout << "new rate: " << rate() << endl;
+		cout << "new rate: " << rate() << base_rate_ << endl;
 		return false;
 	}
 	virtual void onACK(const int& ack){}
@@ -360,24 +360,16 @@ private:
 
 		// convert to milliseconds
 		double rtt_penalty = rtt / get_min_rtt();
+		if (rtt_penalty > 6) rtt_penalty  = 10;
 		exponent_ = 2.5;
 	
 		long double loss_contribution = total * (long double) (alpha_* (pow((1+((long double)((double) loss/(double) total))), exponent_)-1));
-		long double rtt_contribution = 15 * total*(pow(rtt_penalty,1.9) - 1)/6; 
+		long double rtt_contribution = 2 * total*(pow(rtt_penalty,1.9) - 1); 
 		long double utility = ((long double)total - loss_contribution - rtt_contribution)/norm_measurement_interval;	
 	
-		//cout << "utility = " << utility << ". RTT penelty = " << rtt_contribution << endl;
+		//cout << "utility = " << utility << ". RTT penelty = " << rtt_contribution << ". RTT = " << rtt << ", min rtt = " << get_min_rtt() << ". Total = " << total << endl;
 	
 		 //utility = ((long double)total - total * (long double) (alpha_* (pow((1+((long double)((double) loss/(double) total))), exponent_)-1))) / norm_measurement_interval - 3 * pow(rtt_penalty,1);//0.01 * total *pow(rtt_penalty, 1.4);
-		 
-		 if (kInTimeout) {
-			cout << "utility components:" << endl;
-			cout << "total = " << total << endl;
-			cout << "loss = " << -1 * total * (long double) (alpha_* (pow((1+((long double)((double) loss/(double) total))), exponent_)-1)) << endl;
-			cout << "RTT = " << - pow(rtt_penalty,0.1) << endl;
-			cout << "computed utility = " << utility << endl;
-		}
-
 
 /*
 		if (poly_utlity_) {
