@@ -3166,7 +3166,9 @@ void CUDT::timeout_monitors() {
 				lost[tmp]=total[tmp]-left[tmp];
 				end_time[tmp] = current_time;
 				left_monitor--;
-				m_pCC->onTimeout(total[tmp],total[tmp]-left[tmp],(end_transmission_time[tmp]-start_time[tmp])/1000000,current_monitor,tmp, allocated_times_[tmp]/1000);
+				if (m_pCC->onTimeout(total[tmp],total[tmp]-left[tmp],(end_transmission_time[tmp]-start_time[tmp])/1000000,current_monitor,tmp, allocated_times_[tmp]/1000)) {
+					return;
+				}
 				
 				m_iRTT = allocated_times_[tmp];
 	            loss_record1.clear();
