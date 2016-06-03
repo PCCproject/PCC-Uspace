@@ -11,6 +11,7 @@
 #include <time.h>
 #include <map>
 #include <memory>
+#include <deque>
 //#define DEBUG_PRINT
 
 using namespace std;
@@ -143,7 +144,7 @@ public:
 					setRate(rate() / slow_start_factor_);
 					state_ = SEARCH;
 						//#ifdef DEBUG_PRINT
-						//cout << "exit slow start, rate =  " << rate() << endl;
+						cout << "exit slow start, rate =  " << rate() << endl;
 						//#endif
 					//cout << "previous utility = " << tmp_prev_utility << ", this utility = " << curr_utility << endl;
 				} /*else {
@@ -247,7 +248,7 @@ protected:
     bool start_measurement_;
 	double base_rate_;
 	bool kPrint;
-	static constexpr double kMinRateMbps = 0.8;
+	static constexpr double kMinRateMbps = 0.5;
 	static constexpr double kMaxRateMbps = 1024.0;
 	
 
@@ -331,6 +332,16 @@ private:
 		return false;
     }
 
+	double get_min_rtt() const {
+		double min = *rtt_history_.cbegin();
+		for (deque<double>::const_iterator it = rtt_history_.cbegin(); it!=rtt_history_.cend(); ++it) {
+			if (min > *it) {
+				min = *it;
+			}
+		}
+		return min;
+	}
+
 
 	virtual long double utility(unsigned long total, unsigned long loss, double time, double rtt) {
 		static long double last_measurement_interval = 1;
@@ -342,16 +353,22 @@ private:
 			last_measurement_interval = norm_measurement_interval;
 		}
 		
+		rtt_history_.push_front(rtt);
+		if (rtt_history_.size() > kHistorySize) {
+			rtt_history_.pop_back();
+		}
+
 		// convert to milliseconds
-		long double rtt_penalty_1 = 1000 * rtt;
-		unsigned long rtt_penalty = rtt_penalty_1 / 5;
-		long double utility;
-			//cout <<"RTT: " << rtt_penalty << endl;
-		//static long double previous_utility;
+		double rtt_penalty = rtt / get_min_rtt();
 		exponent_ = 2.5;
-		
 	
-		 utility = ((long double)total - total * (long double) (alpha_* (pow((1+((long double)((double) loss/(double) total))), exponent_)-1))) / norm_measurement_interval - 3 * pow(rtt_penalty,1);//0.01 * total *pow(rtt_penalty, 1.4);
+		long double loss_contribution = total * (long double) (alpha_* (pow((1+((long double)((double) loss/(double) total))), exponent_)-1));
+		long double rtt_contribution = 15 * total*(pow(rtt_penalty,1.9) - 1)/6; 
+		long double utility = ((long double)total - loss_contribution - rtt_contribution)/norm_measurement_interval;	
+	
+		//cout << "utility = " << utility << ". RTT penelty = " << rtt_contribution << endl;
+	
+		 //utility = ((long double)total - total * (long double) (alpha_* (pow((1+((long double)((double) loss/(double) total))), exponent_)-1))) / norm_measurement_interval - 3 * pow(rtt_penalty,1);//0.01 * total *pow(rtt_penalty, 1.4);
 		 
 		 if (kInTimeout) {
 			cout << "utility components:" << endl;
@@ -398,6 +415,8 @@ private:
 	map<int, shared_ptr<Measurement> > end_measurment_map_;
 	int current_start_monitor_;
 	long double last_utility_;
+	deque<double> rtt_history_;
+	static constexpr size_t kHistorySize = 10;
 };
 
 #endif
