@@ -3153,8 +3153,8 @@ void CUDT::timeout_monitors() {
 		if ((state[tmp]==1) || (state[tmp]==2)) {
 			if((deadlines[tmp] < current_time) && (allocated_times_[tmp] > 0)) {
 				int count=0;
-				cout<<"killing "<<tmp<<" at "<<current_time<<endl;
-				cout << "waited more than " << allocated_times_[tmp] <<endl;
+				//cout<<"killing "<<tmp<<" at "<<current_time<<endl;
+				//cout << "waited more than " << allocated_times_[tmp] <<endl;
 				m_monitor_count = 0;
 				for(int i=0;i<total[tmp];i++){
 					if(recv_ack[tmp][i]){
@@ -3194,7 +3194,6 @@ void CUDT::timeout_monitors() {
 	            monitor = true;
 	            left_monitor = 0;
 	            m_monitor_count = 0;
-				cout << "done handling timeout" << endl;
                 start_monitor(0);
 				break;
 			}
