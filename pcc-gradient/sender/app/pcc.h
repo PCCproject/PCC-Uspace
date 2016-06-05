@@ -58,7 +58,7 @@ public:
 			cout << "START: monitor " << monitor << " already gone! current monitor: " << monitor_in_start_phase_ << endl;
 			return false;			
 		}*/
-		//state_ = SEARCH;
+		
 	
 		kInTimeout = true;
 		long double curr_utility = utility(total, 0, in_time, rtt, NULL);
@@ -66,22 +66,22 @@ public:
 			last_utility_ = curr_utility;
 			return true;
 		}
-		#ifdef DEBUG_PRINT
+		//#ifdef DEBUG_PRINT
 		cout << "computing utility: total = " << total << ", loss = " << loss << " in_time = " << in_time << ", rtt = " << rtt << endl;
 		cout << "current utility = " << curr_utility << " and previous utility = " << last_utility_ << endl;
 		cout << "current rate " << rate() << " --> ";
-		#endif
+		//#endif
 		decide(last_utility_, curr_utility, true);
-		
 		
 		
 		
 		//setRate(0.75 * rate());
 		//base_rate_ = rate();
-		#ifdef DEBUG_PRINT
+		//#ifdef DEBUG_PRINT
 			cout << "timeout! new rate is " << rate() << endl;
-		#endif
+		//#endif
 		restart();
+		state_ = SEARCH;
 		//clear_state();
 		//start_measurment_map_.clear();
 		//end_measurment_map_.clear();
@@ -148,6 +148,7 @@ public:
 		Measurement* this_measurement = get_monitor_measurement(endMonitor);
 		if ((this_measurement == NULL) && (state_ != START)) {
 			cout << "measurement not found at end. Return." << endl;
+			start_measurement_ = true;
 			return;
 		}
 	
@@ -414,7 +415,7 @@ private:
 		exponent_ = 2.5;
 	
 		long double loss_contribution = total * (long double) (alpha_* (pow((1+((long double)((double) loss/(double) total))), exponent_)-1));
-		long double rtt_contribution = 2 * total*(pow(rtt_penalty,1.3) - 1); 
+		long double rtt_contribution = 2 * total*(pow(rtt_penalty,1.6) - 1); 
 		long double utility = ((long double)total - loss_contribution - rtt_contribution)/norm_measurement_interval;
 	
 		if (out_measurement != NULL) {
@@ -422,21 +423,6 @@ private:
 			out_measurement->rtt_panelty_ = rtt_contribution / norm_measurement_interval;
 			out_measurement->actual_packets_sent_rate_ = total / norm_measurement_interval;
 		}
-	
-		//cout << "utility = " << utility << ". RTT penelty = " << rtt_contribution << ". RTT = " << rtt << ", min rtt = " << get_min_rtt() << ". Total = " << total << endl;
-	
-		 //utility = ((long double)total - total * (long double) (alpha_* (pow((1+((long double)((double) loss/(double) total))), exponent_)-1))) / norm_measurement_interval - 3 * pow(rtt_penalty,1);//0.01 * total *pow(rtt_penalty, 1.4);
-
-/*
-		if (poly_utlity_) {
-		 	utility = ((long double)total - total * (long double) (alpha_* (pow((1+((long double)((double) loss/(double) total))), exponent_)-1))) / norm_measurement_interval - 0.01 * total *pow(rtt_penalty, 1.2);
-			//cout << "Total: " << total << " RTT part:" << rtt << "  utility: " << utility << " total = " << total << endl;
-		} else {
-			utility = (total - loss - (long double) (alpha_ * pow(2.3, loss))) / norm_measurement_interval - 10 * total * pow(1000 * rtt, 1.15);
-			//((long double)total - total * (long double) (alpha_ * pow(exponent_, 1 + ((long double)((double) loss/(double) total))))) / norm_measurement_interval - beta_ * total * pow(rtt_penalty, 1.02);
-		}
-		//previous_utility = utility;
-*/	
 		return utility;
 	}
 

@@ -42,18 +42,18 @@ protected:
 		*/
 		trend_count_++;
 		curr_ = (curr_ + 1) % 100;		
-		if (((trend_count_ == 0) || (trend_count_ == kRobustness)) && (!force_change)) {
+		if ((trend_count_ < kRobustness) && (!force_change)) {
 			return;
 		}
 		trend_count_ = 0;
 		
 		double change = 2 * rate()/1000 * kEpsilon * avg_gradient();	
 
-		/*
 		if (force_change) {
+			cout << "avg. gradient = " << avg_gradient() << endl;
+			cout << "rate = " << rate() << endl;
 			cout << "computed change: " << change << endl;
 		}
-		*/
 		
 		if ((change >= 0) && (change < kMinRateMbps)) change = kMinRateMbps;
 		
@@ -61,7 +61,7 @@ protected:
 		else decision_count_ = 0;
 		prev_change_ = change;
 
-		if ((change > 0) && (decision_count_ == 5)) {
+		if ((change > 0) && (decision_count_ == kGoToStartCount)) {
 			#ifdef DEBUG_PRINT
 			cout << "restart." << endl;
 			#endif
@@ -126,9 +126,10 @@ private:
 	double prev_gradiants_[100];
 	double prev_change_;
 
-	static constexpr int kRobustness = 3;
-	static constexpr double kEpsilon = 0.006;
-	static constexpr double kDelta = 0.05; 
+	static constexpr int kRobustness = 1;
+	static constexpr double kEpsilon = 0.015;
+	static constexpr double kDelta = 0.07; 
+	static constexpr int kGoToStartCount = 5;
 	double next_delta;
 };
 
