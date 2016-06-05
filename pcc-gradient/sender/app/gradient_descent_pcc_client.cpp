@@ -52,14 +52,14 @@ int main(int argc, char* argv[])
 {
    if ((argc < 3) || (0 == atoi(argv[2])))
    {
-      cout << "usage: " << argv[0] << " server_ip server_port [alpha = 4] [beta = 55] [exponent = 1.5] [poly_utility = 1]" << endl;
+      cout << "usage: " << argv[0] << " server_ip server_port [alpha = 4] [beta = 1] [exponent = 2.5] [poly_utility = 1]" << endl;
       return 0;
    }
 	signal(SIGINT, intHandler);
 
 	double alpha = 10;
-	double beta = 55;
-	double exponent = 2;
+	double beta = 1;
+	double exponent = 2.5;
 	bool use_poly = true;
 
 	if (argc > 3) alpha = atof(argv[3]);

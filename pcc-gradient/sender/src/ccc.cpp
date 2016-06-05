@@ -189,8 +189,10 @@ void CUDTCC::init()
    m_dPktSndPeriod = 1;
 }
 
-void CUDTCC::onACK(const int32_t& ack)
+void CUDTCC::onACK(const int32_t& /*ack*/)
 {
+	return;
+	/*
    int64_t B = 0;
    double inc = 0;
 
@@ -258,10 +260,13 @@ RATE_LIMIT:
       if (m_dPktSndPeriod < minSP)
          m_dPktSndPeriod = minSP;
    }
+  */
 }
 
 void CUDTCC::onLoss(const int32_t* losslist, const int&)
 {
+	return;
+	/*
    //Slow Start stopped, if it hasn't yet
    if (m_bSlowStart)
    {
@@ -297,25 +302,9 @@ void CUDTCC::onLoss(const int32_t* losslist, const int&)
       m_dPktSndPeriod = ceil(m_dPktSndPeriod * 1.125);
       m_iLastDecSeq = m_iSndCurrSeqNo;
    }
+   */
 }
 
-bool CUDTCC::onTimeout(int /*monitor*/)
-{
-   if (m_bSlowStart)
-   {
-      m_bSlowStart = false;
-      if (m_iRcvRate > 0)
-         m_dPktSndPeriod = 1000000.0 / m_iRcvRate;
-      else
-         m_dPktSndPeriod = m_dCWndSize / (m_iRTT + m_iRCInterval);
-   }
-   else
-   {
-      /*
-      m_dLastDecPeriod = m_dPktSndPeriod;
-      m_dPktSndPeriod = ceil(m_dPktSndPeriod * 2);
-      m_iLastDecSeq = m_iLastAck;
-      */
-   }
-   return false;
+bool CUDTCC::onTimeout(int /*total*/, int /*loss*/, double /*in_time*/, int /*current*/, int /*endMonitor*/, double /*rtt*/) {
+	return false;
 }

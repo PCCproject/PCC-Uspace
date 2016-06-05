@@ -443,6 +443,8 @@ private: // Generation and processing of packets
    double estimate_rtt_for_timedout_monitors(int monitor);
    uint64_t deadlines[100];
    uint64_t allocated_times_[100];
+   
+   static const uint64_t kMinTimeoutMillis = 10;
 private: // Trace
    uint64_t m_StartTime;                        // timestamp when the UDT entity is started
    int64_t m_llSentTotal;                       // total number of sent data packets, including retransmissions

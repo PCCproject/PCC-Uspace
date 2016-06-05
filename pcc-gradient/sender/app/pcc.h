@@ -10,18 +10,27 @@
 #include <deque>
 #include <time.h>
 #include <map>
+#include <memory>
+#include <deque>
+//#define DEBUG_PRINT
 
 using namespace std;
 
+bool kInTimeout = false;
+
 class Measurement {
 	public:
-		Measurement(double base_rate, int other_monitor = -1): utility_(0), base_rate_(base_rate), other_monitor_(other_monitor), set_(false), rtt_(0), loss_(0) {}
+		Measurement(double base_rate, int other_monitor, double test_rate): utility_(0), base_rate_(base_rate), other_monitor_(other_monitor), set_(false), rtt_(0), loss_(0), loss_panelty_(0), rtt_panelty_(0), test_rate_(test_rate) {}
 		long double utility_;
 		double base_rate_;
 		int other_monitor_;
 		bool set_;
 		double rtt_;
 		double loss_;
+		double loss_panelty_;
+		double rtt_panelty_;
+		double actual_packets_sent_rate_;
+		double test_rate_;
 };
 
 class PCC : public CCC {
@@ -36,27 +45,48 @@ public:
 	}
 	
 	virtual void onLoss(const int32_t*, const int&) {}
-	virtual bool onTimeout(int monitor){ 
+	virtual bool onTimeout(int total, int loss, double in_time, int current, int endMonitor, double rtt){ 
 		//cout << "handling timeout in PCC! for monitor " << monitor << endl;
 		if (state_ != START) {
-			if (start_measurment_map_.find(monitor) == start_measurment_map_.end() && end_measurment_map_.find(monitor) == end_measurment_map_.end()) {
-				cout << "NOT IN START: monitor " << monitor << " already gone!" << endl;
+			if (start_measurment_map_.find(endMonitor) == start_measurment_map_.end() && end_measurment_map_.find(endMonitor) == end_measurment_map_.end()) {
+				#ifdef DEBUG_PRINT
+					cout << "NOT IN START: monitor " << endMonitor << " already gone!" << endl;
+				#endif
 				return false;
-			} else {
-				cout << "we're still waiting for monitor: " << monitor << endl;
 			}
 		} /*else if (monitor_in_start_phase_ != monitor) {
 			cout << "START: monitor " << monitor << " already gone! current monitor: " << monitor_in_start_phase_ << endl;
 			return false;			
 		}*/
-		//state_ = SEARCH;
-		setRate(0.5 * rate());
-		base_rate_ = rate();
-		cout << "timeout! new rate is " << rate() << endl;
+		
+	
+		kInTimeout = true;
+		long double curr_utility = utility(total, 0, in_time, rtt, NULL);
+		if (curr_utility > last_utility_) {
+			last_utility_ = curr_utility;
+			return true;
+		}
+		//#ifdef DEBUG_PRINT
+		cout << "computing utility: total = " << total << ", loss = " << loss << " in_time = " << in_time << ", rtt = " << rtt << endl;
+		cout << "current utility = " << curr_utility << " and previous utility = " << last_utility_ << endl;
+		cout << "current rate " << rate() << " --> ";
+		//#endif
+		decide(last_utility_, curr_utility, true);
+		
+		
+		
+		//setRate(0.75 * rate());
+		//base_rate_ = rate();
+		//#ifdef DEBUG_PRINT
+			cout << "timeout! new rate is " << rate() << endl;
+		//#endif
 		restart();
+		state_ = SEARCH;
 		//clear_state();
 		//start_measurment_map_.clear();
 		//end_measurment_map_.clear();
+		kInTimeout = false;
+		//cout << "new rate: " << rate() << base_rate_ << endl;
 		return false;
 	}
 	virtual void onACK(const int& ack){}
@@ -69,17 +99,24 @@ public:
 			}
 			monitor_in_start_phase_ = current_monitor;
 			setRate(rate() * slow_start_factor_);
+			//cout << "doubling the rate --> " << rate() << endl;
 		} else if (state_ == SEARCH) {
 			if (start_measurement_) {
-				start_measurment_map_.insert(pair<int,Measurement*>(current_monitor, new Measurement(base_rate_)));
-				current_start_monitor_ = current_monitor;
+				if (start_measurment_map_.find(current_monitor) == start_measurment_map_.end()) {
+					start_measurment_map_.insert(pair<int,shared_ptr<Measurement> >(current_monitor, shared_ptr<Measurement>(new Measurement(base_rate_, -1, rate()))));
+					current_start_monitor_ = current_monitor;
+				}
 			} else {
 				if (start_measurment_map_.find(current_start_monitor_) != start_measurment_map_.end()) {
-					end_measurment_map_.insert(pair<int,Measurement*>(current_monitor, new Measurement(base_rate_,current_start_monitor_)));
-					start_measurment_map_.at(current_start_monitor_)->other_monitor_ = current_monitor;
+					if (end_measurment_map_.find(current_monitor) == end_measurment_map_.end()) {
+						end_measurment_map_.insert(pair<int,shared_ptr<Measurement> >(current_monitor, shared_ptr<Measurement>(new Measurement(base_rate_, current_start_monitor_, rate()))));
+						start_measurment_map_.at(current_start_monitor_)->other_monitor_ = current_monitor;
+					}
 				} else {
 					start_measurment_map_.clear();
 					end_measurment_map_.clear();
+					start_measurement_ = true;
+					return;
 				}
 			}
 			search();
@@ -87,6 +124,17 @@ public:
 		}
 	}
 
+	Measurement* get_monitor_measurement(int monitor) {
+		if (start_measurment_map_.find(monitor) != start_measurment_map_.end()) {
+			return start_measurment_map_.at(monitor).get();
+		}
+
+		if (end_measurment_map_.find(monitor) != end_measurment_map_.end()) {
+			return end_measurment_map_.at(monitor).get();
+		}
+		return NULL;
+	}
+	
 	virtual void onMonitorEnds(int total, int loss, double in_time, int current, int endMonitor, double rtt) {
 		/*
 		if (rtt == -1) {
@@ -96,12 +144,19 @@ public:
 			return;
 		}
 		*/
-		
+
+		Measurement* this_measurement = get_monitor_measurement(endMonitor);
+		if ((this_measurement == NULL) && (state_ != START)) {
+			cout << "measurement not found at end. Return." << endl;
+			start_measurement_ = true;
+			return;
+		}
+	
 		rtt /= (1000 * 1000);
 		if (rtt == 0) rtt = 0.0001;
-
-		long double curr_utility = utility(total, loss, in_time, rtt);
-
+		
+		long double curr_utility = utility(total, loss, in_time, rtt, this_measurement);
+		last_utility_ = curr_utility;
 		utility_sum_ += curr_utility;
 		measurement_intervals_++;
 
@@ -115,7 +170,9 @@ public:
 				if (!continue_slow_start) {
 					setRate(rate() / slow_start_factor_);
 					state_ = SEARCH;
-					cout << "exit slow start, rate =  " << rate() << endl;
+						//#ifdef DEBUG_PRINT
+						//cout << "exit slow start, rate =  " << rate() << endl;
+						//#endif
 					//cout << "previous utility = " << tmp_prev_utility << ", this utility = " << curr_utility << endl;
 				} /*else {
 					cout << "current rate: " << rate() << " current utility " << curr_utility << " going forward." << endl; 
@@ -135,57 +192,67 @@ public:
             }
 
             if(isAllSearchResultBack(endMonitor)) {
-				int start_utility, end_utility;
+				int start_utility = 0;
+				int end_utility = 0;
 				int other_monitor;
 
-				double start_rtt, start_loss, end_rtt, end_loss;
-				double start_base, end_base;
-
+				double start_base = 0;
+				double end_base = 1;
+				bool check_result = false;
 				if (start_measurment_map_.find(endMonitor) != start_measurment_map_.end()) {
 					start_utility = start_measurment_map_.at(endMonitor)->utility_;
 					other_monitor = start_measurment_map_.at(endMonitor)->other_monitor_;
-					end_utility = end_measurment_map_.at(other_monitor)->utility_;
 					
-					start_base = start_measurment_map_.at(endMonitor)->base_rate_;
-					end_base = end_measurment_map_.at(other_monitor)->base_rate_;
+					if (end_measurment_map_.find(other_monitor) != end_measurment_map_.end()) {
+						end_utility = end_measurment_map_.at(other_monitor)->utility_;
+						
+						start_base = start_measurment_map_.at(endMonitor)->base_rate_;
+						end_base = end_measurment_map_.at(other_monitor)->base_rate_;
 
-					start_rtt = start_measurment_map_.at(endMonitor)->rtt_;
-					start_loss = start_measurment_map_.at(endMonitor)->loss_;
-					end_rtt = end_measurment_map_.at(other_monitor)->rtt_;
-					end_loss = end_measurment_map_.at(other_monitor)->loss_;
+						//start_rtt = start_measurment_map_.at(endMonitor)->rtt_;
+						//start_loss = start_measurment_map_.at(endMonitor)->loss_;
+						//end_rtt = end_measurment_map_.at(other_monitor)->rtt_;
+						//end_loss = end_measurment_map_.at(other_monitor)->loss_;
 
-					
-					delete start_measurment_map_.at(endMonitor);
-					delete end_measurment_map_.at(other_monitor);
+						//delete end_measurment_map_.at(other_monitor);
+						
+						check_result = sanety_check(start_measurment_map_.at(endMonitor).get(), end_measurment_map_.at(other_monitor).get());
+						
+						end_measurment_map_.erase(other_monitor);
+					}
+					//delete start_measurment_map_.at(endMonitor);
 					start_measurment_map_.erase(endMonitor);
-					end_measurment_map_.erase(other_monitor);
+					
 				} else {
 					end_utility = end_measurment_map_.at(endMonitor)->utility_;
 					other_monitor = end_measurment_map_.at(endMonitor)->other_monitor_;
-					start_utility = start_measurment_map_.at(other_monitor)->utility_;
 					
-					start_base = start_measurment_map_.at(other_monitor)->base_rate_;
-					end_base = end_measurment_map_.at(endMonitor)->base_rate_;
+					if (start_measurment_map_.find(other_monitor) != start_measurment_map_.end()) {
+						start_utility = start_measurment_map_.at(other_monitor)->utility_;
+						
+						start_base = start_measurment_map_.at(other_monitor)->base_rate_;
+						end_base = end_measurment_map_.at(endMonitor)->base_rate_;
 
+						check_result = sanety_check(start_measurment_map_.at(other_monitor).get(), end_measurment_map_.at(endMonitor).get());
+						start_measurment_map_.erase(other_monitor);
+					}
 
-					start_rtt = start_measurment_map_.at(other_monitor)->rtt_;
-					start_loss = start_measurment_map_.at(other_monitor)->loss_;
-					end_rtt = end_measurment_map_.at(endMonitor)->rtt_;
-					end_loss = end_measurment_map_.at(endMonitor)->loss_;
-
-
-					delete end_measurment_map_.at(endMonitor);
-					delete start_measurment_map_.at(other_monitor);
+					//delete end_measurment_map_.at(endMonitor);
 					end_measurment_map_.erase(endMonitor);
-					start_measurment_map_.erase(other_monitor);
 				}
 
-				bool contidutions_changed_too_much = false;
-				if ((end_rtt > 1.15 * start_rtt) || (start_rtt > 1.15 * end_rtt)) contidutions_changed_too_much = true;
-				if (((end_loss > 10 * start_loss) && (end_loss > 10) ) || ((start_loss > 10 * end_loss) && (start_loss > 10) )) contidutions_changed_too_much = true;
-
-				if (start_base == end_base) {
-					decide(start_utility, end_utility, start_base, contidutions_changed_too_much);
+				//bool contidutions_changed_too_much = false;
+				//if ((end_rtt > 1.15 * start_rtt) || (start_rtt > 1.15 * end_rtt)) contidutions_changed_too_much = true;
+				//if (((end_loss > 10 * start_loss) && (end_loss > 10) ) || ((start_loss > 10 * end_loss) && (start_loss > 10) )) contidutions_changed_too_much = true;
+				/*
+				if (!check_result) {
+					cout << "sanety check failed!" << endl;
+				}
+				*/
+				
+				if ((start_base == end_base) && check_result) {
+					//cout << "decide!" << endl;
+					decide(start_utility, end_utility, false);
 				}
             }
 		}
@@ -208,16 +275,17 @@ protected:
     bool start_measurement_;
 	double base_rate_;
 	bool kPrint;
-	static const double kMinRateMbps = 0.01;
+	static constexpr double kMinRateMbps = 0.5;
+	static constexpr double kMaxRateMbps = 1024.0;
 	
 
 	virtual void search() = 0;
-	virtual void decide(long double start_utility, long double end_utility, long double base_rate, bool condition_change) = 0;
+	virtual void decide(long double start_utility, long double end_utility, bool force_change) = 0;
 	
 	virtual void clear_state() {
 		continue_slow_start_ = true;
 		start_measurement_ = true;
-		slow_start_factor_ = 1.03;
+		slow_start_factor_ = 1.1;
 		start_measurment_map_.clear();
 		end_measurment_map_.clear();
 		state_ = SEARCH;
@@ -229,7 +297,7 @@ protected:
 	virtual void restart() {
 		continue_slow_start_ = true;
 		start_measurement_ = true;
-		slow_start_factor_ = 1.03;
+		slow_start_factor_ = 1.2;
 		start_measurment_map_.clear();
 		end_measurment_map_.clear();
 		monitor_in_start_phase_ = -1;
@@ -239,13 +307,13 @@ protected:
 		prev_utility_ = -10000000;
 	}
 	
-	PCC() : start_measurement_(true), base_rate_(1.0), kPrint(false), state_(START), monitor_in_start_phase_(-1), slow_start_factor_(2),
-			alpha_(kAlpha), beta_(kBeta), exponent_(kExponent), poly_utlity_(kPolyUtility), rate_(1.0), monitor_in_prog_(-1), utility_sum_(0), measurement_intervals_(0), prev_utility_(-10000000), continue_slow_start_(true) {
+	PCC() : start_measurement_(true), base_rate_(kMinRateMbps), kPrint(false), state_(START), monitor_in_start_phase_(-1), slow_start_factor_(2),
+			alpha_(kAlpha), beta_(kBeta), exponent_(kExponent), poly_utlity_(kPolyUtility), rate_(kMinRateMbps), monitor_in_prog_(-1), utility_sum_(0), measurement_intervals_(0), prev_utility_(-10000000), continue_slow_start_(true), last_utility_(0) {
 		m_dPktSndPeriod = 10000;
 		m_dCWndSize = 100000.0;
 		setRTO(100000000);
 		srand(time(NULL));
-		beta_ = 100;
+		cout << "new Code!!!" << endl;
 		cout << "configuration: alpha = " << alpha_ << ", beta = " << beta_   << ", exponent = " << exponent_ << " poly utility = " << poly_utlity_ << endl;
 		
 		/*
@@ -260,11 +328,17 @@ protected:
 	virtual void setRate(double mbps) {
 		//cout << "set rate: " << rate_ << " --> " << mbps << endl;
 		if (mbps < kMinRateMbps) { 
-			//cout << "rate is mimimal, changing to " << kMinRateMbps << " instead" << endl;
+			#ifdef DEBUG_PRINT
+				cout << "rate is mimimal, changing to " << kMinRateMbps << " instead" << endl;
+			#endif
 			mbps = kMinRateMbps; 
-		};
+		} else if (mbps > kMaxRateMbps) {
+			mbps = kMaxRateMbps;
+			cout << "rate is maximal, changing to " << kMaxRateMbps << " instead" << endl;
+		}
 		rate_ = mbps;
 		m_dPktSndPeriod = (m_iMSS * 8.0) / mbps;
+		//cout << "setting rate: mbps = " << mbps << endl;
 	}
 
 	double rate() const { return rate_; }
@@ -286,26 +360,69 @@ private:
 		return false;
     }
 
-
-	virtual long double utility(unsigned long total, unsigned long loss, double time, double rtt) {
-
-		long double norm_measurement_interval = time / rtt;
-		// convert to milliseconds
-		long double rtt_penalty = 1000 * rtt;
-		long double utility;		
-		//static long double previous_utility;
-		if (poly_utlity_) {
-		 	utility = ((long double)total - total * (long double) (alpha_* (pow((1+((long double)((double) loss/(double) total))), exponent_)-1))) / norm_measurement_interval - 0.0001 * total *pow(rtt_penalty, 1.2);
-			//cout << "Total: " << total << " RTT part:" << rtt << "  utility: " << utility << " total = " << total << endl;
-		} else {
-			utility = (total - loss - (long double) (alpha_ * pow(2.3, loss))) / norm_measurement_interval - 10 * total * pow(1000 * rtt, 1.15);
-			//((long double)total - total * (long double) (alpha_ * pow(exponent_, 1 + ((long double)((double) loss/(double) total))))) / norm_measurement_interval - beta_ * total * pow(rtt_penalty, 1.02);
+	double get_min_rtt() const {
+		double min = *rtt_history_.cbegin();
+		for (deque<double>::const_iterator it = rtt_history_.cbegin(); it!=rtt_history_.cend(); ++it) {
+			if (min > *it) {
+				min = *it;
+			}
 		}
-		/*if (loss > 0) {
-			cout << previous_utility << " --> " << utility << " at rate: " << rate() << endl;
-		}*/
-		//previous_utility = utility;
+		return min;
+	}
+
+	bool sanety_check(Measurement* start, Measurement* end) {
 		
+		if (end->test_rate_ < start->test_rate_) {
+			//cout << "swapping. Rates: " << start->test_rate_ << ", " << end->test_rate_ << endl; 
+			Measurement* swap_temp = start;
+			start = end;
+			end = swap_temp;
+		}
+		
+		if (start->loss_panelty_ < end->loss_panelty_) { 
+			//cout << "failed on loss. Start = " << start->loss_panelty_ << ". End = " << end->loss_panelty_ << endl;
+			return false;
+		}
+		if (start->rtt_panelty_ < end->rtt_panelty_) {
+			//cout << "failed on rtt" << endl;
+			return false;
+		}
+		if (start->actual_packets_sent_rate_ < end->actual_packets_sent_rate_) {
+			//cout << "failed on packets sent" << endl;
+			return false;
+		}
+		return true;
+	}
+
+	virtual long double utility(unsigned long total, unsigned long loss, double time, double rtt, Measurement* out_measurement) {
+		static long double last_measurement_interval = 1;
+		
+		long double norm_measurement_interval = last_measurement_interval;
+		
+		if (!kInTimeout) {
+			norm_measurement_interval = time / rtt;
+			last_measurement_interval = norm_measurement_interval;
+		}
+		
+		rtt_history_.push_front(rtt);
+		if (rtt_history_.size() > kHistorySize) {
+			rtt_history_.pop_back();
+		}
+
+		// convert to milliseconds
+		double rtt_penalty = rtt / get_min_rtt();
+		if (rtt_penalty > 4) rtt_penalty  = 4;
+		exponent_ = 2.5;
+	
+		long double loss_contribution = total * (long double) (alpha_* (pow((1+((long double)((double) loss/(double) total))), exponent_)-1));
+		long double rtt_contribution = 2 * total*(pow(rtt_penalty,1.6) - 1); 
+		long double utility = ((long double)total - loss_contribution - rtt_contribution)/norm_measurement_interval;
+	
+		if (out_measurement != NULL) {
+			out_measurement->loss_panelty_ = loss_contribution / norm_measurement_interval;
+			out_measurement->rtt_panelty_ = rtt_contribution / norm_measurement_interval;
+			out_measurement->actual_packets_sent_rate_ = total / norm_measurement_interval;
+		}
 		return utility;
 	}
 
@@ -328,9 +445,12 @@ private:
 	size_t measurement_intervals_;
 	long double prev_utility_;
 	bool continue_slow_start_;
-	map<int, Measurement*> start_measurment_map_;
-	map<int, Measurement*> end_measurment_map_;
+	map<int, shared_ptr<Measurement> > start_measurment_map_;
+	map<int, shared_ptr<Measurement> > end_measurment_map_;
 	int current_start_monitor_;
+	long double last_utility_;
+	deque<double> rtt_history_;
+	static constexpr size_t kHistorySize = 10;
 };
 
 #endif
