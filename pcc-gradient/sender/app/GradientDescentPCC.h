@@ -61,7 +61,7 @@ protected:
 		else decision_count_ = 0;
 		prev_change_ = change;
 
-		if ((change > 0) && (decision_count_ == 7)) {
+		if ((change > 0) && (decision_count_ == 5)) {
 			#ifdef DEBUG_PRINT
 			cout << "restart." << endl;
 			#endif
@@ -126,7 +126,7 @@ private:
 	double prev_gradiants_[100];
 	double prev_change_;
 
-	static constexpr int kRobustness = 2;
+	static constexpr int kRobustness = 3;
 	static constexpr double kEpsilon = 0.006;
 	static constexpr double kDelta = 0.05; 
 	double next_delta;
