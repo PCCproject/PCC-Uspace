@@ -20,9 +20,25 @@ using namespace std;
 
 bool kInTimeout = false;
 
+enum MeasurementType {
+	FIRST,
+	SECOND
+};
+
 class Measurement {
 	public:
-		Measurement(double base_rate, int other_monitor, double test_rate): utility_(0), base_rate_(base_rate), other_monitor_(other_monitor), set_(false), rtt_(0), loss_(0), loss_panelty_(0), rtt_panelty_(0), test_rate_(test_rate) {}
+		Measurement(double base_rate, int other_monitor, double test_rate, MeasurementType t, int monitor_number): utility_(0), base_rate_(base_rate), other_monitor_(other_monitor), set_(   false), rtt_(0), loss_(0), loss_panelty_(0), rtt_panelty_(0), test_rate_(test_rate), type_(t), monitor_number_(monitor_number) {}
+		
+		Measurement* copy() const {
+			Measurement* ret = new Measurement(base_rate_, other_monitor_, test_rate_, type_, monitor_number_);
+			ret->utility_ = utility_;
+			ret->rtt_ = rtt_;
+			ret->loss_ = loss_;
+			ret->loss_panelty_ = loss_panelty_;
+			ret->actual_packets_sent_rate_ = actual_packets_sent_rate_;
+			return ret;
+		}
+		
 		long double utility_;
 		double base_rate_;
 		int other_monitor_;
@@ -33,8 +49,10 @@ class Measurement {
 		double rtt_panelty_;
 		double actual_packets_sent_rate_;
 		double test_rate_;
+		MeasurementType type_;
+		int monitor_number_;
 };
-
+	
 class PCC : public CCC {
 public:
 	virtual ~PCC() {}
@@ -76,10 +94,6 @@ public:
 		//#endif
 		decide(last_utility_, curr_utility, true);
 		
-		
-		
-		//setRate(0.75 * rate());
-		//base_rate_ = rate();
 		double r = rate();
 		//#ifdef DEBUG_PRINT
 			cout << "timeout! new rate is " << r << endl;
@@ -109,15 +123,23 @@ public:
 			cout << "done sleeping;"
 		}
 		*/
-		//clear_state();
-		//start_measurment_map_.clear();
-		//end_measurment_map_.clear();
 		kInTimeout = false;
-		//cout << "new rate: " << rate() << base_rate_ << endl;
 		return false;
 	}
 	virtual void onACK(const int& ack){}
 
+	void keep_last_measurement(Measurement* measurement) {
+		if (measurement->type_ == FIRST) {
+			start_measurment_map_.insert(pair<int,shared_ptr<Measurement> >(measurement->monitor_number_, shared_ptr<Measurement>(measurement)));
+			current_start_monitor_ = measurement->monitor_number_;
+			start_measurement_ = false;
+		} else {
+			end_measurment_map_.insert(pair<int,shared_ptr<Measurement> >(measurement->monitor_number_, shared_ptr<Measurement>(measurement)));
+			on_next_start_bind_to_end_ = measurement->monitor_number_;
+			start_measurement_ = true;
+		}
+	}
+	
 	virtual void onMonitorStart(int current_monitor) {
 		lock_guard<mutex> lck(monitor_mutex_);
 		//cout << "starting monitor " << current_monitor << endl;
@@ -131,13 +153,15 @@ public:
 		} else if (state_ == SEARCH) {
 			if (start_measurement_) {
 				if (start_measurment_map_.find(current_monitor) == start_measurment_map_.end()) {
-					start_measurment_map_.insert(pair<int,shared_ptr<Measurement> >(current_monitor, shared_ptr<Measurement>(new Measurement(base_rate_, -1, rate()))));
+					start_measurment_map_.insert(pair<int,shared_ptr<Measurement> >(current_monitor, shared_ptr<Measurement>(new Measurement(base_rate_, on_next_start_bind_to_end_, rate(), FIRST, current_monitor))));
 					current_start_monitor_ = current_monitor;
+					
+					on_next_start_bind_to_end_ = -1;
 				}
 			} else {
 				if (start_measurment_map_.find(current_start_monitor_) != start_measurment_map_.end()) {
 					if (end_measurment_map_.find(current_monitor) == end_measurment_map_.end()) {
-						end_measurment_map_.insert(pair<int,shared_ptr<Measurement> >(current_monitor, shared_ptr<Measurement>(new Measurement(base_rate_, current_start_monitor_, rate()))));
+						end_measurment_map_.insert(pair<int,shared_ptr<Measurement> >(current_monitor, shared_ptr<Measurement>(new Measurement(base_rate_, current_start_monitor_, rate(), SECOND, current_monitor))));
 						start_measurment_map_.at(current_start_monitor_)->other_monitor_ = current_monitor;
 					}
 				} else {
@@ -151,7 +175,7 @@ public:
 			start_measurement_ = !start_measurement_;
 		}
 	}
-
+	
 	Measurement* get_monitor_measurement(int monitor) {
 		if (start_measurment_map_.find(monitor) != start_measurment_map_.end()) {
 			return start_measurment_map_.at(monitor).get();
@@ -217,6 +241,7 @@ public:
 				double start_base = 0;
 				double end_base = 1;
 				bool check_result = false;
+				Measurement* private_copy = NULL;
 				if (start_measurment_map_.find(endMonitor) != start_measurment_map_.end()) {
 					start_utility = start_measurment_map_.at(endMonitor)->utility_;
 					other_monitor = start_measurment_map_.at(endMonitor)->other_monitor_;
@@ -235,6 +260,7 @@ public:
 						//delete end_measurment_map_.at(other_monitor);
 						
 						check_result = sanety_check(start_measurment_map_.at(endMonitor).get(), end_measurment_map_.at(other_monitor).get());
+						if (!check_result) private_copy = this_measurement->copy();
 						
 						end_measurment_map_.erase(other_monitor);
 					}
@@ -252,6 +278,8 @@ public:
 						end_base = end_measurment_map_.at(endMonitor)->base_rate_;
 
 						check_result = sanety_check(start_measurment_map_.at(other_monitor).get(), end_measurment_map_.at(endMonitor).get());
+						if (!check_result) private_copy = this_measurement->copy();
+						
 						start_measurment_map_.erase(other_monitor);
 					}
 
@@ -268,9 +296,12 @@ public:
 				}
 				*/
 				
-				if ((start_base == end_base) && check_result) {
-					//cout << "decide!" << endl;
-					decide(start_utility, end_utility, false);
+				if (start_base == end_base) {
+					if (check_result) {
+						decide(start_utility, end_utility, false);
+					} else {
+						keep_last_measurement(private_copy);
+					}
 				}
             }
 		}
@@ -332,7 +363,7 @@ protected:
 	}
 	
 	PCC() : start_measurement_(true), base_rate_(kMinRateMbps), kPrint(false), state_(START), monitor_in_start_phase_(-1), slow_start_factor_(2),
-			alpha_(kAlpha), beta_(kBeta), exponent_(kExponent), poly_utlity_(kPolyUtility), rate_(kMinRateMbps), monitor_in_prog_(-1), utility_sum_(0), measurement_intervals_(0), prev_utility_(-10000000), continue_slow_start_(true), last_utility_(0) {
+			alpha_(kAlpha), beta_(kBeta), exponent_(kExponent), poly_utlity_(kPolyUtility), rate_(kMinRateMbps), monitor_in_prog_(-1), utility_sum_(0), measurement_intervals_(0), prev_utility_(-10000000), continue_slow_start_(true), last_utility_(0), on_next_start_bind_to_end_(-1) {
 		m_dPktSndPeriod = 10000;
 		m_dCWndSize = 100000.0;
 		setRTO(100000000);
@@ -489,6 +520,7 @@ private:
 	deque<double> rtt_history_;
 	static constexpr size_t kHistorySize = 10;
 	mutex monitor_mutex_;
+	int on_next_start_bind_to_end_;
 };
 
 #endif
