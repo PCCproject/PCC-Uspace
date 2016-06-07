@@ -2010,6 +2010,8 @@ void CUDT::add_to_loss_record(int32_t loss1, int32_t loss2){
 }
 void CUDT::processCtrl(CPacket& ctrlpkt)
 {
+	//cout <<"processCtrl" << endl;
+	//lock_guard<std::recursive_mutex> lck(m_pCC->data_lock_);
 	// Just heard from the peer, reset the expiration count.
 	m_iEXPCount = 1;
 	uint64_t currtime;
@@ -2463,7 +2465,7 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 
 int CUDT::packData(CPacket& packet, uint64_t& ts)
 {
-
+	lock_guard<std::recursive_mutex> lck(m_pCC->data_lock_);
 	int payload = 0;
 	bool probe = false;
 	uint64_t entertime;
@@ -2705,6 +2707,7 @@ m_pSndLossList->insert(const_cast<int32_t&>(m_iSndLastAck), const_cast<int32_t&>
 
 int CUDT::processData(CUnit* unit)
 {
+	lock_guard<std::recursive_mutex> lck(m_pCC->data_lock_);
 	CPacket& packet = unit->m_Packet;
 
 	// Just heard from the peer, reset the expiration count.
@@ -3029,7 +3032,6 @@ double CUDT::get_min_rtt() const {
 
 void CUDT::start_monitor(int length)
 {
-	//cout << "start monitor!" << endl;
 	m_iMonitorCurrSeqNo=0;
 	previous_monitor = current_monitor;
 	current_monitor = (current_monitor+1)%100;

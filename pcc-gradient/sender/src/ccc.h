@@ -42,7 +42,7 @@ written by
 #ifndef __UDT_CCC_H__
 #define __UDT_CCC_H__
 
-
+#include <mutex>
 #include "udt.h"
 #include "packet.h"
 
@@ -141,6 +141,7 @@ public:
 
    virtual void onMonitorStart(int /*monitor_number*/){}
 
+   mutable std::recursive_mutex data_lock_;
 protected:
 
       // Functionality:
@@ -264,7 +265,7 @@ public:
    virtual void onACK(const int32_t&);
    virtual void onLoss(const int32_t*, const int&);
    virtual bool onTimeout(int /*total*/, int /*loss*/, double /*in_time*/, int /*current*/, int /*endMonitor*/, double /*rtt*/);
-
+	
 private:
    int m_iRCInterval;			// UDT Rate control interval
    uint64_t m_LastRCTime;		// last rate increase time
