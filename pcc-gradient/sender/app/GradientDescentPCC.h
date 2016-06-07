@@ -55,7 +55,7 @@ protected:
 			cout << "computed change: " << change << endl;
 		}
 		
-		if ((change >= 0) && (change < kMinRateMbps)) change = kMinRateMbps;
+		if ((change >= 0) && (change < getMinChange())) change = getMinChange();
 		
 		if (change * prev_change_ >= 0) decision_count_++;
 		else decision_count_ = 0;
@@ -67,13 +67,17 @@ protected:
 			#endif
 			restart();
 		}
-				
+		
+		if (change == 0) cout << "Change is zero!" << endl; 
+		
 		base_rate_ += change;
 		if (force_change) {
 			setRate(base_rate_);
 		}
 
-		if (base_rate_ < 0) base_rate_ = 1.05 * kMinRateMbps;
+		if ((base_rate_ < 0) && (state_ != START)) {
+			base_rate_ = 1.05 * kMinRateMbps;
+		}
 	}
 	
 private:

@@ -12,6 +12,8 @@
 #include <map>
 #include <memory>
 #include <deque>
+#include <mutex>
+#include <thread>
 //#define DEBUG_PRINT
 
 using namespace std;
@@ -46,6 +48,7 @@ public:
 	
 	virtual void onLoss(const int32_t*, const int&) {}
 	virtual bool onTimeout(int total, int loss, double in_time, int current, int endMonitor, double rtt){ 
+		lock_guard<mutex> lck(monitor_mutex_);
 		//cout << "handling timeout in PCC! for monitor " << monitor << endl;
 		if (state_ != START) {
 			if (start_measurment_map_.find(endMonitor) == start_measurment_map_.end() && end_measurment_map_.find(endMonitor) == end_measurment_map_.end()) {
@@ -77,11 +80,22 @@ public:
 		
 		//setRate(0.75 * rate());
 		//base_rate_ = rate();
+		double r = rate();
 		//#ifdef DEBUG_PRINT
-			cout << "timeout! new rate is " << rate() << endl;
+			cout << "timeout! new rate is " << r << endl;
 		//#endif
 		restart();
-		state_ = SEARCH;
+		if (r > 1.01 * kMinRateMbps) {
+			cout << "going to SEARCH rate = " << rate() << ". Thresh = " << 1.01 * kMinRateMbps << endl;
+			state_ = SEARCH;
+		} else {
+			cout << "going to "<< kMinRateMbpsSlowStart << "mbps" << endl;
+			base_rate_ = kMinRateMbpsSlowStart;
+			restart();
+			slow_start_factor_ = 2;
+			state_ = START;
+			setRate(base_rate_);
+		}
 		//clear_state();
 		//start_measurment_map_.clear();
 		//end_measurment_map_.clear();
@@ -92,6 +106,7 @@ public:
 	virtual void onACK(const int& ack){}
 
 	virtual void onMonitorStart(int current_monitor) {
+		lock_guard<mutex> lck(monitor_mutex_);
 		//cout << "starting monitor " << current_monitor << endl;
 		if (state_ == START) {
 			if (monitor_in_start_phase_ != -1) {
@@ -136,19 +151,9 @@ public:
 	}
 	
 	virtual void onMonitorEnds(int total, int loss, double in_time, int current, int endMonitor, double rtt) {
-		/*
-		if (rtt == -1) {
-			start_measurment_map_.clear();
-			end_measurment_map_.clear();
-			setrate(total/(timeout - 0.5 * m_iRTT))
-			return;
-		}
-		*/
-
+		lock_guard<mutex> lck(monitor_mutex_);
 		Measurement* this_measurement = get_monitor_measurement(endMonitor);
 		if ((this_measurement == NULL) && (state_ != START)) {
-			cout << "measurement not found at end. Return." << endl;
-			start_measurement_ = true;
 			return;
 		}
 	
@@ -276,7 +281,13 @@ protected:
 	double base_rate_;
 	bool kPrint;
 	static constexpr double kMinRateMbps = 0.5;
+	static constexpr double kMinRateMbpsSlowStart = 0.05;
 	static constexpr double kMaxRateMbps = 1024.0;
+
+	enum ConnectionState {
+		START,
+		SEARCH
+	} state_;
 	
 
 	virtual void search() = 0;
@@ -325,14 +336,32 @@ protected:
 		*/
 	}
 
+	virtual double getMinChange() {
+		if (base_rate_ > kMinRateMbps) {
+			return kMinRateMbps;
+		} else if (base_rate_ > kMinRateMbps / 2) {
+			return kMinRateMbps / 2; 
+		} else {
+			return 2 * kMinRateMbpsSlowStart; 
+		}
+	}
 	virtual void setRate(double mbps) {
 		//cout << "set rate: " << rate_ << " --> " << mbps << endl;
-		if (mbps < kMinRateMbps) { 
+		if (state_ == START) {
+			if (mbps < kMinRateMbpsSlowStart){ 
+				#ifdef DEBUG_PRINT
+					cout << "rate is mimimal at slow start, changing to " << kMinRateMbpsSlowStart << " instead" << endl;
+				#endif
+				mbps = kMinRateMbpsSlowStart; 
+			} 
+		} else if (mbps < kMinRateMbps){ 
 			#ifdef DEBUG_PRINT
 				cout << "rate is mimimal, changing to " << kMinRateMbps << " instead" << endl;
 			#endif
 			mbps = kMinRateMbps; 
-		} else if (mbps > kMaxRateMbps) {
+		} 
+		
+		if (mbps > kMaxRateMbps) {
 			mbps = kMaxRateMbps;
 			cout << "rate is maximal, changing to " << kMaxRateMbps << " instead" << endl;
 		}
@@ -427,11 +456,6 @@ private:
 	}
 
 	static const long kMillisecondsDigit = 10 * 1000;
-
-	enum ConnectionState {
-		START,
-		SEARCH
-	} state_;
 	
 	int monitor_in_start_phase_;
 	double slow_start_factor_;
@@ -451,6 +475,7 @@ private:
 	long double last_utility_;
 	deque<double> rtt_history_;
 	static constexpr size_t kHistorySize = 10;
+	mutex monitor_mutex_;
 };
 
 #endif
