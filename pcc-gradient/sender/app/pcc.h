@@ -84,7 +84,16 @@ public:
 		//#ifdef DEBUG_PRINT
 			cout << "timeout! new rate is " << r << endl;
 		//#endif
-		restart();
+		restart(); 
+		state_ = SEARCH;
+		
+		if (r < 1.01 * kMinRateMbps) {
+			cout << "going to bed" << endl;
+			this_thread::sleep_for(std::chrono::seconds(5));
+			cout << "done sleeping" << endl;
+		}
+		
+		/*
 		if (r > 1.01 * kMinRateMbps) {
 			cout << "going to SEARCH rate = " << rate() << ". Thresh = " << 1.01 * kMinRateMbps << endl;
 			state_ = SEARCH;
@@ -95,7 +104,11 @@ public:
 			slow_start_factor_ = 2;
 			state_ = START;
 			setRate(base_rate_);
+			lock_guard<mutex> lck(data_lock_);
+			this_thread::sleep_for(std::chrono::seconds(1));
+			cout << "done sleeping;"
 		}
+		*/
 		//clear_state();
 		//start_measurment_map_.clear();
 		//end_measurment_map_.clear();
@@ -281,7 +294,7 @@ protected:
 	double base_rate_;
 	bool kPrint;
 	static constexpr double kMinRateMbps = 0.5;
-	static constexpr double kMinRateMbpsSlowStart = 0.05;
+	static constexpr double kMinRateMbpsSlowStart = 0.03;
 	static constexpr double kMaxRateMbps = 1024.0;
 
 	enum ConnectionState {
