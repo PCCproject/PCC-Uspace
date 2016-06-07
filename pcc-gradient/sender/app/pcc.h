@@ -156,7 +156,11 @@ public:
 					start_measurment_map_.insert(pair<int,shared_ptr<Measurement> >(current_monitor, shared_ptr<Measurement>(new Measurement(base_rate_, on_next_start_bind_to_end_, rate(), FIRST, current_monitor))));
 					current_start_monitor_ = current_monitor;
 					
-					on_next_start_bind_to_end_ = -1;
+					// there was already a pending end to this measurement.
+					if (on_next_start_bind_to_end_ >= 0) {
+						start_measurement_ = false;
+						on_next_start_bind_to_end_ = -1;
+					}
 				}
 			} else {
 				if (start_measurment_map_.find(current_start_monitor_) != start_measurment_map_.end()) {
