@@ -3066,7 +3066,7 @@ void CUDT::start_monitor(int length)
             length = send_period/m_pCC->m_dPktSndPeriod;
         }
 	else {
-            length=(10>(5000/m_pCC->m_dPktSndPeriod))?10:(5000/m_pCC->m_dPktSndPeriod);
+            length=10;
         }
 
 //#ifdef EXPERIMENTAL_FEATURE_CONTINOUS_SEND
