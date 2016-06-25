@@ -58,6 +58,7 @@ struct GuessStat {
       double rate;
       double utility;
       bool ready;
+      bool isup;
 };
 
 
@@ -163,8 +164,13 @@ public:
                     guess_time_ = 0;
                     break;
                 case RECORDING:
-                    setRate(guess_measurement_bucket[guess_time_].rate);
-                    guess_time_ ++;
+                    if(guess_time_ != number_of_probes_) {
+                        setRate(guess_measurement_bucket[guess_time_].rate);
+                        guess_time_ ++;
+                    }
+                    break;
+                case MOVING:
+                    // TODO: should handle how we move and how we record utility as well
                     break;
             }
 
@@ -185,6 +191,63 @@ public:
 
 	virtual void onMonitorEnds(int total, int loss, double in_time, int current, int endMonitor, double rtt) {
 		lock_guard<mutex> lck(monitor_mutex_);
+		long double curr_utility = utility(total, loss, in_time, rtt, NULL);
+		last_utility_ = curr_utility;
+		utility_sum_ += curr_utility;
+		measurement_intervals_++;
+        ConnectionState old_state;
+        do {
+            old_state = state_;
+            switch (state_) {
+                case START:
+                    // TODO to aid debuggin as we change code architecture, we will not
+                    // have slow start here, we will immediately transit to SEARCH state
+                    state_ = SEARCH;
+                    break;
+                case SEARCH:
+                    // When doing search (calculating the results and stuff), onmonitorends should do nothing
+                    // and ignore the monitor that ended
+                    break;
+                case RECORDING:
+                    // onMoniitorEnd will check if all search results have come back
+                    // and decide where to move the rate
+                    // TODO: it should enter the MOVING state here, but I will just keep it simple to make it enter
+                    // search state again. To first switch the architecture
+                    bool all_ready = true;
+                    for (int i=0; i<number_of_probes_; i++) {
+                        if (guess_measurement_bucket[i].monitor == endMonitor) {
+                            guess_measurement_bucket[i].utility = utility;
+                            guess_measurement_bucket[i].ready = true;
+                        }
+
+                        if(guess_measurement_bucket[i].ready == false) {
+                            all_ready = false;
+                        }
+                    }
+
+                    if (all_ready) {
+                        double utility_down=0, utility_up=0;
+                        for (int i=0; i<number_of_probes_; i++) {
+                            if(guess_measurement_bucket[i].isup) {
+                                utility_up += guess_measurement_bucket[i].utility;
+                            } else {
+                                utility_down += guess_measurement_bucket[i].utility;
+                            }
+                        }
+                        int factor = number_of_probes_/2;
+					    decide(utility_down/factor, utility_up/factor, false);
+                    }
+                    break;
+                case MOVING:
+                    break;
+            }
+
+        } while(old_state != state_);
+
+
+
+
+
 		Measurement* this_measurement = get_monitor_measurement(endMonitor);
 		if ((this_measurement == NULL) && (state_ != START)) {
 			return;

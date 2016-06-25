@@ -13,8 +13,10 @@ protected:
             GuessStat g = GuessStat();
             if (i%2 == 0) {
                 g.rate = (1 + kDelta) * rate();
+                g.isup = true;
             } else{
                 g.rate = (1 - kDelta) * rate();
+                g.isup = false;
             }
             g.ready = false;
             g.monitor = (current_monitor+i) % 100;
