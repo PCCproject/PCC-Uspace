@@ -263,7 +263,7 @@ RATE_LIMIT:
   */
 }
 
-void CUDTCC::onLoss(const int32_t* losslist, const int&)
+void CUDTCC::onLoss(const int32_t* /*losslist*/, const int&)
 {
 	return;
 	/*

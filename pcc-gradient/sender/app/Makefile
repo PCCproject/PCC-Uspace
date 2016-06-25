@@ -1,4 +1,4 @@
-C++ = g++ -std=c++0x
+C++ = g++ -g -std=c++0x
 
 ifndef os
    os = LINUX
