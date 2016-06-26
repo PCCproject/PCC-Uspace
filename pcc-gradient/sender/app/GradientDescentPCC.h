@@ -134,7 +134,7 @@ private:
 
 	static constexpr int kRobustness = 1;
 	static constexpr double kEpsilon = 0.015;
-	static constexpr double kDelta = 0.1;
+	static constexpr double kDelta = 0.05;
 	static constexpr int kGoToStartCount = 50000;
 	double next_delta;
 };
