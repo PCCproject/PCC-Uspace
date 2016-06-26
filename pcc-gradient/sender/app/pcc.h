@@ -550,6 +550,10 @@ public:
 
 		long double loss_contribution = total * (long double) (alpha_* (pow((1+((long double)((double) loss/(double) total))), exponent_)-1));
 		long double rtt_contribution = 1.8 * total*(pow(rtt_penalty,2) - 1);
+                long double rtt_factor = rtt;
+                //TODO We should also consider adding just rtt into the utility function, because it is not just change that matters
+                // This may turn out to be extremely helpful during LTE environment
+		//long double utility = ((long double)total - loss_contribution - rtt_contribution)/norm_measurement_interval/rtt;
 		long double utility = ((long double)total - loss_contribution - rtt_contribution)/norm_measurement_interval;
 
 		if (out_measurement != NULL) {
