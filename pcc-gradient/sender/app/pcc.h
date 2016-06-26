@@ -385,7 +385,7 @@ protected:
 
 
 	virtual void search(int current_monitor) = 0;
-	virtual void decide(long double start_utility, long double end_utility, double old_rate, double_new_rate,  bool force_change) = 0;
+	virtual void decide(long double start_utility, long double end_utility, double old_rate, double new_rate,  bool force_change) = 0;
 
 	virtual void clear_state() {
 		continue_slow_start_ = true;
