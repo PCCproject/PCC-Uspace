@@ -56,7 +56,7 @@ class Measurement {
 struct GuessStat {
       int monitor;
       double rate;
-      double utility;
+      long double utility;
       bool ready;
       bool isup;
 };
@@ -205,7 +205,6 @@ public:
                     // TODO to aid debuggin as we change code architecture, we will not
                     // have slow start here, we will immediately transit to SEARCH state
                     state_ = SEARCH;
-		            bool continue_slow_start = (curr_utility > prev_utility_);
                     break;
                 case SEARCH:
                     // When doing search (calculating the results and stuff), onmonitorends should do nothing
@@ -216,10 +215,11 @@ public:
                     // and decide where to move the rate
                     // TODO: it should enter the MOVING state here, but I will just keep it simple to make it enter
                     // search state again. To first switch the architecture
-                    bool all_ready = true;
+                    bool all_ready;
+                    all_ready = true;
                     for (int i=0; i<number_of_probes_; i++) {
                         if (guess_measurement_bucket[i].monitor == endMonitor) {
-                            guess_measurement_bucket[i].utility = utility;
+                            guess_measurement_bucket[i].utility = curr_utility;
                             guess_measurement_bucket[i].ready = true;
                         }
 
