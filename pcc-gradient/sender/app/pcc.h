@@ -431,7 +431,7 @@ protected:
 		*/
 	}
 
-	virtual double getMinChange() {
+	virtual double getMinChange(){ 
 		if (base_rate_ > kMinRateMbps) {
 			return kMinRateMbps;
 		} else if (base_rate_ > kMinRateMbps / 2) {
@@ -542,12 +542,14 @@ public:
 
 		// convert to milliseconds
 		double rtt_penalty = rtt / get_min_rtt(rtt);
+                cerr<<"RTT penalty is"<<rtt_penalty<<endl;
+                cerr<<"rtt is"<<rtt<<endl;
 		//if (rtt_penalty > 2) rtt_penalty  = 2;
 		//if (rtt_penalty < -2) rtt_penalty  = -2;
 		exponent_ = 2.5;
 
 		long double loss_contribution = total * (long double) (alpha_* (pow((1+((long double)((double) loss/(double) total))), exponent_)-1));
-		long double rtt_contribution = 1.8 * total*(pow(rtt_penalty,1.5) - 1);
+		long double rtt_contribution = 1.8 * total*(pow(rtt_penalty,2) - 1);
 		long double utility = ((long double)total - loss_contribution - rtt_contribution)/norm_measurement_interval;
 
 		if (out_measurement != NULL) {
@@ -580,7 +582,7 @@ public:
 	int current_start_monitor_;
 	long double last_utility_;
 	deque<double> rtt_history_;
-	static constexpr size_t kHistorySize = 10;
+	static constexpr size_t kHistorySize = 1;
 	mutex monitor_mutex_;
 	int on_next_start_bind_to_end_;
 };
