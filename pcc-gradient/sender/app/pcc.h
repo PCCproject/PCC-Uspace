@@ -77,16 +77,16 @@ public:
 	virtual void onLoss(const int32_t*, const int&) {}
 	virtual bool onTimeout(int total, int loss, double in_time, int current, int endMonitor, double rtt){
 		lock_guard<mutex> lck(monitor_mutex_);
-		//cout << "handling timeout in PCC! for monitor " << monitor << endl;
+		//cerr << "handling timeout in PCC! for monitor " << monitor << endl;
 //		if (state_ != START) {
 //			if (start_measurment_map_.find(endMonitor) == start_measurment_map_.end() && end_measurment_map_.find(endMonitor) == end_measurment_map_.end()) {
 //				#ifdef DEBUG_PRINT
-//					cout << "NOT IN START: monitor " << endMonitor << " already gone!" << endl;
+//					cerr << "NOT IN START: monitor " << endMonitor << " already gone!" << endl;
 //				#endif
 //				return false;
 //			}
 //		} /*else if (monitor_in_start_phase_ != monitor) {
-//			cout << "START: monitor " << monitor << " already gone! current monitor: " << monitor_in_start_phase_ << endl;
+//			cerr << "START: monitor " << monitor << " already gone! current monitor: " << monitor_in_start_phase_ << endl;
 //			return false;
 //		}*/
 //
@@ -98,9 +98,9 @@ public:
 //			return true;
 //		}
 //		//#ifdef DEBUG_PRINT
-//		cout << "computing utility: total = " << total << ", loss = " << loss << " in_time = " << in_time << ", rtt = " << rtt << endl;
-//		cout << "current utility = " << curr_utility << " and previous utility = " << last_utility_ << endl;
-//		cout << "current rate " << rate() << " --> ";
+//		cerr << "computing utility: total = " << total << ", loss = " << loss << " in_time = " << in_time << ", rtt = " << rtt << endl;
+//		cerr << "current utility = " << curr_utility << " and previous utility = " << last_utility_ << endl;
+//		cerr << "current rate " << rate() << " --> ";
 //		//#endif
 //		decide(last_utility_, curr_utility, true);
 //
@@ -110,14 +110,14 @@ public:
 //		//base_rate_ = rate();
 //		double r = rate();
 //		//#ifdef DEBUG_PRINT
-//			cout << "timeout! new rate is " << r << endl;
+//			cerr << "timeout! new rate is " << r << endl;
 //		//#endif
 //		restart();
 //		if (r > 1.01 * kMinRateMbps) {
-//			cout << "going to SEARCH rate = " << rate() << ". Thresh = " << 1.01 * kMinRateMbps << endl;
+//			cerr << "going to SEARCH rate = " << rate() << ". Thresh = " << 1.01 * kMinRateMbps << endl;
 //			state_ = SEARCH;
 //		} else {
-//			cout << "going to "<< kMinRateMbpsSlowStart << "mbps" << endl;
+//			cerr << "going to "<< kMinRateMbpsSlowStart << "mbps" << endl;
 //			base_rate_ = kMinRateMbpsSlowStart;
 //			restart();
 //			slow_start_factor_ = 2;
@@ -128,7 +128,7 @@ public:
 //		//start_measurment_map_.clear();
 //		//end_measurment_map_.clear();
 //		kInTimeout = false;
-//		//cout << "new rate: " << rate() << base_rate_ << endl;
+//		//cerr << "new rate: " << rate() << base_rate_ << endl;
 //		return false;
 	}
 	virtual void onACK(const int& ack){}
@@ -157,14 +157,19 @@ public:
 			        }
 			        monitor_in_start_phase_ = current_monitor;
 			        setRate(rate() * slow_start_factor_);
+                    cerr<<"slow starting"<<endl;
                     break;
                 case SEARCH:
+                    cerr<<"searching"<<endl;
                     state_ = RECORDING;
 			        search(current_monitor);
                     guess_time_ = 0;
                     break;
                 case RECORDING:
+                    cerr<<"recording"<<endl;
+                    cerr<<guess_time_<<endl;
                     if(guess_time_ != number_of_probes_) {
+                        cerr<<"set rate as "<<guess_measurement_bucket[guess_time_].rate<<endl;
                         setRate(guess_measurement_bucket[guess_time_].rate);
                         guess_time_ ++;
                     }
@@ -217,8 +222,10 @@ public:
                     // search state again. To first switch the architecture
                     bool all_ready;
                     all_ready = true;
+                    cerr<<"checking if all ready"<<endl;
                     for (int i=0; i<number_of_probes_; i++) {
                         if (guess_measurement_bucket[i].monitor == endMonitor) {
+                            cerr<<"found matching monitor"<<endMonitor<<endl;
                             guess_measurement_bucket[i].utility = curr_utility;
                             guess_measurement_bucket[i].ready = true;
                         }
@@ -241,7 +248,9 @@ public:
                         // Sanity check maybe needed here, but not sure
                         // but watch out for huge jump is needed
                         // maybe this will work, if this does not, need to revisit sanity check
-					    decide(utility_down/factor, utility_up/factor, false);
+			decide(utility_down/factor, utility_up/factor, false);
+                        state_ = SEARCH;
+                        guess_measurement_bucket.clear();
                     }
                     break;
                 case MOVING:
@@ -328,7 +337,7 @@ public:
 			//if (((end_loss > 10 * start_loss) && (end_loss > 10) ) || ((start_loss > 10 * end_loss) && (start_loss > 10) )) contidutions_changed_too_much = true;
 			/*
 			if (!check_result) {
-				cout << "sanety check failed!" << endl;
+				cerr << "sanety check failed!" << endl;
 			}
 			*/
 
@@ -399,15 +408,15 @@ protected:
 		prev_utility_ = -10000000;
 	}
 
-	PCC() : start_measurement_(true), base_rate_(kMinRateMbps), kPrint(false), state_(START), monitor_in_start_phase_(-1), slow_start_factor_(2), number_of_probes_(4), guess_time_(0),
+	PCC() : start_measurement_(true), base_rate_(kMinRateMbps), kPrint(false), state_(START), monitor_in_start_phase_(-1), slow_start_factor_(2), number_of_probes_(2), guess_time_(0),
 			alpha_(kAlpha), beta_(kBeta), exponent_(kExponent), poly_utlity_(kPolyUtility), rate_(kMinRateMbps), monitor_in_prog_(-1), utility_sum_(0), measurement_intervals_(0), prev_utility_(-10000000), continue_slow_start_(true), last_utility_(0) {
 		m_dPktSndPeriod = 10000;
 		m_dCWndSize = 100000.0;
 
 		setRTO(100000000);
 		srand(time(NULL));
-		cout << "new Code!!!" << endl;
-		cout << "configuration: alpha = " << alpha_ << ", beta = " << beta_   << ", exponent = " << exponent_ << " poly utility = " << poly_utlity_ << endl;
+		cerr << "new Code!!!" << endl;
+		cerr << "configuration: alpha = " << alpha_ << ", beta = " << beta_   << ", exponent = " << exponent_ << " poly utility = " << poly_utlity_ << endl;
 
 		/*
 		if (!latency_mode) {
@@ -428,28 +437,28 @@ protected:
 		}
 	}
 	virtual void setRate(double mbps) {
-		//cout << "set rate: " << rate_ << " --> " << mbps << endl;
+		cerr << "set rate: " << rate_ << " --> " << mbps << endl;
 		if (state_ == START) {
 			if (mbps < kMinRateMbpsSlowStart){
 				#ifdef DEBUG_PRINT
-					cout << "rate is mimimal at slow start, changing to " << kMinRateMbpsSlowStart << " instead" << endl;
+					cerr << "rate is mimimal at slow start, changing to " << kMinRateMbpsSlowStart << " instead" << endl;
 				#endif
 				mbps = kMinRateMbpsSlowStart;
 			}
 		} else if (mbps < kMinRateMbps){
 			#ifdef DEBUG_PRINT
-				cout << "rate is mimimal, changing to " << kMinRateMbps << " instead" << endl;
+				cerr << "rate is mimimal, changing to " << kMinRateMbps << " instead" << endl;
 			#endif
 			mbps = kMinRateMbps;
 		}
 
 		if (mbps > kMaxRateMbps) {
 			mbps = kMaxRateMbps;
-			cout << "rate is maximal, changing to " << kMaxRateMbps << " instead" << endl;
+			cerr << "rate is maximal, changing to " << kMaxRateMbps << " instead" << endl;
 		}
 		rate_ = mbps;
 		m_dPktSndPeriod = (m_iMSS * 8.0) / mbps;
-		//cout << "setting rate: mbps = " << mbps << endl;
+		//cerr << "setting rate: mbps = " << mbps << endl;
 	}
 
 	double rate() const { return rate_; }
@@ -495,22 +504,22 @@ public:
 	bool sanety_check(Measurement* start, Measurement* end) {
 
 		if (end->test_rate_ < start->test_rate_) {
-			//cout << "swapping. Rates: " << start->test_rate_ << ", " << end->test_rate_ << endl;
+			//cerr << "swapping. Rates: " << start->test_rate_ << ", " << end->test_rate_ << endl;
 			Measurement* swap_temp = start;
 			start = end;
 			end = swap_temp;
 		}
 
 		if (start->loss_panelty_ < end->loss_panelty_) {
-			//cout << "failed on loss. Start = " << start->loss_panelty_ << ". End = " << end->loss_panelty_ << endl;
+			//cerr << "failed on loss. Start = " << start->loss_panelty_ << ". End = " << end->loss_panelty_ << endl;
 			return false;
 		}
 		if (start->rtt_panelty_ < end->rtt_panelty_) {
-			//cout << "failed on rtt" << endl;
+			//cerr << "failed on rtt" << endl;
 			return false;
 		}
 		if (start->actual_packets_sent_rate_ < end->actual_packets_sent_rate_) {
-			//cout << "failed on packets sent" << endl;
+			//cerr << "failed on packets sent" << endl;
 			return false;
 		}
 		return true;

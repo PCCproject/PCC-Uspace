@@ -12,10 +12,10 @@ protected:
         for(int i=0; i<number_of_probes_; i++) {
             GuessStat g = GuessStat();
             if (i%2 == 0) {
-                g.rate = (1 + kDelta) * rate();
+                g.rate = (1 + kDelta) * base_rate_;
                 g.isup = true;
             } else{
-                g.rate = (1 - kDelta) * rate();
+                g.rate = (1 - kDelta) * base_rate_;
                 g.isup = false;
             }
             g.ready = false;
@@ -43,6 +43,7 @@ protected:
 	}
 	virtual void decide(long double start_utility, long double end_utility, bool force_change) {
 		double gradient = -1 * (start_utility - end_utility) / (2 * kDelta * base_rate_ * 0.05);
+                cerr<<"gradient is "<<gradient<<endl;
 		prev_gradiants_[curr_] = gradient;
 
 		/*
@@ -81,6 +82,7 @@ protected:
 		}
 
 		if (change == 0) cout << "Change is zero!" << endl;
+                cerr<<"change is "<<change<<endl;
 
 		base_rate_ += change;
 		if (force_change) {
