@@ -41,8 +41,8 @@ protected:
 		curr_ = 0;
 		prev_change_ = 0;
 	}
-	virtual void decide(long double start_utility, long double end_utility, bool force_change) {
-		double gradient = -1 * (start_utility - end_utility) / (2 * kDelta * base_rate_ * 0.05);
+	virtual void decide(long double start_utility, long double end_utility, double old_rate, double new_rate, bool force_change) {
+		double gradient = (end_utility - start_utility) / (new_rate - old_rate);
                 cerr<<"gradient is "<<gradient<<endl;
 		prev_gradiants_[curr_] = gradient;
 

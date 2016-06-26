@@ -237,18 +237,22 @@ public:
 
                     if (all_ready) {
                         double utility_down=0, utility_up=0;
+                        double rate_up = 0, rate_down = 0;
                         for (int i=0; i<number_of_probes_; i++) {
                             if(guess_measurement_bucket[i].isup) {
                                 utility_up += guess_measurement_bucket[i].utility;
+                                rate_up = guess_measurement_bucket[i].rate;
                             } else {
                                 utility_down += guess_measurement_bucket[i].utility;
+                                rate_down = guess_measurement_bucket[i].rate;
                             }
                         }
                         int factor = number_of_probes_/2;
                         // Sanity check maybe needed here, but not sure
                         // but watch out for huge jump is needed
                         // maybe this will work, if this does not, need to revisit sanity check
-			decide(utility_down/factor, utility_up/factor, false);
+                        decide(utility_down/factor, utility_up/factor, rate_down, rate_up, false);
+                        setRate(base_rate_);
                         state_ = SEARCH;
                         guess_measurement_bucket.clear();
                     }
@@ -343,7 +347,7 @@ public:
 
 			if (start_base == end_base) {
 				if (check_result) {
-					decide(start_utility, end_utility, false);
+					//decide(start_utility, end_utility, false);
 				} else {
 					keep_last_measurement(private_copy);
 				}
@@ -381,7 +385,7 @@ protected:
 
 
 	virtual void search(int current_monitor) = 0;
-	virtual void decide(long double start_utility, long double end_utility, bool force_change) = 0;
+	virtual void decide(long double start_utility, long double end_utility, double old_rate, double_new_rate,  bool force_change) = 0;
 
 	virtual void clear_state() {
 		continue_slow_start_ = true;
