@@ -191,6 +191,8 @@ public:
 
 	virtual void onMonitorEnds(int total, int loss, double in_time, int current, int endMonitor, double rtt) {
 		lock_guard<mutex> lck(monitor_mutex_);
+		rtt /= (1000 * 1000);
+		if (rtt == 0) rtt = 0.0001;
 		long double curr_utility = utility(total, loss, in_time, rtt, NULL);
 		last_utility_ = curr_utility;
 		utility_sum_ += curr_utility;
@@ -203,6 +205,7 @@ public:
                     // TODO to aid debuggin as we change code architecture, we will not
                     // have slow start here, we will immediately transit to SEARCH state
                     state_ = SEARCH;
+		            bool continue_slow_start = (curr_utility > prev_utility_);
                     break;
                 case SEARCH:
                     // When doing search (calculating the results and stuff), onmonitorends should do nothing
@@ -235,53 +238,22 @@ public:
                             }
                         }
                         int factor = number_of_probes_/2;
+                        // Sanity check maybe needed here, but not sure
+                        // but watch out for huge jump is needed
+                        // maybe this will work, if this does not, need to revisit sanity check
 					    decide(utility_down/factor, utility_up/factor, false);
                     }
                     break;
                 case MOVING:
+		            prev_utility_ = curr_utility;
+                    // should add target monitor
+                    // decide based on prev_utility_
+                    // and prev_rate_
                     break;
             }
 
         } while(old_state != state_);
 
-
-
-
-
-		Measurement* this_measurement = get_monitor_measurement(endMonitor);
-		if ((this_measurement == NULL) && (state_ != START)) {
-			return;
-		}
-
-		rtt /= (1000 * 1000);
-		if (rtt == 0) rtt = 0.0001;
-
-		long double curr_utility = utility(total, loss, in_time, rtt, this_measurement);
-		last_utility_ = curr_utility;
-		utility_sum_ += curr_utility;
-		measurement_intervals_++;
-
-		bool continue_slow_start = (curr_utility > prev_utility_);
-		//long double tmp_prev_utility = prev_utility_;
-		prev_utility_ = curr_utility;
-
-		if(state_ == START) {
-			if (monitor_in_start_phase_ == endMonitor) {
-				monitor_in_start_phase_ = -1;
-				if (!continue_slow_start) {
-					setRate(rate() / slow_start_factor_);
-					state_ = SEARCH;
-						//#ifdef DEBUG_PRINT
-						//cout << "exit slow start, rate =  " << rate() << endl;
-						//#endif
-					//cout << "previous utility = " << tmp_prev_utility << ", this utility = " << curr_utility << endl;
-				} /*else {
-					cout << "current rate: " << rate() << " current utility " << curr_utility << " going forward." << endl;
-				}*/
-			}
-		} else if(state_ == SEARCH) {
-			update_on_search(endMonitor, curr_utility, rtt, loss, this_measurement);
-		}
 	}
 
 	void update_on_search(int endMonitor, long double curr_utility, double rtt, int loss, Measurement* this_measurement) {
