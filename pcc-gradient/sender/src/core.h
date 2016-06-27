@@ -55,6 +55,8 @@ written by
 #include "cache.h"
 #include "queue.h"
 #include <vector>
+#include <deque>
+#include "time.h"
 
 enum UDTSockType {UDT_STREAM = 1, UDT_DGRAM};
 
@@ -364,7 +366,10 @@ private: // Status
    int m_iEXPCount;                             // Expiration counter
    int m_iBandwidth;                            // Estimated bandwidth, number of packets per second
    int m_iRTT;                                  // RTT, in microseconds
-   double m_last_rtt[100];
+   int last_rtt_;
+   deque<double> m_last_rtt;
+   static const size_t kRTTHistorySize = 20;
+   //double m_last_rtt[100];
    int m_monitor_count;
    int m_iRTTVar;                               // RTT variance
    int m_iDeliveryRate;				// Packet arrival rate at the receiver side
@@ -431,6 +436,7 @@ private: // synchronization: mutexes and conditions
    void destroySynch();
    void releaseSynch();
    double get_min_rtt() const;
+   double get_rtt_sd() const;
 
 private: // Generation and processing of packets
    void sendCtrl(const int& pkttype, void* lparam = NULL, void* rparam = NULL, const int& size = 0);
@@ -505,6 +511,8 @@ private: // for UDP multiplexer
    CRNode* m_pRNode;                            // node information for UDT list used in rcv queue
 
    void init_state();
+   void save_timeout_time();
+   time_t start_;
    
 private: // for epoll
    std::set<int> m_sPollID;                     // set of epoll ID to trigger

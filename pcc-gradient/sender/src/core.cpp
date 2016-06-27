@@ -134,7 +134,8 @@ CUDT::CUDT()
 	m_bBroken = false;
 	m_bPeerHealth = true;
 	m_ullLingerExpiration = 0;
-
+	start_ = time(NULL);
+	remove( "/home/yossi/timeout_times.txt" );
 	for (int i = 0; i < 100; i++) state[i] = 0;
 }
 
@@ -189,7 +190,8 @@ CUDT::CUDT(const CUDT& ancestor)
 	m_bBroken = false;
 	m_bPeerHealth = true;
 	m_ullLingerExpiration = 0;
-
+	start_ = time(NULL);
+	remove( "/home/yossi/timeout_times.txt" ); 
 	for (int i = 0; i < 100; i++) state[i] = 0;
 }
 
@@ -526,7 +528,8 @@ void CUDT::open()
 	m_pRNode->m_bOnList = false;
 
 	m_iRTT = 10 * m_iSYNInterval;
-	for (int i = 0; i < 100; i++) m_last_rtt[i] = 5 * m_iSYNInterval;
+	last_rtt_ = 10 * m_iSYNInterval;
+	//for (int i = 0; i < 100; i++) m_last_rtt[i] = 5 * m_iSYNInterval;
 	m_monitor_count = 0;
 	m_iRTTVar = m_iRTT >> 1;
 	m_ullCPUFrequency = CTimer::getCPUFrequency();
@@ -2010,8 +2013,6 @@ void CUDT::add_to_loss_record(int32_t loss1, int32_t loss2){
 }
 void CUDT::processCtrl(CPacket& ctrlpkt)
 {
-	//cout <<"processCtrl" << endl;
-	//lock_guard<std::recursive_mutex> lck(m_pCC->data_lock_);
 	// Just heard from the peer, reset the expiration count.
 	m_iEXPCount = 1;
 	uint64_t currtime;
@@ -2438,9 +2439,18 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 							rtt_value[Mon]=0;
 							rtt_count[Mon]=1;
                         }
-						m_last_rtt[Mon % 100] = rtt_value[Mon]/((double) rtt_count[Mon]);
+						last_rtt_ = m_iRTT;
+						
+						m_last_rtt.push_front(last_rtt_);
+						if (m_last_rtt.size() > kRTTHistorySize) {
+							m_last_rtt.pop_back();
+						}
+						
+						
+						//m_last_rtt[Mon % 100] = rtt_value[Mon]/((double) rtt_count[Mon]);
                                                 //cout<<"Fill in rtt value as"<<m_last_rtt[Mon % 100]<<endl;
                                                 //cerr<<"Monitor"<<tmp<<"ends at"<<CTimer::getTime()<<endl;
+						
 						m_pCC->onMonitorEnds(total[tmp],total[tmp]-left[tmp],(end_transmission_time[tmp]-start_time[tmp])/1000000,current_monitor,tmp, rtt_value[Mon]/double(rtt_count[Mon]));
 						m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
 						if (!left_monitor) break;
@@ -2465,7 +2475,7 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 
 int CUDT::packData(CPacket& packet, uint64_t& ts)
 {
-	lock_guard<std::recursive_mutex> lck(m_pCC->data_lock_);
+
 	int payload = 0;
 	bool probe = false;
 	uint64_t entertime;
@@ -2707,7 +2717,6 @@ m_pSndLossList->insert(const_cast<int32_t&>(m_iSndLastAck), const_cast<int32_t&>
 
 int CUDT::processData(CUnit* unit)
 {
-	lock_guard<std::recursive_mutex> lck(m_pCC->data_lock_);
 	CPacket& packet = unit->m_Packet;
 
 	// Just heard from the peer, reset the expiration count.
@@ -3013,25 +3022,44 @@ void CUDT::removeEPoll(const int eid)
 	s_UDTUnited.m_EPoll.disable_write(m_SocketID, m_sPollID);
 }
 
+double CUDT::get_rtt_sd() const {
+	double sum = 0;
+	if ((m_last_rtt.size()) > 5) {
+		for (deque<double>::const_iterator it = m_last_rtt.begin(); it!=m_last_rtt.end(); ++it) {
+			sum += *it;
+		}
+		
+		double avg = sum / m_last_rtt.size();
+
+		double var = 0;
+		for (deque<double>::const_iterator it = m_last_rtt.begin(); it!=m_last_rtt.end(); ++it) {
+			var += pow(*it - avg, 2);
+		}
+		var /= m_last_rtt.size();
+		return pow(var, 0.5);
+	} else {
+		return last_rtt_;
+	}
+}
+
+
 double CUDT::get_min_rtt() const {
-	double min = m_last_rtt[0];
-	for (int i = 0; i < 100; i++) {
-                cout<<"last rtts"<< m_last_rtt[i]<<endl;
-                if (min == 0) {
-                    min = m_last_rtt[i];
-                }
-		if (m_last_rtt[i] < min && m_last_rtt[i] > 0) {
-			min = m_last_rtt[i];
+	double min = 0;
+	if ((m_last_rtt.size()) > 0) {
+		min = *m_last_rtt.begin();
+		for (deque<double>::const_iterator it = m_last_rtt.begin(); it!=m_last_rtt.end(); ++it) {
+			if (min > *it) { 
+				min = *it;
+			}
 		}
 	}
-        if(min == 0) {
-         min = 500000;
-        }
+	if (min == 0) return last_rtt_;
 	return min;
 }
 
-void CUDT::start_monitor(int length)
+void CUDT::start_monitor(int length) 
 {
+	//cout << "start monitor!" << endl;
 	m_iMonitorCurrSeqNo=0;
 	previous_monitor = current_monitor;
 	current_monitor = (current_monitor+1)%100;
@@ -3045,16 +3073,17 @@ void CUDT::start_monitor(int length)
     time_interval[current_monitor] = m_pCC->m_dPktSndPeriod;
     //double rand_factor = double(rand()%10)/100.0;
 	//if(m_iRTT*(1.2)/m_pCC->m_dPktSndPeriod>10) length = m_iRTT*(0.5 + rand_factor)/m_pCC->m_dPktSndPeriod;
-		//cout << "min RTT is " << get_min_rtt() << endl;
-		allocated_times_[current_monitor] = 3 * m_iRTT;//get_min_rtt();
-                if(allocated_times_[current_monitor]> 1000000) {
-                    allocated_times_[current_monitor] = 1000000;
-                }
-				if (allocated_times_[current_monitor]< kMinTimeoutMillis) {
-                    allocated_times_[current_monitor] = kMinTimeoutMillis;
-                }
-		//cout << "m_iRTT: " << m_iRTT << ". Min RTT = " << get_min_rtt() << endl;
-		//cout << "monitor " << current_monitor << ", deadline is " << deadlines[current_monitor] << " --> " << x << endl;
+	//cout << "min RTT is " << get_min_rtt() << endl;
+	//cout << "Allocated time: slack = " << 4 * get_rtt_sd() << " last RTT = " << last_rtt_ << endl;
+	allocated_times_[current_monitor] = 3 * get_min_rtt();//m_iRTT;//get_min_rtt(); 
+	if(allocated_times_[current_monitor]> 1000000) {
+		allocated_times_[current_monitor] = 1000000;
+	}
+	if (allocated_times_[current_monitor]< kMinTimeoutMillis) {
+		allocated_times_[current_monitor] = kMinTimeoutMillis;
+	}
+	//cout << "m_iRTT: " << m_iRTT << ". Min RTT = " << get_min_rtt() << endl;
+	//cout << "monitor " << current_monitor << ", deadline is " << deadlines[current_monitor] << " --> " << x << endl;
 	m_monitor_count++;
 
 	//double rand_factor = (rand() %10) / 100.;
@@ -3068,7 +3097,7 @@ void CUDT::start_monitor(int length)
             length = send_period/m_pCC->m_dPktSndPeriod;
         }
 	else {
-            length=(10>(5000/m_pCC->m_dPktSndPeriod))?10:(5000/m_pCC->m_dPktSndPeriod);
+            length=10;
         }
 
 //#ifdef EXPERIMENTAL_FEATURE_CONTINOUS_SEND
@@ -3171,7 +3200,7 @@ void CUDT::timeout_monitors() {
 				if (m_pCC->onTimeout(total[tmp],total[tmp]-left[tmp],(end_transmission_time[tmp]-start_time[tmp])/1000000,current_monitor,tmp, allocated_times_[tmp]/1000)) {
 					return;
 				}
-				
+				save_timeout_time();
 				m_iRTT = allocated_times_[tmp];
 	            loss_record1.clear();
 	            loss_record2.clear();
@@ -3190,7 +3219,7 @@ void CUDT::timeout_monitors() {
 	            	rtt_value[mon_index] = 0;
 	            	deadlines[mon_index] = 0;
 	            	allocated_times_[mon_index] = 0;
-                        m_last_rtt[mon_index] = 0;
+					m_last_rtt.clear();
 	            }
 				
 	            monitor = true;
@@ -3202,6 +3231,17 @@ void CUDT::timeout_monitors() {
 		}
     tmp = (tmp + 1) % 100;
 	}
+}
+
+void CUDT::save_timeout_time() {
+	cout << "saving to file" << endl;
+	
+	std::ofstream outfile("/home/yossi/timeout_times.txt", std::ios_base::app);
+	outfile << "timeout at time " << time(NULL) - start_ <<  ". Last RTTs: ";
+	for(unsigned int i = 0; (i < m_last_rtt.size()) && (i < 10); i++) {
+		outfile << m_last_rtt[i] << ", ";
+	}
+	outfile << endl;
 }
 
 double CUDT::estimate_rtt_for_timedout_monitors(int monitor) {
