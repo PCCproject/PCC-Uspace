@@ -17,18 +17,18 @@ protected:
 		PCC::restart();
 	}
 	
-	virtual void clear_state() {
-		PCC::clear_state();
-		first_ = true;
-		up_utility_ = 0;
-		down_utility_ = 0;
-		seq_large_incs_ = 0;
-		consecutive_big_changes_ = 0;
-		trend_count_ = 0;
-		decision_count_ = 0;
-		curr_ = 0;
-		prev_change_ = 0;
+	virtual void do_last_change() {
+		//cout << "taking last change: " << prev_change_ << endl;
+		base_rate_ += prev_change_;
+
+		if (base_rate_ < kMinRateMbps * (1 + kDelta)) {
+			base_rate_ = kMinRateMbps * (1 + kDelta);
+		}
+
+		setRate(base_rate_);
+		//cout << "base_rate_ = " << base_rate_ << " rate = " << rate() << endl;
 	}
+	
 	virtual void decide(long double start_utility, long double end_utility, bool force_change) {
 		double gradient = -1 * (start_utility - end_utility) / (2 * kDelta * base_rate_ * 0.05);
 		prev_gradiants_[curr_] = gradient;
@@ -47,7 +47,7 @@ protected:
 		}
 		trend_count_ = 0;
 		
-		double change = 2 * rate()/1000 * kEpsilon * avg_gradient();	
+		double change = 2 * base_rate_/1000 * kEpsilon * avg_gradient();	
 
 		if (force_change) {
 			cout << "avg. gradient = " << avg_gradient() << endl;
@@ -56,27 +56,20 @@ protected:
 		}
 		
 		if ((change >= 0) && (change < getMinChange())) change = getMinChange();
+		//if ((change < 0) && (change > -0.1)) change = -0.1; 
 		
 		if (change * prev_change_ >= 0) decision_count_++;
 		else decision_count_ = 0;
 		prev_change_ = change;
-
+		
 		if ((change > 0) && (decision_count_ == kGoToStartCount)) {
 			#ifdef DEBUG_PRINT
 			cout << "restart." << endl;
 			#endif
 			restart();
-		}
-		
-		if (change == 0) cout << "Change is zero!" << endl; 
-		
-		base_rate_ += change;
-		if (force_change) {
-			setRate(base_rate_);
-		}
-
-		if ((base_rate_ < 0) && (state_ != START)) {
-			base_rate_ = 1.05 * kMinRateMbps;
+		} else {
+			if (prev_change_ == 0) cout << "Change is zero!" << endl; 	
+			do_last_change();
 		}
 	}
 	
@@ -129,11 +122,9 @@ private:
 	int curr_;
 	double prev_gradiants_[100];
 	double prev_change_;
-
-	static constexpr int kRobustness = 1;
 	static constexpr double kEpsilon = 0.015;
-	static constexpr double kDelta = 0.07; 
-	static constexpr int kGoToStartCount = 5;
+	static constexpr double kDelta = 0.1; 
+	static constexpr int kGoToStartCount = 50000;
 	double next_delta;
 };
 
