@@ -289,6 +289,7 @@ public:
                             move_stat.utility = curr_utility;
                             // change stay the same
                             move_stat.target_monitor = (current + 1) % 100;
+                            cerr<<"target monitor is "<<(current + 1) % 100; 
                             move_stat.next_rate = move_stat.next_rate + move_stat.change;
                             base_rate_ = move_stat.next_rate;
                             setRate(base_rate_);

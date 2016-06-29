@@ -70,8 +70,8 @@ protected:
 
 		if ((change >= 0) && (change < getMinChange())) change = getMinChange();
 
-                if (change>0 && change < base_rate_*kDelta) { change = base_rate_*kDelta;}
-                if (change <0 && change > base_rate_*kDelta * -1) {change = base_rate_ * kDelta * -1;}
+                //if (change>0 && change < base_rate_*kDelta) { change = base_rate_*kDelta;}
+                //if (change <0 && change > base_rate_*kDelta * (-1)) {change = base_rate_ * kDelta * (-1);}
 
 		prev_change_ = change;
 
@@ -119,7 +119,7 @@ private:
 	double prev_gradiants_[100];
 
 	static constexpr int kRobustness = 1;
-	static constexpr double kEpsilon = 0.1;
+	static constexpr double kEpsilon = 0.2;
 	static constexpr double kDelta = 0.01;
 	static constexpr int kGoToStartCount = 50000;
 	double next_delta;

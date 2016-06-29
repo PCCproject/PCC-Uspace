@@ -3065,7 +3065,7 @@ void CUDT::start_monitor(int length)
 	m_monitor_count++;
 
 	//double rand_factor = (rand() %10) / 100.;
-	int send_period = 1*m_iRTT; //100 * 1000; // 100 milliseconds
+	int send_period = 1.1*m_iRTT; //100 * 1000; // 100 milliseconds
 	//length = send_period*(0.5 + rand_factor)/m_pCC->m_dPktSndPeriod;
             if(send_period > 1000000) {
                send_period = 300000;
