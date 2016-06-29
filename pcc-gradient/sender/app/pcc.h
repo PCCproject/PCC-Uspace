@@ -281,8 +281,8 @@ public:
                     }
                     break;
                 case MOVING:
-                    if(current == move_stat.target_monitor) {
-                        cerr<<"find the right monitor"<<current<<endl;
+                    if(endMonitor == move_stat.target_monitor) {
+                        cerr<<"find the right monitor"<<endMonitor<<endl;
                         if(move_stat.bootstrapping) {
                             cerr<<"bootstrapping move operations"<<endl;
                             move_stat.bootstrapping = false;
