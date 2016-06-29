@@ -301,7 +301,7 @@ public:
                                 cerr<<"change is "<<change<<" old change is "<<move_stat.change<<endl;
                             // the direction is different, need to move to old rate start to re-guess
                                 if (abs(change) > abs(move_stat.change)) {
-                                    base_rate_ = move_stat.next_rate - change;
+                                    base_rate_ = move_stat.next_rate + change;
                                 } else {
                                     base_rate_ = move_stat.next_rate - move_stat.change;
                                 }
