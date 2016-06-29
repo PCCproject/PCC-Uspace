@@ -282,7 +282,9 @@ public:
                     break;
                 case MOVING:
                     if(current == move_stat.target_monitor) {
+                        cerr<<"find the right monitor"<<current<<endl;
                         if(move_stat.bootstrapping) {
+                            cerr<<"bootstrapping move operations"<<endl;
                             move_stat.bootstrapping = false;
                             move_stat.utility = curr_utility;
                             // change stay the same
@@ -293,9 +295,12 @@ public:
                         } else {
                             // see if the change direction is wrong and is reversed
                             double change = decide(move_stat.utility, curr_utility, move_stat.next_rate - move_stat.change, move_stat.next_rate, false);
+                            cerr<<"change for move is "<<change<<endl;
                             if (change * move_stat.change < 0) {
+                                cerr<<"direction changed"<<endl;
+                                cerr<<"change is "<<change<<" old change is "<<move_stat.change<<endl;
                             // the direction is different, need to move to old rate start to re-guess
-                                if (abs(change) > move_stat.change) {
+                                if (abs(change) > abs(move_stat.change)) {
                                     base_rate_ = move_stat.next_rate - change;
                                 } else {
                                     base_rate_ = move_stat.next_rate - move_stat.change;
@@ -303,6 +308,7 @@ public:
                                 setRate(base_rate_);
                                 state_ = SEARCH;
                             } else {
+                                cerr<<"direction same, keep moving with change of "<<change<<endl;
                                 move_stat.target_monitor = (current + 1) % 100;
                                 move_stat.utility = curr_utility;
                                 move_stat.next_rate = move_stat.change + move_stat.next_rate;
