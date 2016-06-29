@@ -14,6 +14,7 @@
 #include <deque>
 #include <mutex>
 #include <thread>
+#include <stdlib.h>
 //#define DEBUG_PRINT
 
 using namespace std;
@@ -62,6 +63,15 @@ struct GuessStat {
 };
 
 
+struct MoveStat {
+      double rate;
+      double next_rate;
+      double change;
+      long double utility;
+      int target_monitor;
+      bool bootstrapping;
+      bool isup;
+};
 
 class PCC : public CCC {
 public:
@@ -172,10 +182,13 @@ public:
                         cerr<<"set rate as "<<guess_measurement_bucket[guess_time_].rate<<endl;
                         setRate(guess_measurement_bucket[guess_time_].rate);
                         guess_time_ ++;
+                    } else {
+                        setRate(base_rate_);
                     }
                     break;
                 case MOVING:
                     // TODO: should handle how we move and how we record utility as well
+                    setRate(move_stat.next_rate);
                     break;
             }
 
@@ -251,13 +264,53 @@ public:
                         // Sanity check maybe needed here, but not sure
                         // but watch out for huge jump is needed
                         // maybe this will work, if this does not, need to revisit sanity check
-                        decide(utility_down/factor, utility_up/factor, rate_down, rate_up, false);
+                        double change = decide(utility_down/factor, utility_up/factor, rate_down, rate_up, false);
+		                base_rate_ += change;
+		                if ((base_rate_ < 0) && (state_ != START)) {
+		                	base_rate_ = 1.05 * kMinRateMbps;
+		                }
+
                         setRate(base_rate_);
-                        state_ = SEARCH;
+                        state_ = MOVING;
+                        move_stat.bootstrapping = true;
+                        move_stat.target_monitor = (current +1) % 100;
+                        move_stat.next_rate = base_rate_;
+                        move_stat.rate = base_rate_;
+                        move_stat.change = change;
                         guess_measurement_bucket.clear();
                     }
                     break;
                 case MOVING:
+                    if(current == move_stat.target_monitor) {
+                        if(move_stat.bootstrapping) {
+                            move_stat.bootstrapping = false;
+                            move_stat.utility = curr_utility;
+                            // change stay the same
+                            move_stat.target_monitor = (current + 1) % 100;
+                            move_stat.next_rate = move_stat.next_rate + move_stat.change;
+                            base_rate_ = move_stat.next_rate;
+                            setRate(base_rate_);
+                        } else {
+                            // see if the change direction is wrong and is reversed
+                            double change = decide(move_stat.utility, curr_utility, move_stat.next_rate - move_stat.change, move_stat.next_rate, false);
+                            if (change * move_stat.change < 0) {
+                            // the direction is different, need to move to old rate start to re-guess
+                                if (abs(change) > move_stat.change) {
+                                    base_rate_ = move_stat.next_rate - change;
+                                } else {
+                                    base_rate_ = move_stat.next_rate - move_stat.change;
+                                }
+                                setRate(base_rate_);
+                                state_ = SEARCH;
+                            } else {
+                                move_stat.target_monitor = (current + 1) % 100;
+                                move_stat.utility = curr_utility;
+                                move_stat.next_rate = move_stat.change + move_stat.next_rate;
+                                base_rate_ = move_stat.next_rate;
+                                setRate(base_rate_);
+                            }
+                        }
+                    }
 		            prev_utility_ = curr_utility;
                     // should add target monitor
                     // decide based on prev_utility_
@@ -372,6 +425,7 @@ protected:
     bool start_measurement_;
 	double base_rate_;
 	bool kPrint;
+	double prev_change_;
 	static constexpr double kMinRateMbps = 0.5;
 	static constexpr double kMinRateMbpsSlowStart = 0.1;
 	static constexpr double kMaxRateMbps = 1024.0;
@@ -385,7 +439,7 @@ protected:
 
 
 	virtual void search(int current_monitor) = 0;
-	virtual void decide(long double start_utility, long double end_utility, double old_rate, double new_rate,  bool force_change) = 0;
+	virtual double decide(long double start_utility, long double end_utility, double old_rate, double new_rate,  bool force_change) = 0;
 
 	virtual void clear_state() {
 		continue_slow_start_ = true;
@@ -416,6 +470,7 @@ protected:
 			alpha_(kAlpha), beta_(kBeta), exponent_(kExponent), poly_utlity_(kPolyUtility), rate_(kMinRateMbps), monitor_in_prog_(-1), utility_sum_(0), measurement_intervals_(0), prev_utility_(-10000000), continue_slow_start_(true), last_utility_(0) {
 		m_dPktSndPeriod = 10000;
 		m_dCWndSize = 100000.0;
+        prev_change_ = 0;
 
 		setRTO(100000000);
 		srand(time(NULL));
@@ -431,7 +486,7 @@ protected:
 		*/
 	}
 
-	virtual double getMinChange(){ 
+	virtual double getMinChange(){
 		if (base_rate_ > kMinRateMbps) {
 			return kMinRateMbps;
 		} else if (base_rate_ > kMinRateMbps / 2) {
@@ -582,6 +637,7 @@ public:
 	map<int, shared_ptr<Measurement> > end_measurment_map_;
     int number_of_probes_;
 	vector<GuessStat> guess_measurement_bucket;
+	MoveStat move_stat;
     int guess_time_;
 	int current_start_monitor_;
 	long double last_utility_;
