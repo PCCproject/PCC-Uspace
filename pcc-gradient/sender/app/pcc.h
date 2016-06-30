@@ -433,7 +433,7 @@ protected:
 	double base_rate_;
 	bool kPrint;
 	double prev_change_;
-	static constexpr double kMinRateMbps = 0.5;
+	static constexpr double kMinRateMbps = 0.1;
 	static constexpr double kMinRateMbpsSlowStart = 0.1;
 	static constexpr double kMaxRateMbps = 1024.0;
 
@@ -473,8 +473,8 @@ protected:
 		prev_utility_ = -10000000;
 	}
 
-	PCC() : start_measurement_(true), base_rate_(kMinRateMbps), kPrint(false), state_(START), monitor_in_start_phase_(-1), slow_start_factor_(2), number_of_probes_(2), guess_time_(0),
-			alpha_(kAlpha), beta_(kBeta), exponent_(kExponent), poly_utlity_(kPolyUtility), rate_(kMinRateMbps), monitor_in_prog_(-1), utility_sum_(0), measurement_intervals_(0), prev_utility_(-10000000), continue_slow_start_(true), last_utility_(0) {
+	PCC() : start_measurement_(true), base_rate_(0.6), kPrint(false), state_(START), monitor_in_start_phase_(-1), slow_start_factor_(2), number_of_probes_(2), guess_time_(0),
+			alpha_(kAlpha), beta_(kBeta), exponent_(kExponent), poly_utlity_(kPolyUtility), rate_(0.5), monitor_in_prog_(-1), utility_sum_(0), measurement_intervals_(0), prev_utility_(-10000000), continue_slow_start_(true), last_utility_(0) {
 		m_dPktSndPeriod = 10000;
 		m_dCWndSize = 100000.0;
         prev_change_ = 0;
