@@ -84,17 +84,21 @@ public:
 			return true;
 		} else {
 			prev_utility_ = -10000000;
-			best_slow_start_rate_ = ongoing_slow_start_monitors_.at(endMonitor);
+			base_rate_ = best_slow_start_rate_;
+			setRate(best_slow_start_rate_);
+			//cout << "exit slow start, rate = " << best_slow_start_rate_ << endl;
 			state_ = SEARCH;
 			return false;			
 		}
 		
-		cout << "In timeout! " << endMonitor<< endl;
+		//cout << "In timeout! " << endMonitor<< endl;
 
 		clear_pending_search();
 		ongoing_slow_start_monitors_.clear();
+		//cout << "Rate " << rate() << " --> ";
 		base_rate_ = 0.75 * rate();
 		setRate(0.75 * rate());
+		//cout << rate() << endl;
 		return false; 
 
 		
@@ -103,8 +107,8 @@ public:
 			return true;
 		}
 		
-		cout << "loss rate for interval " << endMonitor << ": " <<  ((double) loss) / total << endl;
-		cout << "total = " << total << " loss = " << loss << endl;
+		//cout << "loss rate for interval " << endMonitor << ": " <<  ((double) loss) / total << endl;
+		//cout << "total = " << total << " loss = " << loss << endl;
 		long double curr_utility = utility(total, loss - 1, 100000, 100000, NULL);
 		double r = rate();
 		update_on_search(endMonitor, curr_utility, rtt, loss, this_measurement, TIMEOUT);
@@ -149,14 +153,17 @@ public:
 
 	virtual void onMonitorStart(int current_monitor) {
 		lock_guard<mutex> lck(monitor_mutex_);
-		//cout << "starting monitor " << current_monitor << endl;
+		//cout << "starting monitor " << current_monitor << " STATE = " << state_ << endl;
 		if (state_ == START) {
-			//monitor_in_start_phase_ = current_monitor;
-			cout << "in slow start, rate = " << rate() << endl;	
-			setRate(rate() * slow_start_factor_);
-			ongoing_slow_start_monitors_.insert(pair<int,double> (current_monitor, rate()));
-			cout << "doubling the rate --> " << rate() << endl;
+			if (ongoing_slow_start_monitors_.size() == 0) {
+				//monitor_in_start_phase_ = current_monitor;
+				//cout << "in slow start, rate = " << rate() << endl;	
+				setRate(rate() * slow_start_factor_);
+				ongoing_slow_start_monitors_.insert(pair<int,double> (current_monitor, rate()));
+				//cout << "doubling the rate --> " << rate() << endl;
+			}
 		} else if (state_ == SEARCH) {
+			//cout << "start_measurement_ " << start_measurement_ << endl;
 			if (start_measurement_) {
 				if (start_measurment_map_.find(current_monitor) == start_measurment_map_.end()) {
 					start_measurment_map_.insert(pair<int,shared_ptr<Measurement> >(current_monitor, shared_ptr<Measurement>(new Measurement(base_rate_, on_next_start_bind_to_end_, rate(), FIRST, current_monitor))));
@@ -165,6 +172,7 @@ public:
 					// there was already a pending end to this measurement.
 					if (on_next_start_bind_to_end_ >= 0) {
 						start_measurement_ = false;
+						//cout  << "special case: bind to end" <<endl;
 						on_next_start_bind_to_end_ = -1;
 					}
 				}
@@ -176,7 +184,7 @@ public:
 					}
 				} else {
 					clear_pending_search();
-					cout  << "error, clearing everything" << endl;
+					//cout  << "error" << endl;
 					return;
 				}
 			}
@@ -216,15 +224,19 @@ public:
 		
 		if(state_ == START) {
 			bool continue_slow_start = (curr_utility > prev_utility_);
-			cout  << "current utility: " << curr_utility << " prev utility = " <<  prev_utility_ << endl;
+			//cout  << "current utility: " << curr_utility << " prev utility = " <<  prev_utility_ << endl;
 			if (ongoing_slow_start_monitors_.find(endMonitor) != ongoing_slow_start_monitors_.end()) {
 				if (!continue_slow_start) {
+					base_rate_ = best_slow_start_rate_;
 					setRate(best_slow_start_rate_);
+					//cout << "exit slow start, best rate = " << best_slow_start_rate_ << endl;
 					state_ = SEARCH;
 					ongoing_slow_start_monitors_.clear();
+					
 				} else {
 					prev_utility_ = curr_utility;
 					best_slow_start_rate_ = ongoing_slow_start_monitors_.at(endMonitor);
+					//cout << "continue slow start, best rate = " << best_slow_start_rate_ << endl;
 				}
 				ongoing_slow_start_monitors_.erase(endMonitor);
 			}
@@ -326,7 +338,7 @@ protected:
     bool start_measurement_;
 	double base_rate_;
 	static constexpr double kMinRateMbps = 0.5;
-	static constexpr double kMinRateMbpsSlowStart = 0.05;
+	static constexpr double kMinRateMbpsSlowStart = 0.2;
 	static constexpr double kMaxRateMbps = 1024.0;
 
 	enum ConnectionState {
@@ -348,11 +360,9 @@ protected:
 	}
 	
 	virtual void restart() {
+		clear_pending_search();
 		continue_slow_start_ = true;
-		start_measurement_ = true;
 		slow_start_factor_ = 2;
-		start_measurment_map_.clear();
-		end_measurment_map_.clear();
 		monitor_in_start_phase_ = -1;
 		setRate(base_rate_);
 		state_ = START;
@@ -361,7 +371,7 @@ protected:
 		best_slow_start_rate_ = kMinRateMbpsSlowStart;
 	}
 
-	PCC() : start_measurement_(true), base_rate_(2 * kMinRateMbps), state_(SEARCH), monitor_in_start_phase_(-1), slow_start_factor_(2),
+	PCC() : start_measurement_(true), base_rate_(2 * kMinRateMbps), state_(START), monitor_in_start_phase_(-1), slow_start_factor_(2),
 			alpha_(kAlpha), beta_(kBeta), exponent_(kExponent), poly_utlity_(kPolyUtility), rate_(2 * kMinRateMbps), monitor_in_prog_(-1), utility_sum_(0), measurement_intervals_(0), prev_utility_(-10000000), continue_slow_start_(true), last_utility_(0), on_next_start_bind_to_end_(-1) {
 		m_dPktSndPeriod = 10000;
 		m_dCWndSize = 100000.0;
@@ -383,16 +393,10 @@ protected:
 	virtual void setRate(double mbps) {
 		if (state_ == START) {
 			if (mbps < kMinRateMbpsSlowStart){
-				#ifdef DEBUG_PRINT
-					cout << "rate is mimimal at slow start, changing to " << kMinRateMbpsSlowStart << " instead" << endl;
-				#endif
+				cout << "rate is mimimal at slow start, changing to " << kMinRateMbpsSlowStart << " instead" << endl;
 				mbps = kMinRateMbpsSlowStart;
 			}
 		} else if (mbps < 0.9 * kMinRateMbps){
-			#ifdef DEBUG_PRINT
-				cout << "rate is mimimal, changing to " << kMinRateMbps << " instead" << endl;
-			#endif
-			//mbps = kMinRateMbps;
 			go_to_slow_start();
 		}
 

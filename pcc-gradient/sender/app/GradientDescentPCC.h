@@ -57,7 +57,7 @@ protected:
 		prev_gradiants_[curr_] = gradient;
 
 		trend_count_++;
-		curr_ = (curr_ + 1) % 100;		
+		curr_ = (curr_ + 1) % 100;
 		if ((trend_count_ < kRobustness) && (!timeout)) {
 			return;
 		}
