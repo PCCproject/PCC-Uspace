@@ -2480,7 +2480,7 @@ int CUDT::packData(CPacket& packet, uint64_t& ts)
 	bool probe = false;
 	uint64_t entertime;
 	CTimer::rdtsc(entertime);
-	timeout_monitors();
+	//timeout_monitors();
 	if ((0 != m_ullTargetTime) && (entertime > m_ullTargetTime))
 		m_ullTimeDiff += entertime - m_ullTargetTime;
 	// Loss retransmission always has higher priority.

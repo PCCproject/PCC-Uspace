@@ -74,6 +74,9 @@ protected:
                 if (change>0 && change < base_rate_*kDelta) { change = base_rate_ * kDelta;}
                 if (change <0 && change > base_rate_*kDelta * (-1)) {change = base_rate_ *kDelta * (-1);}
 
+                if (change>0 && change < 0.1) { change = 0.1;}
+                if (change <0 && change > -0.1) {change = -0.1;}
+
 		prev_change_ = change;
 
 		if (change == 0) cout << "Change is zero!" << endl;
@@ -120,7 +123,7 @@ private:
 	double prev_gradiants_[100];
 
 	static constexpr int kRobustness = 1;
-	static constexpr double kEpsilon = 10;
+	static constexpr double kEpsilon = 0.015;
 	static constexpr double kDelta = 0.05;
 	static constexpr int kGoToStartCount = 50000;
 	double next_delta;
