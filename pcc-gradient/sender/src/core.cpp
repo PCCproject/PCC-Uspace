@@ -2407,13 +2407,24 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 			//cout<<monitorNo<<' '<<SeqNoInMonitor<<endl;
 			recv_ack[monitorNo][SeqNoInMonitor] = true;
 			current_time = CTimer::getTime();
+            bool includeThisMonitor = false;
+            if (SeqNoInMonitor == total[monitorNo] -1) {
+                includeThisMonitor = true;
+            }
 			//pkt_sending[monitorNo][SeqNoInMonitor] = ctrlpkt.m_iTimeStamp;
 			//cout<<pkt_sending[monitorNo][SeqNoInMonitor]<<endl;
 
 			if (left_monitor) {
 
 				// find out the monitor which didn't end
-				int tmp = (monitorNo+99)%100;
+
+				int tmp;
+                if(includeThisMonitor) {
+                    tmp = monitorNo;
+                } else {
+                    tmp = (monitorNo+99)%100;
+                }
+
 				int count=0;
 				//.....................
 				while (tmp!=current_monitor) {
