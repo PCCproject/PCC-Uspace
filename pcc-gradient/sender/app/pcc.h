@@ -167,44 +167,32 @@ public:
 			        }
 			        monitor_in_start_phase_ = current_monitor;
 			        setRate(rate() * slow_start_factor_);
-                    cerr<<"slow starting"<<endl;
+                    cerr<<"slow starting of monitor"<<current_monitor<<endl;
                     break;
                 case SEARCH:
-                    cerr<<"searching"<<endl;
+                    cerr<<"Monitor "<<current_monitor<<"is in search state"<<endl;
                     state_ = RECORDING;
 			        search(current_monitor);
                     guess_time_ = 0;
                     break;
                 case RECORDING:
-                    cerr<<"recording"<<endl;
-                    cerr<<guess_time_<<endl;
                     if(guess_time_ != number_of_probes_) {
-                        cerr<<"set rate as "<<guess_measurement_bucket[guess_time_].rate<<endl;
+                        cerr<<"Monitor "<<current_monitor<<"is in recording state "<<guess_time_<<"th trial with rate of"<<guess_measurement_bucket[guess_time_].rate<<endl;
                         setRate(guess_measurement_bucket[guess_time_].rate);
                         guess_time_ ++;
                     } else {
+                        cerr<<"Monitor "<<current_monitor<<"is in recording state, waiting result for recording to come back"<<endl;
                         setRate(base_rate_);
                     }
                     break;
                 case MOVING:
                     // TODO: should handle how we move and how we record utility as well
+                    cerr<<"monitor "<<current_monitor<<"is in moving state setting rate to"<<move_stat.next_rate<<endl;
                     setRate(move_stat.next_rate);
                     break;
             }
 
         } while(old_state != state_);
-	}
-
-
-	Measurement* get_monitor_measurement(int monitor) {
-		if (start_measurment_map_.find(monitor) != start_measurment_map_.end()) {
-			return start_measurment_map_.at(monitor).get();
-		}
-
-		if (end_measurment_map_.find(monitor) != end_measurment_map_.end()) {
-			return end_measurment_map_.at(monitor).get();
-		}
-		return NULL;
 	}
 
 	virtual void onMonitorEnds(int total, int loss, double in_time, int current, int endMonitor, double rtt) {
@@ -216,6 +204,8 @@ public:
 		utility_sum_ += curr_utility;
 		measurement_intervals_++;
         ConnectionState old_state;
+        // TODO we should keep track of all monitors and closely mointoring RTT
+        // and utility change between monitors
         do {
             old_state = state_;
             switch (state_) {
@@ -227,6 +217,7 @@ public:
                 case SEARCH:
                     // When doing search (calculating the results and stuff), onmonitorends should do nothing
                     // and ignore the monitor that ended
+                    cerr<<"monitor"<<current_monitor<< "ends in search state, this should not happen often"<<endl;
                     break;
                 case RECORDING:
                     // onMoniitorEnd will check if all search results have come back
@@ -235,7 +226,7 @@ public:
                     // search state again. To first switch the architecture
                     bool all_ready;
                     all_ready = true;
-                    cerr<<"checking if all ready"<<endl;
+                    cerr<<"checking if all recording ready at monitor"<<current_monitor<<endl;
                     for (int i=0; i<number_of_probes_; i++) {
                         if (guess_measurement_bucket[i].monitor == endMonitor) {
                             cerr<<"found matching monitor"<<endMonitor<<endl;
@@ -265,11 +256,8 @@ public:
                         // but watch out for huge jump is needed
                         // maybe this will work, if this does not, need to revisit sanity check
                         double change = decide(utility_down/factor, utility_up/factor, rate_down, rate_up, false);
+                        cerr<<"all record is acquired and ready to change by "<<change<<endl;
 		                base_rate_ += change;
-		                if ((base_rate_ < 0) && (state_ != START)) {
-		                	base_rate_ = 1.05 * kMinRateMbps;
-		                }
-
                         setRate(base_rate_);
                         state_ = MOVING;
                         move_stat.bootstrapping = true;
@@ -289,7 +277,7 @@ public:
                             move_stat.utility = curr_utility;
                             // change stay the same
                             move_stat.target_monitor = (current + 1) % 100;
-                            cerr<<"target monitor is "<<(current + 1) % 100; 
+                            cerr<<"target monitor is "<<(current + 1) % 100;
                             move_stat.next_rate = move_stat.next_rate + move_stat.change;
                             base_rate_ = move_stat.next_rate;
                             setRate(base_rate_);
@@ -327,92 +315,6 @@ public:
 
         } while(old_state != state_);
 
-	}
-
-	void update_on_search(int endMonitor, long double curr_utility, double rtt, int loss, Measurement* this_measurement) {
-		if(start_measurment_map_.find(endMonitor) != start_measurment_map_.end()) {
-				start_measurment_map_.at(endMonitor)->utility_ = curr_utility;
-				start_measurment_map_.at(endMonitor)->set_ = true;
-				start_measurment_map_.at(endMonitor)->rtt_ = rtt;
-				start_measurment_map_.at(endMonitor)->loss_ = loss;
-		} else if(end_measurment_map_.find(endMonitor) != end_measurment_map_.end()) {
-			end_measurment_map_.at(endMonitor)->utility_ = curr_utility;
-			end_measurment_map_.at(endMonitor)->set_ = true;
-			end_measurment_map_.at(endMonitor)->rtt_ = rtt;
-			end_measurment_map_.at(endMonitor)->loss_ = loss;
-		}
-
-		if(isAllSearchResultBack(endMonitor)) {
-			int start_utility = 0;
-			int end_utility = 0;
-			int other_monitor;
-
-			double start_base = 0;
-			double end_base = 1;
-			bool check_result = false;
-			Measurement* private_copy = NULL;
-			if (start_measurment_map_.find(endMonitor) != start_measurment_map_.end()) {
-				start_utility = start_measurment_map_.at(endMonitor)->utility_;
-				other_monitor = start_measurment_map_.at(endMonitor)->other_monitor_;
-
-				if (end_measurment_map_.find(other_monitor) != end_measurment_map_.end()) {
-					end_utility = end_measurment_map_.at(other_monitor)->utility_;
-
-					start_base = start_measurment_map_.at(endMonitor)->base_rate_;
-					end_base = end_measurment_map_.at(other_monitor)->base_rate_;
-
-					//start_rtt = start_measurment_map_.at(endMonitor)->rtt_;
-					//start_loss = start_measurment_map_.at(endMonitor)->loss_;
-					//end_rtt = end_measurment_map_.at(other_monitor)->rtt_;
-					//end_loss = end_measurment_map_.at(other_monitor)->loss_;
-
-					//delete end_measurment_map_.at(other_monitor);
-
-					check_result = sanety_check(start_measurment_map_.at(endMonitor).get(), end_measurment_map_.at(other_monitor).get());
-					if (!check_result) private_copy = this_measurement->copy();
-
-					end_measurment_map_.erase(other_monitor);
-				}
-				//delete start_measurment_map_.at(endMonitor);
-				start_measurment_map_.erase(endMonitor);
-
-			} else {
-				end_utility = end_measurment_map_.at(endMonitor)->utility_;
-				other_monitor = end_measurment_map_.at(endMonitor)->other_monitor_;
-
-				if (start_measurment_map_.find(other_monitor) != start_measurment_map_.end()) {
-					start_utility = start_measurment_map_.at(other_monitor)->utility_;
-
-					start_base = start_measurment_map_.at(other_monitor)->base_rate_;
-					end_base = end_measurment_map_.at(endMonitor)->base_rate_;
-
-					check_result = sanety_check(start_measurment_map_.at(other_monitor).get(), end_measurment_map_.at(endMonitor).get());
-					if (!check_result) private_copy = this_measurement->copy();
-
-					start_measurment_map_.erase(other_monitor);
-				}
-
-				//delete end_measurment_map_.at(endMonitor);
-				end_measurment_map_.erase(endMonitor);
-			}
-
-			//bool contidutions_changed_too_much = false;
-			//if ((end_rtt > 1.15 * start_rtt) || (start_rtt > 1.15 * end_rtt)) contidutions_changed_too_much = true;
-			//if (((end_loss > 10 * start_loss) && (end_loss > 10) ) || ((start_loss > 10 * end_loss) && (start_loss > 10) )) contidutions_changed_too_much = true;
-			/*
-			if (!check_result) {
-				cerr << "sanety check failed!" << endl;
-			}
-			*/
-
-			if (start_base == end_base) {
-				if (check_result) {
-					//decide(start_utility, end_utility, false);
-				} else {
-					keep_last_measurement(private_copy);
-				}
-			}
-		}
 	}
 
 	static void set_utility_params(double alpha = 4, double beta = 54, double exponent = 1.5, bool polyUtility = true) {
