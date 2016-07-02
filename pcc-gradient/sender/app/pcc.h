@@ -269,6 +269,11 @@ public:
                     }
                     break;
                 case MOVING:
+                    if (endMonitor > move_stat.target_monitor) {
+                        // should handle the fact that when endMonitor is larger than the target monitor
+                        // somethign really bad should have happened
+                        cerr<<"end monitor:"<<endMonitor<<"is larger than the target monitor: "<<move_stat.target_monitor<<endl;
+                    }
                     if(endMonitor == move_stat.target_monitor) {
                         cerr<<"find the right monitor"<<endMonitor<<endl;
                         if(move_stat.bootstrapping) {
