@@ -408,15 +408,11 @@ protected:
 		cerr << "set rate: " << rate_ << " --> " << mbps << endl;
 		if (state_ == START) {
 			if (mbps < kMinRateMbpsSlowStart){
-				#ifdef DEBUG_PRINT
 					cerr << "rate is mimimal at slow start, changing to " << kMinRateMbpsSlowStart << " instead" << endl;
-				#endif
 				mbps = kMinRateMbpsSlowStart;
 			}
 		} else if (mbps < kMinRateMbps){
-			#ifdef DEBUG_PRINT
 				cerr << "rate is mimimal, changing to " << kMinRateMbps << " instead" << endl;
-			#endif
 			mbps = kMinRateMbps;
 		}
 
