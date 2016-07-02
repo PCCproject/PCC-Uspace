@@ -2456,7 +2456,7 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
                         }
 						
 						last_rtt_ = calc_95_delay(tmp);
-						uint64_t rtt = last_rtt_ * (end_transmission_time[tmp]-start_time[tmp])/1000000;
+						uint64_t rtt = last_rtt_;// * (end_transmission_time[tmp]-start_time[tmp])/1000000;
 						
 						
 						m_last_rtt.push_front(last_rtt_);
@@ -3212,10 +3212,9 @@ void CUDT::init_state() {
 uint64_t CUDT::calc_95_delay(int mon) {
 	if (rtts_[mon].size() == 0) return last_rtt_;
 	sort(rtts_[mon].begin(), rtts_[mon].end());
-	int index = 0.95 * rtts_[mon].size();
-	if (index < 0) index = 0;
+	int index = ceil<int>(0.95 * rtts_[mon].size());
 	uint64_t ret = rtts_[mon].at(index);
-	ret = rtts_[mon].at(rtts_[mon].size() - 1);
+	//ret = rtts_[mon].at(rtts_[mon].size() - 1);
 	
 	rtts_[mon].clear();
 	
