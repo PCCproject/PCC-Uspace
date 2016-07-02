@@ -2455,8 +2455,9 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 							rtt_count[Mon]=1;
                         }
 						
-						uint64_t rtt = calc_95_delay(tmp) * (end_transmission_time[tmp]-start_time[tmp]);
 						last_rtt_ = calc_95_delay(tmp);
+						uint64_t rtt = last_rtt_ * (end_transmission_time[tmp]-start_time[tmp])/1000000;
+						
 						
 						m_last_rtt.push_front(last_rtt_);
 						if (m_last_rtt.size() > kRTTHistorySize) {
@@ -2468,7 +2469,7 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
                                                 //cout<<"Fill in rtt value as"<<m_last_rtt[Mon % 100]<<endl;
                                                 //cerr<<"Monitor"<<tmp<<"ends at"<<CTimer::getTime()<<endl;
 						//rtt_value[Mon]/double(rtt_count[Mon])
-						
+						cout << "RTT = " << last_rtt_ / 1000 << endl;
 						m_pCC->onMonitorEnds(total[tmp],total[tmp]-left[tmp],(end_transmission_time[tmp]-start_time[tmp])/1000000,current_monitor,tmp, rtt);
 						m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
 						if (!left_monitor) break;
@@ -3214,7 +3215,7 @@ uint64_t CUDT::calc_95_delay(int mon) {
 	int index = 0.95 * rtts_[mon].size();
 	if (index < 0) index = 0;
 	uint64_t ret = rtts_[mon].at(index);
-	//ret = rtts_[mon].at(rtts_[mon].size() - 1);
+	ret = rtts_[mon].at(rtts_[mon].size() - 1);
 	
 	rtts_[mon].clear();
 	

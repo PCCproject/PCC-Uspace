@@ -222,7 +222,6 @@ public:
 
 	virtual void onMonitorEnds(int total, int loss, double in_time, int current, int endMonitor, double rtt) {
 		lock_guard<mutex> lck(monitor_mutex_);
-		cout << "RTT = " << rtt / 1000 << endl;
 		Measurement* this_measurement = get_monitor_measurement(endMonitor);
 		if ((this_measurement == NULL) && (state_ != START)) {
 			return;
@@ -492,13 +491,6 @@ private:
 	}
 
 	virtual long double utility(unsigned long total, unsigned long loss, double time, double rtt, Measurement* out_measurement) {
-		static long double last_measurement_interval = 1;
-
-		long double norm_measurement_interval = last_measurement_interval;
-
-		norm_measurement_interval = time / rtt;
-		last_measurement_interval = norm_measurement_interval;
-
 		// convert to milliseconds
 		double rtt_penalty = rtt / get_min_rtt(rtt);
 		//if (rtt_penalty > 2) rtt_penalty  = 2;
@@ -508,14 +500,14 @@ private:
 		long double loss_rate = (long double)((double) loss/(double) total);
 		long double loss_contribution = alpha_ * (total * (pow((1+loss_rate), exponent_)-1) - loss);
 		long double rtt_contribution = 4 * total*(pow(rtt_penalty,2) - 1);
-		long double utility = ((long double)total - loss_contribution)/norm_measurement_interval - rtt_contribution;
+		long double utility = ((long double)total - loss_contribution)/time - rtt_contribution;
 
 		if (out_measurement != NULL) {
 			out_measurement->loss_panelty_ = loss / total;
-			out_measurement->rtt_panelty_ = rtt;//rtt_contribution / norm_measurement_interval;
-			out_measurement->actual_packets_sent_rate_ = total / norm_measurement_interval;
+			out_measurement->rtt_panelty_ = rtt;//rtt_contribution / time;
+			out_measurement->actual_packets_sent_rate_ = total / time;
 		}
-		//cout << "utility at rate: " << total / norm_measurement_interval << " " << utility << endl; 
+		//cout << "utility at rate: " << total / time << " " << utility << endl; 
 		return utility;
 	}
 
