@@ -335,7 +335,7 @@ protected:
 	double base_rate_;
 	bool kPrint;
 	double prev_change_;
-	static constexpr double kMinRateMbps = 0.1;
+	static constexpr double kMinRateMbps = 0.5;
 	static constexpr double kMinRateMbpsSlowStart = 0.1;
 	static constexpr double kMaxRateMbps = 1024.0;
 
@@ -513,12 +513,12 @@ public:
 		exponent_ = 2.5;
 
 		long double loss_contribution = total * (long double) (alpha_* (pow((1+((long double)((double) loss/(double) total))), exponent_)-1));
-		long double rtt_contribution = 1.8 * total*(pow(rtt_penalty,4) - 1);
+		long double rtt_contribution = 1.8 * total*(pow(rtt_penalty,2) - 1);
                 long double rtt_factor = rtt;
                 //TODO We should also consider adding just rtt into the utility function, because it is not just change that matters
                 // This may turn out to be extremely helpful during LTE environment
-		//long double utility = ((long double)total - loss_contribution - rtt_contribution)/norm_measurement_interval/rtt;
-		long double utility = ((long double)total - loss_contribution - rtt_contribution)/norm_measurement_interval;
+		long double utility = ((long double)total - loss_contribution - rtt_contribution)/norm_measurement_interval/rtt;
+		//long double utility = ((long double)total - loss_contribution - rtt_contribution)/norm_measurement_interval;
 
 		if (out_measurement != NULL) {
 			out_measurement->loss_panelty_ = loss_contribution / norm_measurement_interval;
@@ -551,7 +551,7 @@ public:
 	int current_start_monitor_;
 	long double last_utility_;
 	deque<double> rtt_history_;
-	static constexpr size_t kHistorySize = 1;
+	static constexpr size_t kHistorySize = 20;
 	mutex monitor_mutex_;
 	int on_next_start_bind_to_end_;
 };
