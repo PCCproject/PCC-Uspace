@@ -217,7 +217,7 @@ public:
                 case SEARCH:
                     // When doing search (calculating the results and stuff), onmonitorends should do nothing
                     // and ignore the monitor that ended
-                    cerr<<"monitor"<<current_monitor<< "ends in search state, this should not happen often"<<endl;
+                    cerr<<"monitor"<<current<< "ends in search state, this should not happen often"<<endl;
                     break;
                 case RECORDING:
                     // onMoniitorEnd will check if all search results have come back
@@ -226,7 +226,7 @@ public:
                     // search state again. To first switch the architecture
                     bool all_ready;
                     all_ready = true;
-                    cerr<<"checking if all recording ready at monitor"<<current_monitor<<endl;
+                    cerr<<"checking if all recording ready at monitor"<<current<<endl;
                     for (int i=0; i<number_of_probes_; i++) {
                         if (guess_measurement_bucket[i].monitor == endMonitor) {
                             cerr<<"found matching monitor"<<endMonitor<<endl;
@@ -258,6 +258,12 @@ public:
                         double change = decide(utility_down/factor, utility_up/factor, rate_down, rate_up, false);
                         cerr<<"all record is acquired and ready to change by "<<change<<endl;
 		                base_rate_ += change;
+                        if (base_rate_ < kMinRateMbps) {
+                            cerr<<"trying to set rate below min rate in moving phase just decided, enter guessing"<<endl;
+                            base_rate_ = kMinRateMbps/ (1 - kDelta);
+                            state_ = SEARCH;
+                            break;
+                        }
                         setRate(base_rate_);
                         state_ = MOVING;
                         move_stat.bootstrapping = true;
@@ -285,6 +291,14 @@ public:
                             cerr<<"target monitor is "<<(current + 1) % 100;
                             move_stat.next_rate = move_stat.next_rate + move_stat.change;
                             base_rate_ = move_stat.next_rate;
+
+                            if (base_rate_ < kMinRateMbps) {
+                                cerr<<"trying to set rate below min rate in moving phase bootstrapping, enter guessing"<<endl;
+                                base_rate_ = kMinRateMbps/ (1 - kDelta);
+                                state_ = SEARCH;
+                                break;
+                            }
+
                             setRate(base_rate_);
                         } else {
                             // see if the change direction is wrong and is reversed
@@ -307,6 +321,14 @@ public:
                                 move_stat.utility = curr_utility;
                                 move_stat.next_rate = move_stat.change + move_stat.next_rate;
                                 base_rate_ = move_stat.next_rate;
+
+                                if (base_rate_ < kMinRateMbps) {
+                                    cerr<<"trying to set rate below min rate in moving phase keep moving, enter guessing"<<endl;
+                                    base_rate_ = kMinRateMbps/ (1 - kDelta);
+                                    state_ = SEARCH;
+                                    break;
+                                }
+
                                 setRate(base_rate_);
                             }
                         }
@@ -343,6 +365,10 @@ protected:
 	static constexpr double kMinRateMbps = 0.5;
 	static constexpr double kMinRateMbpsSlowStart = 0.1;
 	static constexpr double kMaxRateMbps = 1024.0;
+	static constexpr int kRobustness = 1;
+	static constexpr double kEpsilon = 0.015;
+	static constexpr double kDelta = 0.05;
+	static constexpr int kGoToStartCount = 50000;
 
 	enum ConnectionState {
 		START,
