@@ -55,6 +55,7 @@ written by
 #include <cmath>
 #include <sstream>
 #include <iostream>
+#include <algorithm>
 #include "queue.h"
 #include "core.h"
 
@@ -192,7 +193,9 @@ CUDT::CUDT(const CUDT& ancestor)
 	m_ullLingerExpiration = 0;
 	start_ = time(NULL);
 	remove( "/home/yossi/timeout_times.txt" ); 
-	for (int i = 0; i < 100; i++) state[i] = 0;
+	for (int i = 0; i < 100; i++) {
+		state[i] = 0;
+	}
 }
 
 CUDT::~CUDT()
@@ -2390,6 +2393,7 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 		int Mon = tsn_payload[last_position]>>16;
 		rtt_count[Mon]++;
 		rtt_value[Mon]+= int(CTimer::getTime() - m_StartTime) - send_timestamp[Mon][tsn_payload[last_position]&0xFFFF];
+		rtts_[Mon].push_back(int(CTimer::getTime() - m_StartTime) - send_timestamp[Mon][tsn_payload[last_position]&0xFFFF]);
 		if(latency_time_start[Mon] == 0){
 			latency_time_start[Mon]=ctrlpkt.m_iTimeStamp;
 			latency_seq_start[Mon] = tsn_payload[last_position] & 0xFFFF;
@@ -2450,7 +2454,9 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 							rtt_value[Mon]=0;
 							rtt_count[Mon]=1;
                         }
-						last_rtt_ = m_iRTT;
+						
+						uint64_t rtt = calc_95_delay(tmp) * (end_transmission_time[tmp]-start_time[tmp]);
+						last_rtt_ = calc_95_delay(tmp);
 						
 						m_last_rtt.push_front(last_rtt_);
 						if (m_last_rtt.size() > kRTTHistorySize) {
@@ -2461,8 +2467,9 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 						//m_last_rtt[Mon % 100] = rtt_value[Mon]/((double) rtt_count[Mon]);
                                                 //cout<<"Fill in rtt value as"<<m_last_rtt[Mon % 100]<<endl;
                                                 //cerr<<"Monitor"<<tmp<<"ends at"<<CTimer::getTime()<<endl;
+						//rtt_value[Mon]/double(rtt_count[Mon])
 						
-						m_pCC->onMonitorEnds(total[tmp],total[tmp]-left[tmp],(end_transmission_time[tmp]-start_time[tmp])/1000000,current_monitor,tmp, rtt_value[Mon]/double(rtt_count[Mon]));
+						m_pCC->onMonitorEnds(total[tmp],total[tmp]-left[tmp],(end_transmission_time[tmp]-start_time[tmp])/1000000,current_monitor,tmp, rtt);
 						m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
 						if (!left_monitor) break;
 					}
@@ -3097,7 +3104,8 @@ void CUDT::start_monitor(int length)
 	//cout << "min RTT is " << get_min_rtt() << endl;
 	//cout << "Allocated time: slack = " << 4 * get_rtt_sd() << " last RTT = " << last_rtt_ << endl;
 	//cout << "the standard deviation is " << get_rtt_sd() << endl;
-	allocated_times_[current_monitor] = 1.5*get_min_rtt() + 5 * get_rtt_sd();
+	allocated_times_[current_monitor] = min<double>(1.1*get_min_rtt() + 5 * get_rtt_sd(), 2 * get_min_rtt());
+	//cout << "minrtt = " << get_min_rtt() << " deviation = " << get_rtt_sd() << ".  allocating " << allocated_times_[current_monitor] << endl;
 	//cout << "allocating: " << 10 * get_rtt_sd() / 1000. << "sec" <<endl;
 	if(allocated_times_[current_monitor]> 1000000) {
 		allocated_times_[current_monitor] = 1000000;
@@ -3198,6 +3206,19 @@ void CUDT::init_state() {
 	//if (m_pRcvLossList) delete m_pRcvLossList;
 	//m_pRcvLossList = new CRcvLossList(m_iFlightFlagSize);
 
+}
+
+uint64_t CUDT::calc_95_delay(int mon) {
+	if (rtts_[mon].size() == 0) return last_rtt_;
+	sort(rtts_[mon].begin(), rtts_[mon].end());
+	int index = 0.95 * rtts_[mon].size();
+	if (index < 0) index = 0;
+	uint64_t ret = rtts_[mon].at(index);
+	//ret = rtts_[mon].at(rtts_[mon].size() - 1);
+	
+	rtts_[mon].clear();
+	
+	return ret;
 }
 
 void CUDT::timeout_monitors() {

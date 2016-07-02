@@ -32,10 +32,10 @@ protected:
 	} 
 	
 	virtual double delta_for_base_rate() {
-		if (base_rate_ < 1) return 0.5;
-		else if (base_rate_ < 2) return 0.4;
-		else if (base_rate_ < 3) return 0.3; 
-		else if (base_rate_ < 5) return 0.2;
+		if (base_rate_ < 1) return 0.2;
+		else if (base_rate_ < 2) return 0.15;
+		else if (base_rate_ < 3) return 0.1; 
+		else if (base_rate_ < 5) return 0.05;
 		else return 0.05;
 	}
 	

@@ -73,16 +73,17 @@ public:
 	virtual void onLoss(const int32_t*, const int&) {}
 	virtual bool onTimeout(int total, int loss, double in_time, int current, int endMonitor, double rtt){
 		lock_guard<mutex> lck(monitor_mutex_);
-		
+		cout << "timeout called" <<endl;
 		if (state_ == SEARCH) {
 			if (start_measurment_map_.find(endMonitor) == start_measurment_map_.end() && end_measurment_map_.find(endMonitor) == end_measurment_map_.end()) {
-				//cout << "IN SEARCH: monitor " << endMonitor << " already gone!" << endl;
+				cout << "IN SEARCH: monitor " << endMonitor << " already gone!" << endl;
 				return true;
 			} 
 		} else if (ongoing_slow_start_monitors_.find(endMonitor) == ongoing_slow_start_monitors_.end()) {
-			//cout << "IN START: monitor " << endMonitor << " already gone!" << endl;
+			cout << "IN START: monitor " << endMonitor << " already gone!" << endl;
 			return true;
 		} else {
+			cout << "in timeout: quitting slow start" << endl;
 			prev_utility_ = -10000000;
 			base_rate_ = best_slow_start_rate_;
 			setRate(best_slow_start_rate_);
@@ -90,37 +91,44 @@ public:
 			state_ = SEARCH;
 			return false;			
 		}
-		
-		//cout << "In timeout! " << endMonitor<< endl;
 
+		cout << "handling timeout: ";
+		/*
+		cout << "In timeout! " << endMonitor<< endl;
+		go_to_slow_start();
+		return false;
+		*/
+		
+		// decrease rate not by funciton
 		clear_pending_search();
 		ongoing_slow_start_monitors_.clear();
-		//cout << "Rate " << rate() << " --> ";
-		base_rate_ = 0.75 * rate();
-		setRate(0.75 * rate());
-		//cout << rate() << endl;
+		cout << "Rate " << rate() << " --> ";
+		base_rate_ = 0.3 * rate();
+		setRate(0.3 * rate());
+		cout << rate() << endl;
 		return false; 
-
 		
 		Measurement* this_measurement = get_monitor_measurement(endMonitor);
 		if ((this_measurement == NULL) && (state_ != START)) {
 			return true;
 		}
 		
-		//cout << "loss rate for interval " << endMonitor << ": " <<  ((double) loss) / total << endl;
-		//cout << "total = " << total << " loss = " << loss << endl;
+		cout << "loss rate for interval " << endMonitor << ": " <<  ((double) loss) / total << endl;
+		cout << "total = " << total << " loss = " << loss << endl;
 		long double curr_utility = utility(total, loss - 1, 100000, 100000, NULL);
 		double r = rate();
-		update_on_search(endMonitor, curr_utility, rtt, loss, this_measurement, TIMEOUT);
-		if (r == rate()) return true;
-		cout << "changed: " << r << " --> " << rate() << endl;
-		clear_pending_search();
-		return false;
+		if (update_on_search(endMonitor, curr_utility, rtt, loss, this_measurement, TIMEOUT)) {
+			cout << "we updated" <<endl;
+			//clear_pending_search();
+			cout << "changed: " << r << " --> " << rate() << endl;
+			return false;
+		}
+		return true;
 	}
 	
 	virtual void go_to_slow_start() {
 		state_ = START;
-		slow_start_factor_ = 2;
+		slow_start_factor_ = 1.5;
 		continue_slow_start_ = true;
 		start_measurement_ = true;
 		start_measurment_map_.clear();
@@ -155,13 +163,21 @@ public:
 		lock_guard<mutex> lck(monitor_mutex_);
 		//cout << "starting monitor " << current_monitor << " STATE = " << state_ << endl;
 		if (state_ == START) {
-			{
+			if (rate() * slow_start_factor_ < 10) {
 				//cout << "in slow start, rate = " << rate() << endl;	
 				setRate(rate() * slow_start_factor_);
 				ongoing_slow_start_monitors_.insert(pair<int,double> (current_monitor, rate()));
 				//cout << "doubling the rate --> " << rate() << endl;
 			}
-		} else if (state_ == SEARCH) {
+			if (ongoing_slow_start_monitors_.size() == 0) {
+				prev_utility_ = -10000000;
+				base_rate_ = best_slow_start_rate_;
+				setRate(best_slow_start_rate_);
+				clear_pending_search();
+				state_ = SEARCH;
+			}
+		} 
+		if (state_ == SEARCH) {
 			//cout << "start_measurement_ " << start_measurement_ << endl;
 			if (start_measurement_) {
 				if (start_measurment_map_.find(current_monitor) == start_measurment_map_.end()) {
@@ -206,7 +222,7 @@ public:
 
 	virtual void onMonitorEnds(int total, int loss, double in_time, int current, int endMonitor, double rtt) {
 		lock_guard<mutex> lck(monitor_mutex_);
-
+		cout << "RTT = " << rtt / 1000 << endl;
 		Measurement* this_measurement = get_monitor_measurement(endMonitor);
 		if ((this_measurement == NULL) && (state_ != START)) {
 			return;
@@ -243,7 +259,7 @@ public:
 		}
 	}
 
-	void update_on_search(int endMonitor, long double curr_utility, double rtt, int loss, Measurement* this_measurement, MeasurementContext context) { 
+	bool update_on_search(int endMonitor, long double curr_utility, double rtt, int loss, Measurement* this_measurement, MeasurementContext context) { 
 		if(start_measurment_map_.find(endMonitor) != start_measurment_map_.end()) {
 				start_measurment_map_.at(endMonitor)->utility_ = curr_utility;
 				start_measurment_map_.at(endMonitor)->set_ = true;
@@ -258,7 +274,7 @@ public:
 			end_measurment_map_.at(endMonitor)->context_ = context;
 		} else {
 			cout << "didn't find monitor " << endMonitor << endl;
-			return;
+			return false;
 		}
 
 		if(isAllSearchResultBack(endMonitor)) {
@@ -309,6 +325,7 @@ public:
 			if (start_base == end_base) {
 				if (check_result) {
 					decide(start_utility, end_utility, false);
+					return true;
 				} else {
 					//do_last_change();
 					keep_last_measurement(private_copy);
@@ -317,6 +334,7 @@ public:
 				//end_measurment_map_.clear();
 			}
 		}
+		return false;
 	}
 	
 	static void set_utility_params(double alpha = 4, double beta = 54, double exponent = 1.5, bool polyUtility = true) {
@@ -335,7 +353,7 @@ protected:
     int search_monitor_number[2];
     bool start_measurement_;
 	double base_rate_;
-	static constexpr double kMinRateMbps = 0.5;
+	static constexpr double kMinRateMbps = 1;
 	static constexpr double kMinRateMbpsSlowStart = 0.2;
 	static constexpr double kMaxRateMbps = 1024.0;
 
@@ -376,7 +394,7 @@ protected:
 		setRTO(100000000);
 		srand(time(NULL));
 		best_slow_start_rate_ = kMinRateMbpsSlowStart;
-		cout << "new Code!!!" << endl;
+		cout << "new Code - Master!!!" << endl;
 		cout << "configuration: alpha = " << alpha_ << ", beta = " << beta_   << ", exponent = " << exponent_ << " poly utility = " << poly_utlity_ << endl;
 
 		/*
@@ -489,8 +507,8 @@ private:
 
 		long double loss_rate = (long double)((double) loss/(double) total);
 		long double loss_contribution = alpha_ * (total * (pow((1+loss_rate), exponent_)-1) - loss);
-		long double rtt_contribution = 3 * total*(pow(rtt_penalty,1.6) - 1);
-		long double utility = ((long double)total - loss_contribution - rtt_contribution)/norm_measurement_interval;
+		long double rtt_contribution = 4 * total*(pow(rtt_penalty,2) - 1);
+		long double utility = ((long double)total - loss_contribution)/norm_measurement_interval - rtt_contribution;
 
 		if (out_measurement != NULL) {
 			out_measurement->loss_panelty_ = loss / total;

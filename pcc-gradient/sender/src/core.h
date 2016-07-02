@@ -438,6 +438,7 @@ private: // synchronization: mutexes and conditions
    double get_min_rtt() const;
    double get_rtt_sd() const;
    double get_avg_rtt() const;
+   uint64_t calc_95_delay(int mon);
 
 private: // Generation and processing of packets
    void sendCtrl(const int& pkttype, void* lparam = NULL, void* rparam = NULL, const int& size = 0);
@@ -450,6 +451,7 @@ private: // Generation and processing of packets
    double estimate_rtt_for_timedout_monitors(int monitor);
    uint64_t deadlines[100];
    uint64_t allocated_times_[100];
+   vector<uint64_t> rtts_[100];
    //uint64_t start_times_[100];
    
    static const uint64_t kMinTimeoutMillis = 10;
