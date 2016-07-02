@@ -155,8 +155,7 @@ public:
 		lock_guard<mutex> lck(monitor_mutex_);
 		//cout << "starting monitor " << current_monitor << " STATE = " << state_ << endl;
 		if (state_ == START) {
-			if (ongoing_slow_start_monitors_.size() == 0) {
-				//monitor_in_start_phase_ = current_monitor;
+			{
 				//cout << "in slow start, rate = " << rate() << endl;	
 				setRate(rate() * slow_start_factor_);
 				ongoing_slow_start_monitors_.insert(pair<int,double> (current_monitor, rate()));
@@ -224,19 +223,18 @@ public:
 		
 		if(state_ == START) {
 			bool continue_slow_start = (curr_utility > prev_utility_);
-			//cout  << "current utility: " << curr_utility << " prev utility = " <<  prev_utility_ << endl;
 			if (ongoing_slow_start_monitors_.find(endMonitor) != ongoing_slow_start_monitors_.end()) {
 				if (!continue_slow_start) {
 					base_rate_ = best_slow_start_rate_;
 					setRate(best_slow_start_rate_);
-					//cout << "exit slow start, best rate = " << best_slow_start_rate_ << endl;
+					cout << "exit slow start, best rate = " << best_slow_start_rate_ << endl;
 					state_ = SEARCH;
 					ongoing_slow_start_monitors_.clear();
 					
 				} else {
 					prev_utility_ = curr_utility;
 					best_slow_start_rate_ = ongoing_slow_start_monitors_.at(endMonitor);
-					//cout << "continue slow start, best rate = " << best_slow_start_rate_ << endl;
+					cout << "continue slow start, best rate = " << best_slow_start_rate_ << endl;
 				}
 				ongoing_slow_start_monitors_.erase(endMonitor);
 			}
