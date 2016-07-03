@@ -76,7 +76,7 @@ const int32_t CMsgNo::m_iMsgNoTH = 0xFFFFFFF;
 const int32_t CMsgNo::m_iMaxMsgNo = 0x1FFFFFFF;
 
 const int CUDT::m_iVersion = 4;
-const int CUDT::m_iSYNInterval = 10000;
+const int CUDT::m_iSYNInterval = 500000;
 const int CUDT::m_iSelfClockInterval = 64;
 
 
