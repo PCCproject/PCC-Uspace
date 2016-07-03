@@ -2398,6 +2398,7 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 			latency_seq_end[Mon] = tsn_payload[last_position] & 0xFFFF;
 		}
 		for (int i = 0, n = (int)(ctrlpkt.getLength() / 4); i < n; ++ i) {
+	        lock_guard<mutex> lck(monitor_mutex_);
 			monitorNo = tsn_payload[i] >> 16;
 			SeqNoInMonitor = tsn_payload[i] & 0xFFFF;
 			++ m_iRecvNAKTotal;
@@ -2490,7 +2491,11 @@ int CUDT::packData(CPacket& packet, uint64_t& ts)
 	bool probe = false;
 	uint64_t entertime;
 	CTimer::rdtsc(entertime);
-	//timeout_monitors();
+	if(timeout_monitors()) {
+        // if there is any thing get timeouted, reset monitor
+       start_monitor(0);
+    }
+
 	if ((0 != m_ullTargetTime) && (entertime > m_ullTargetTime))
 		m_ullTimeDiff += entertime - m_ullTargetTime;
 	// Loss retransmission always has higher priority.
@@ -3048,6 +3053,7 @@ double CUDT::get_min_rtt() const {
 
 void CUDT::start_monitor(int length)
 {
+	lock_guard<mutex> lck(monitor_mutex_);
 	//cout << "start monitor!" << endl;
 	m_iMonitorCurrSeqNo=0;
 	previous_monitor = current_monitor;
@@ -3165,7 +3171,8 @@ void CUDT::init_state() {
 
 }
 
-void CUDT::timeout_monitors() {
+bool CUDT::timeout_monitors() {
+	lock_guard<mutex> lck(monitor_mutex_);
 	uint64_t current_time = CTimer::getTime();
 	int tmp = (current_monitor + 1) % 100;
 	while (tmp != current_monitor) {
@@ -3185,10 +3192,7 @@ void CUDT::timeout_monitors() {
 				lost[tmp]=total[tmp]-left[tmp];
 				end_time[tmp] = current_time;
 				left_monitor--;
-				if (m_pCC->onTimeout(total[tmp],total[tmp]-left[tmp],(end_transmission_time[tmp]-start_time[tmp])/1000000,current_monitor,tmp, allocated_times_[tmp]/1000)) {
-					return;
-				}
-				save_timeout_time();
+				m_pCC->onTimeout(total[tmp],total[tmp]-left[tmp],(end_transmission_time[tmp]-start_time[tmp])/1000000,current_monitor,tmp, allocated_times_[tmp]/1000);
 				m_iRTT = allocated_times_[tmp];
 	            loss_record1.clear();
 	            loss_record2.clear();
@@ -3213,12 +3217,12 @@ void CUDT::timeout_monitors() {
 	            monitor = true;
 	            left_monitor = 0;
 	            m_monitor_count = 0;
-                start_monitor(0);
-				break;
+                return true;
 			}
 		}
     tmp = (tmp + 1) % 100;
 	}
+    return false;
 }
 
 void CUDT::save_timeout_time() {

@@ -56,6 +56,8 @@ written by
 #include "queue.h"
 #include <vector>
 #include <deque>
+#include <mutex>
+#include <thread>
 #include "time.h"
 
 enum UDTSockType {UDT_STREAM = 1, UDT_DGRAM};
@@ -432,6 +434,8 @@ private: // synchronization: mutexes and conditions
    pthread_mutex_t m_RecvLock;                  // used to synchronize "recv" call
 
    pthread_mutex_t m_LossrecordLock;
+   mutex monitor_mutex_;
+
    void initSynch();
    void destroySynch();
    void releaseSynch();
@@ -444,11 +448,11 @@ private: // Generation and processing of packets
    int processData(CUnit* unit);
    int listen(sockaddr* addr, CPacket& packet);
    void add_to_loss_record(int32_t loss1, int32_t loss2);
-   void timeout_monitors();
+   bool timeout_monitors();
    double estimate_rtt_for_timedout_monitors(int monitor);
    uint64_t deadlines[100];
    uint64_t allocated_times_[100];
-   
+
    static const uint64_t kMinTimeoutMillis = 10;
 private: // Trace
    uint64_t m_StartTime;                        // timestamp when the UDT entity is started
@@ -512,7 +516,7 @@ private: // for UDP multiplexer
    void init_state();
    void save_timeout_time();
    time_t start_;
-   
+
 private: // for epoll
    std::set<int> m_sPollID;                     // set of epoll ID to trigger
    void addEPoll(const int eid);

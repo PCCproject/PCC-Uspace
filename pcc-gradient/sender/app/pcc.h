@@ -86,60 +86,46 @@ public:
 
 	virtual void onLoss(const int32_t*, const int&) {}
 	virtual bool onTimeout(int total, int loss, double in_time, int current, int endMonitor, double rtt){
-		lock_guard<mutex> lck(monitor_mutex_);
-		//cerr << "handling timeout in PCC! for monitor " << monitor << endl;
-//		if (state_ != START) {
-//			if (start_measurment_map_.find(endMonitor) == start_measurment_map_.end() && end_measurment_map_.find(endMonitor) == end_measurment_map_.end()) {
-//				#ifdef DEBUG_PRINT
-//					cerr << "NOT IN START: monitor " << endMonitor << " already gone!" << endl;
-//				#endif
-//				return false;
-//			}
-//		} /*else if (monitor_in_start_phase_ != monitor) {
-//			cerr << "START: monitor " << monitor << " already gone! current monitor: " << monitor_in_start_phase_ << endl;
-//			return false;
-//		}*/
-//
-//
-//		kInTimeout = true;
-//		long double curr_utility = utility(total, 0, in_time, rtt, NULL);
-//		if (curr_utility > last_utility_) {
-//			last_utility_ = curr_utility;
-//			return true;
-//		}
-//		//#ifdef DEBUG_PRINT
-//		cerr << "computing utility: total = " << total << ", loss = " << loss << " in_time = " << in_time << ", rtt = " << rtt << endl;
-//		cerr << "current utility = " << curr_utility << " and previous utility = " << last_utility_ << endl;
-//		cerr << "current rate " << rate() << " --> ";
-//		//#endif
-//		decide(last_utility_, curr_utility, true);
-//
-//
-//
-//		//setRate(0.75 * rate());
-//		//base_rate_ = rate();
-//		double r = rate();
-//		//#ifdef DEBUG_PRINT
-//			cerr << "timeout! new rate is " << r << endl;
-//		//#endif
-//		restart();
-//		if (r > 1.01 * kMinRateMbps) {
-//			cerr << "going to SEARCH rate = " << rate() << ". Thresh = " << 1.01 * kMinRateMbps << endl;
-//			state_ = SEARCH;
-//		} else {
-//			cerr << "going to "<< kMinRateMbpsSlowStart << "mbps" << endl;
-//			base_rate_ = kMinRateMbpsSlowStart;
-//			restart();
-//			slow_start_factor_ = 2;
-//			state_ = START;
-//			setRate(base_rate_);
-//		}
-//		//clear_state();
-//		//start_measurment_map_.clear();
-//		//end_measurment_map_.clear();
-//		kInTimeout = false;
-//		//cerr << "new rate: " << rate() << base_rate_ << endl;
-//		return false;
+        cerr<<"Timeout happens!!"<<endl;
+        base_rate_ = base_rate_/2;
+        setRate(base_rate_);
+        state_ = SEARCH;
+        //ConnectionState old_state;
+        //do {
+        //    old_state = state_;
+        //    switch (state_) {
+        //        case START:
+		//	        if (monitor_in_start_phase_ != -1) {
+		//	        	return;
+		//	        }
+		//	        monitor_in_start_phase_ = current_monitor;
+		//	        setRate(rate() * slow_start_factor_);
+        //            cerr<<"slow starting of monitor"<<current_monitor<<endl;
+        //            break;
+        //        case SEARCH:
+        //            cerr<<"Monitor "<<current_monitor<<"is in search state"<<endl;
+        //            state_ = RECORDING;
+		//	        search(current_monitor);
+        //            guess_time_ = 0;
+        //            break;
+        //        case RECORDING:
+        //            if(guess_time_ != number_of_probes_) {
+        //                cerr<<"Monitor "<<current_monitor<<"is in recording state "<<guess_time_<<"th trial with rate of"<<guess_measurement_bucket[guess_time_].rate<<endl;
+        //                setRate(guess_measurement_bucket[guess_time_].rate);
+        //                guess_time_ ++;
+        //            } else {
+        //                cerr<<"Monitor "<<current_monitor<<"is in recording state, waiting result for recording to come back"<<endl;
+        //                setRate(base_rate_);
+        //            }
+        //            break;
+        //        case MOVING:
+        //            // TODO: should handle how we move and how we record utility as well
+        //            cerr<<"monitor "<<current_monitor<<"is in moving state setting rate to"<<move_stat.next_rate<<endl;
+        //            setRate(move_stat.next_rate);
+        //            break;
+        //    }
+
+        //} while(old_state != state_);
 	}
 	virtual void onACK(const int& ack){}
 
@@ -156,7 +142,6 @@ public:
 	}
 
 	virtual void onMonitorStart(int current_monitor) {
-		lock_guard<mutex> lck(monitor_mutex_);
         ConnectionState old_state;
         do {
             old_state = state_;
@@ -196,7 +181,6 @@ public:
 	}
 
 	virtual void onMonitorEnds(int total, int loss, double in_time, int current, int endMonitor, double rtt) {
-		lock_guard<mutex> lck(monitor_mutex_);
 		rtt /= (1000 * 1000);
 		if (rtt == 0) rtt = 0.0001;
 		long double curr_utility = utility(total, loss, in_time, rtt, NULL);
@@ -217,7 +201,7 @@ public:
                 case SEARCH:
                     // When doing search (calculating the results and stuff), onmonitorends should do nothing
                     // and ignore the monitor that ended
-                    cerr<<"monitor"<<current<< "ends in search state, this should not happen often"<<endl;
+                    cerr<<"monitor"<<endMonitor<< "ends in search state, this should not happen often"<<endl;
                     break;
                 case RECORDING:
                     // onMoniitorEnd will check if all search results have come back
@@ -579,7 +563,6 @@ public:
 	long double last_utility_;
 	deque<double> rtt_history_;
 	static constexpr size_t kHistorySize = 20;
-	mutex monitor_mutex_;
 	int on_next_start_bind_to_end_;
 };
 
