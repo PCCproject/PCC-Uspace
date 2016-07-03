@@ -3063,7 +3063,8 @@ void CUDT::start_monitor(int length)
 	//int count = 0;
 
 	//ygi: hack here!
-	m_pCC->onMonitorStart(current_monitor);
+    int suggested_length = 100000;
+	m_pCC->onMonitorStart(current_monitor, suggested_length);
 	m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
     time_interval[current_monitor] = m_pCC->m_dPktSndPeriod;
     //double rand_factor = double(rand()%10)/100.0;
@@ -3093,6 +3094,9 @@ void CUDT::start_monitor(int length)
 	else {
             length=10;
         }
+    if (suggested_length < length) {
+        length = suggested_length;
+    }
 
 //#ifdef EXPERIMENTAL_FEATURE_CONTINOUS_SEND
 	//	length=50000/m_pCC->m_dPktSndPeriod;

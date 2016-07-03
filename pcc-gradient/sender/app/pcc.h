@@ -87,9 +87,8 @@ public:
 	virtual void onLoss(const int32_t*, const int&) {}
 	virtual bool onTimeout(int total, int loss, double in_time, int current, int endMonitor, double rtt){
         cerr<<"Timeout happens!!"<<endl;
-        base_rate_ = base_rate_/2;
-        setRate(base_rate_);
-        state_ = SEARCH;
+        state_ = HIBERNATE;
+        setRate(kHibernateRate, true);
         //ConnectionState old_state;
         //do {
         //    old_state = state_;
@@ -141,7 +140,7 @@ public:
 		}
 	}
 
-	virtual void onMonitorStart(int current_monitor) {
+	virtual void onMonitorStart(int current_monitor, int& suggested_length) {
         ConnectionState old_state;
         do {
             old_state = state_;
@@ -174,6 +173,11 @@ public:
                     // TODO: should handle how we move and how we record utility as well
                     cerr<<"monitor "<<current_monitor<<"is in moving state setting rate to"<<move_stat.next_rate<<endl;
                     setRate(move_stat.next_rate);
+                    break;
+                case HIBERNATE:
+                    cerr<<"Hibernating, setting it to really low rate"<<endl;
+                    setRate(kHibernateRate, true);
+                    suggested_length = 1;
                     break;
             }
 
@@ -322,6 +326,12 @@ public:
                     // decide based on prev_utility_
                     // and prev_rate_
                     break;
+                case HIBERNATE:
+                    double base_line_rate = 2 * 1.5 / 1024 * 8/(rtt);
+                    base_rate_ = kMinRateMbps>base_line_rate?kMinRateMbps:base_line_rate;
+                    setRate(base_rate_);
+                    guess_measurement_bucket.clear();
+                    state_ = SEARCH;
             }
 
         } while(old_state != state_);
@@ -348,6 +358,7 @@ protected:
 	double prev_change_;
 	static constexpr double kMinRateMbps = 0.5;
 	static constexpr double kMinRateMbpsSlowStart = 0.1;
+	static constexpr double kHibernateRate = 0.03;
 	static constexpr double kMaxRateMbps = 1024.0;
 	static constexpr int kRobustness = 1;
 	static constexpr double kEpsilon = 0.015;
@@ -358,7 +369,8 @@ protected:
 		START,
 		SEARCH,
         RECORDING,
-        MOVING
+        MOVING,
+        HIBERNATE
 	} state_;
 
 
@@ -419,7 +431,11 @@ protected:
 			return 2 * kMinRateMbpsSlowStart;
 		}
 	}
-	virtual void setRate(double mbps) {
+	virtual void setRate(double mbps, bool force=false) {
+        if(force) {
+		m_dPktSndPeriod = (m_iMSS * 8.0) / mbps;
+        return;
+        }
 		cerr << "set rate: " << rate_ << " --> " << mbps << endl;
 		if (state_ == START) {
 			if (mbps < kMinRateMbpsSlowStart){

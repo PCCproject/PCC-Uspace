@@ -139,7 +139,7 @@ public:
 
    virtual void onMonitorEnds(int /*total*/, int /*loss*/, double /*time*/, int /*skip*/,int /*num*/, double /*rtt*/){}
 
-   virtual void onMonitorStart(int /*monitor_number*/){}
+   virtual void onMonitorStart(int /*monitor_number*/, int&){}
 
 protected:
 
