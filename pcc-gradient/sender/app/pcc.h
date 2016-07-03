@@ -68,7 +68,7 @@ public:
 		cout << "Enter hibernate!" <<endl;
 		hibernate_ = true;
 		pre_hibernate_rate_ = rate_;
-		rate_ = 0.01;
+		rate_ = kHibernationRate;
 		m_dPktSndPeriod = (m_iMSS * 8.0) / rate_;
 	}
 	virtual void exit_hibernate() {
@@ -125,8 +125,8 @@ public:
 		clear_pending_search();
 		ongoing_slow_start_monitors_.clear();
 		cout << "Rate " << rate() << " --> ";
-		base_rate_ = 0.3 * rate();
-		setRate(0.3 * rate());
+		base_rate_ = 0.5 * rate();
+		setRate(0.5 * rate());
 		cout << rate() << endl;
 		return false; 
 		
@@ -377,7 +377,6 @@ protected:
     bool start_measurement_;
 	double base_rate_;
 	static constexpr double kMinRateMbps = 1;
-	static constexpr double kMinRateMbpsSlowStart = 0.2;
 	static constexpr double kMaxRateMbps = 1024.0;
 
 	enum ConnectionState {
@@ -500,6 +499,11 @@ private:
 		*/
 		
 		if (start->rtt_panelty_ > 1.2 * end->rtt_panelty_) {
+			//cout << "failed on rtt: " << start->rtt_panelty_ << "," << end->rtt_panelty_ << endl;
+			return false;
+		}
+
+		if (end->rtt_panelty_ > 1.2 * start->rtt_panelty_) {
 			//cout << "failed on rtt: " << start->rtt_panelty_ << "," << end->rtt_panelty_ << endl;
 			return false;
 		}

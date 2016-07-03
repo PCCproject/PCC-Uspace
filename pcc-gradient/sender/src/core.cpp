@@ -2403,7 +2403,7 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 		uint64_t rtt = int(CTimer::getTime() - m_StartTime) - send_timestamp[Mon][tsn_payload[last_position]&0xFFFF];
 		rtt_value[Mon]+= rtt;
 		//rtts_[Mon].push_back(int(CTimer::getTime() - m_StartTime) - send_timestamp[Mon][tsn_payload[last_position]&0xFFFF]);
-		//rtts_[Mon].push_back(int(CTimer::getTime() - last_ack_[Mon]));
+		rtts_[Mon].push_back(int(CTimer::getTime() - last_ack_[Mon]));
 		last_ack_[Mon] = CTimer::getTime();
 		last_rtt_ts_[Mon] = rtt;
 		if(latency_time_start[Mon] == 0){
@@ -2483,9 +2483,13 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 						//rtt_value[Mon]/double(rtt_count[Mon])
 						//cout << "RTT = " << last_rtt_ / 1000;
 						//cout << "Time since start: " << time(NULL) - start_ <<  " sec" <<endl;
-						if (CTimer::getTime() - hibernate_timestamp_ > 5000000) {
+						
+						/*
+						if ((CTimer::getTime() - hibernate_timestamp_ > 1000000) && (m_pCC->hibernate())){
 							m_pCC->exit_hibernate();
+							cout << "+++Exiting hibernate, now the rtt is " << m_iRTT << endl;
 						}
+						*/
 						m_pCC->onMonitorEnds(total[tmp],total[tmp]-left[tmp],(end_transmission_time[tmp]-start_time[tmp])/1000000,current_monitor,tmp, rtt);
 						m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
 						if (!left_monitor) break;
@@ -3144,13 +3148,15 @@ void CUDT::start_monitor(int length)
 		send_period = 300000;
 	}
 
-	if (m_pCC->hibernate()) {
-		cout << "in hibernate! sending 1 monitor packet" <<endl;
-		length=1;
-	} else if(send_period/m_pCC->m_dPktSndPeriod>30) {
+	if(send_period/m_pCC->m_dPktSndPeriod>30) {
 		length = send_period/m_pCC->m_dPktSndPeriod;
 	} else {
 		length=30;
+		if (m_pCC->hibernate()) {
+			cout << "in hibernate! sending 1 monitor packet" <<endl;
+			cout << "*** I was supposed to send " << send_period/m_pCC->m_dPktSndPeriod << " packets. Since the RTT is " << m_iRTT << " and send period is " << send_period<< endl; 
+			length=1;
+		}
 	}
 
 //#ifdef EXPERIMENTAL_FEATURE_CONTINOUS_SEND
@@ -3251,6 +3257,45 @@ void CUDT::timeout_monitors() {
 	int tmp = (current_monitor + 1) % 100;
 	static uint64_t last_called = CTimer::getTime();
 	bool update_last_called = false;
+
+	double rtt_sec = m_iRTT / (1000. * 1000.);
+	double hibernation_thresh = 2. * 1500. * 8. / (1024. * 1024. * rtt_sec);
+	
+	if (hibernation_thresh > m_pCC->kMinRateMbpsSlowStart){
+		m_pCC->exit_hibernate();
+		//cout << "+++Exiting hibernate, now the rtt is " << m_iRTT << endl;
+	} else {
+		m_pCC->enter_hibernate();
+
+		loss_record1.clear();
+		loss_record2.clear();
+		for (int mon_index = 0; mon_index < 100; mon_index++) {
+			state[mon_index] = 3;
+			total[mon_index] = 0;
+			lost[mon_index] = 0;
+			retransmission[mon_index] = 0;
+			new_transmission[mon_index] = 0;
+			latency[mon_index] = 0;
+			latency_seq_end[mon_index] = 0;
+			latency_time_start[mon_index] = 0;
+			latency_time_end[mon_index] = 0;
+			time_interval[mon_index] = 0;
+			rtt_count[mon_index] = 0;
+			rtt_value[mon_index] = 0;
+			deadlines[mon_index] = 0;
+			allocated_times_[mon_index] = 0;
+			m_last_rtt.clear();
+			rtts_[mon_index].clear();
+			last_ack_[mon_index] = 0;
+			last_rtt_ts_[mon_index] = 0;
+		}
+		monitor = true;
+		left_monitor = 0;
+		m_monitor_count = 0;
+		start_monitor(0);
+		last_called = CTimer::getTime();
+	}
+
 	
 	while (tmp != current_monitor) {
 		if ((state[tmp]==1) || (state[tmp]==2)) {
@@ -3258,48 +3303,21 @@ void CUDT::timeout_monitors() {
 				//cout << "++++ " << (CTimer::getTime() - last_ack_[tmp]) + last_rtt_ts_[tmp];
 				//cout << " Time " << CTimer::getTime() << " last ack: " << last_ack_[tmp] << " last TS: "<<  last_rtt_ts_[tmp] << endl;
 				
-				if (int(CTimer::getTime() - last_ack_[tmp]) + last_rtt_ts_[tmp] > 500000) {
+				if (int(CTimer::getTime() - last_ack_[tmp]) + last_rtt_ts_[tmp] > 500000){
+				//if (hibernation_thresh < m_pCC->kHibernationRate) {
 					hibernate_timestamp_ = CTimer::getTime();
 					
 					m_pCC->enter_hibernate();
-					last_called = CTimer::getTime();
-
-					loss_record1.clear();
-					loss_record2.clear();
-					for (int mon_index = 0; mon_index < 100; mon_index++) {
-						state[mon_index] = 3;
-						total[mon_index] = 0;
-						lost[mon_index] = 0;
-						retransmission[mon_index] = 0;
-						new_transmission[mon_index] = 0;
-						latency[mon_index] = 0;
-						latency_seq_end[mon_index] = 0;
-						latency_time_start[mon_index] = 0;
-						latency_time_end[mon_index] = 0;
-						time_interval[mon_index] = 0;
-						rtt_count[mon_index] = 0;
-						rtt_value[mon_index] = 0;
-						deadlines[mon_index] = 0;
-						allocated_times_[mon_index] = 0;
-						m_last_rtt.clear();
-						rtts_[mon_index].clear();
-						last_ack_[mon_index] = 0;
-						last_rtt_ts_[mon_index] = 0;
-					}
-					monitor = true;
-					left_monitor = 0;
-					m_monitor_count = 0;
-					start_monitor(0);
 					break;
-
 				}
 				
-				rtts_[tmp].push_back(int(CTimer::getTime() - last_ack_[tmp]) + last_rtt_ts_[tmp]);
+				//rtts_[tmp].push_back(int(CTimer::getTime() - last_ack_[tmp]) + last_rtt_ts_[tmp]);
 				update_last_called = true;
 			}
 
 			if((deadlines[tmp] < current_time) && (allocated_times_[tmp] > 0)) {
 				int count=0;
+				hibernate_timestamp_ = CTimer::getTime();
 				//cout<<"killing "<<tmp<<" at "<<current_time<<endl;
 				//cout << "waited for " << current_time - start_times_[tmp]<<endl;
 				m_monitor_count = 0;
