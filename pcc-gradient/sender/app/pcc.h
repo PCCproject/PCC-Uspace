@@ -562,7 +562,7 @@ public:
 	int current_start_monitor_;
 	long double last_utility_;
 	deque<double> rtt_history_;
-	static constexpr size_t kHistorySize = 20;
+	static constexpr size_t kHistorySize = 1;
 	int on_next_start_bind_to_end_;
 };
 

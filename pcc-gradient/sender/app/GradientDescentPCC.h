@@ -13,12 +13,12 @@ protected:
             GuessStat g = GuessStat();
             if (i%2 == 0) {
                 g.rate = (1 + kDelta) * base_rate_;
-                cout<<"search up rate is "<<g.rate<<endl;
+                cerr<<"search up rate is "<<g.rate<<endl;
                 g.isup = true;
             } else{
                 g.rate = (1 - kDelta) * base_rate_;
                 g.isup = false;
-                cout<<"search down rate is "<<g.rate<<endl;
+                cerr<<"search down rate is "<<g.rate<<endl;
             }
             g.ready = false;
             g.monitor = (current_monitor+i) % 100;
@@ -76,8 +76,8 @@ protected:
                 if (change>0 && change < base_rate_*kDelta) { change = base_rate_ * kDelta;}
                 if (change <0 && change > base_rate_*kDelta * (-1)) {change = base_rate_ *kDelta * (-1);}
 
-                if (change>0 && change < 0.1) { change = 0.1;}
-                if (change <0 && change > -0.1) {change = -0.1;}
+                //if (change>0 && change < 0.1) { change = 0.1;}
+                //if (change <0 && change > -0.1) {change = -0.1;}
 
 		prev_change_ = change;
 
