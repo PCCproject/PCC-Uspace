@@ -62,7 +62,25 @@ class Measurement {
 class PCC : public CCC {
 public:
 	virtual ~PCC() {}
-
+	
+	virtual void enter_hibernate() {
+		if (hibernate_) return;
+		cout << "Enter hibernate!" <<endl;
+		hibernate_ = true;
+		pre_hibernate_rate_ = rate_;
+		rate_ = 0.01;
+		m_dPktSndPeriod = (m_iMSS * 8.0) / rate_;
+	}
+	virtual void exit_hibernate() {
+		if (!hibernate_) return;
+		cout << "Exit hibernate!" <<endl;
+		hibernate_ = false;
+		go_to_slow_start();
+		//rate_ = pre_hibernate_rate_;
+		//m_dPktSndPeriod = (m_iMSS * 8.0) / rate_;
+	}
+	virtual bool hibernate() { return hibernate_; }
+	
 	long double avg_utility() {
 		if (measurement_intervals_ > 0) {
 			return utility_sum_ / measurement_intervals_;
@@ -73,6 +91,9 @@ public:
 	virtual void onLoss(const int32_t*, const int&) {}
 	virtual bool onTimeout(int total, int loss, double in_time, int current, int endMonitor, double rtt){
 		lock_guard<mutex> lck(monitor_mutex_);
+		
+		if (hibernate_) return false;
+		
 		cout << "timeout called" <<endl;
 		if (state_ == SEARCH) {
 			if (start_measurment_map_.find(endMonitor) == start_measurment_map_.end() && end_measurment_map_.find(endMonitor) == end_measurment_map_.end()) {
@@ -92,8 +113,9 @@ public:
 			return false;			
 		}
 
-		cout << "handling timeout: ";
 		/*
+		cout << "handling timeout: ";
+		
 		cout << "In timeout! " << endMonitor<< endl;
 		go_to_slow_start();
 		return false;
@@ -161,6 +183,7 @@ public:
 
 	virtual void onMonitorStart(int current_monitor) {
 		lock_guard<mutex> lck(monitor_mutex_);
+		if (hibernate_) return;
 		//cout << "starting monitor " << current_monitor << " STATE = " << state_ << endl;
 		if (state_ == START) {
 			if (rate() * slow_start_factor_ < 10) {
@@ -222,6 +245,7 @@ public:
 
 	virtual void onMonitorEnds(int total, int loss, double in_time, int current, int endMonitor, double rtt) {
 		lock_guard<mutex> lck(monitor_mutex_);
+		if (hibernate_) return;
 		Measurement* this_measurement = get_monitor_measurement(endMonitor);
 		if ((this_measurement == NULL) && (state_ != START)) {
 			return;
@@ -387,7 +411,7 @@ protected:
 	}
 
 	PCC() : start_measurement_(true), base_rate_(2 * kMinRateMbps), state_(START), monitor_in_start_phase_(-1), slow_start_factor_(2),
-			alpha_(kAlpha), beta_(kBeta), exponent_(kExponent), poly_utlity_(kPolyUtility), rate_(2 * kMinRateMbps), monitor_in_prog_(-1), utility_sum_(0), measurement_intervals_(0), prev_utility_(-10000000), continue_slow_start_(true), last_utility_(0), on_next_start_bind_to_end_(-1) {
+			alpha_(kAlpha), beta_(kBeta), exponent_(kExponent), poly_utlity_(kPolyUtility), rate_(2 * kMinRateMbps), monitor_in_prog_(-1), utility_sum_(0), measurement_intervals_(0), prev_utility_(-10000000), continue_slow_start_(true), last_utility_(0), on_next_start_bind_to_end_(-1), hibernate_(false) {
 		m_dPktSndPeriod = 10000;
 		m_dCWndSize = 100000.0;
 		setRTO(100000000);
@@ -499,7 +523,7 @@ private:
 
 		long double loss_rate = (long double)((double) loss/(double) total);
 		long double loss_contribution = alpha_ * (total * (pow((1+loss_rate), exponent_)-1) - loss);
-		long double rtt_contribution = 4 * total*(pow(rtt_penalty,2) - 1);
+		long double rtt_contribution = 4 * total*(pow(rtt_penalty,1.5) - 1);
 		long double utility = ((long double)total - loss_contribution)/time - rtt_contribution;
 
 		if (out_measurement != NULL) {
@@ -507,6 +531,7 @@ private:
 			out_measurement->rtt_panelty_ = rtt;//rtt_contribution / time;
 			out_measurement->actual_packets_sent_rate_ = total / time;
 		}
+		//cout << ". rtt_contribution: " << rtt_contribution << endl;
 		//cout << "utility at rate: " << total / time << " " << utility << endl; 
 		return utility;
 	}
@@ -530,9 +555,11 @@ private:
 	int current_start_monitor_;
 	long double last_utility_;
 	deque<double> rtt_history_;
-	static constexpr size_t kHistorySize = 10;
+	static constexpr size_t kHistorySize = 4;
 	mutex monitor_mutex_;
 	int on_next_start_bind_to_end_;
+	bool hibernate_;
+	double pre_hibernate_rate_;
 };
 
 #endif

@@ -46,6 +46,8 @@ written by
 #include "udt.h"
 #include "packet.h"
 
+#include <iostream>
+using namespace std;
 
 class UDT_API CCC
 {
@@ -141,6 +143,11 @@ public:
 
    virtual void onMonitorStart(int /*monitor_number*/){}
 
+   	virtual void enter_hibernate() { cout << "++++++++++++++++++++legacy Enter hibernate" << endl; }
+	virtual void exit_hibernate() {cout << "++++++++++++++++++++++legacy Exit hibernate" << endl; }
+	virtual bool hibernate() { return false; }
+
+   
    mutable std::recursive_mutex data_lock_;
 protected:
 

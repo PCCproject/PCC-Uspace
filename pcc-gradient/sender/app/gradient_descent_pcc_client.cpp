@@ -179,7 +179,7 @@ DWORD WINAPI monitor(LPVOID s)
 
    UDT::TRACEINFO perf;
 
-   cout << "SendRate(Mb/s)\tRTT(ms)\tCTotal\tLoss\tRecvACK\tRecvNAK" << endl;
+   cout << "Time\tSendRate(Mb/s)\tRTT(ms)\tCTotal\tLoss\tRecvACK\tRecvNAK" << endl;
    int i=0;
    while (true)
    {
@@ -198,7 +198,7 @@ DWORD WINAPI monitor(LPVOID s)
          cout << "perfmon: " << UDT::getlasterror().getErrorMessage() << endl;
          break;
       }
-    cout << perf.mbpsSendRate << "\t\t"
+    cout << i << "\t" << perf.mbpsSendRate << "\t\t"
            << perf.msRTT << "\t"
            <<  perf.pktSentTotal << "\t"
            << perf.pktSndLossTotal << "\t\t\t"
@@ -218,6 +218,12 @@ DWORD WINAPI monitor(LPVOID s)
 		rtt_sum += perf.msRTT;
 		iteration_count++;		
 	}
+/*
+	if (i == 200) {
+		cout << "Terminating test!" <<endl;
+		return 0;
+	}
+*/		
    }
 
    #ifndef WIN32
