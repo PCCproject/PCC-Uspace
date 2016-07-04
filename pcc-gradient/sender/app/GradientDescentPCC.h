@@ -64,7 +64,7 @@ protected:
 		if (change * prev_change_ >= 0) decision_count_++;
 		else decision_count_ = 0;
 		
-		prev_change_ = change * (pow(decision_count_, 2) + 1);				
+		prev_change_ = change * (pow(decision_count_, 2.5) + 1);				
 		do_last_change();
 		clear_pending_search();
 		kRobustness = min<int>(1 + 3 / base_rate_, 2);

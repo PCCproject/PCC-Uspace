@@ -503,13 +503,13 @@ private:
 		}
 		*/
 		
-		if (start->rtt_panelty_ > 1.5 * end->rtt_panelty_) {
+		if (start->rtt_panelty_ > 1.6 * end->rtt_panelty_) {
 			//cout << "failed on rtt: " << start->rtt_panelty_ << "," << end->rtt_panelty_ << endl;
 			failed_count++;
 			return false;
 		}
 
-		if (end->rtt_panelty_ > 1.5 * start->rtt_panelty_) {
+		if (end->rtt_panelty_ > 1.6 * start->rtt_panelty_) {
 			//cout << "failed on rtt: " << start->rtt_panelty_ << "," << end->rtt_panelty_ << endl;
 			failed_count++;
 			return false;
