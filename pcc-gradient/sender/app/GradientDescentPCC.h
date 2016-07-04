@@ -5,7 +5,7 @@
 
 class GradientDescentPCC: public PCC {
 public:
-	GradientDescentPCC() : first_(true), up_utility_(0), down_utility_(0), seq_large_incs_(0), consecutive_big_changes_(0), trend_count_(0), decision_count_(0), curr_(0), prev_change_(0), kRobustness(1),next_delta(0) {}
+	GradientDescentPCC() : first_(true), up_utility_(0), down_utility_(0), seq_large_incs_(0), consecutive_big_changes_(0), trend_count_(0), decision_count_(0), curr_(0), prev_change_(0), kRobustness(2),next_delta(0) {}
 
 protected:
 	virtual void search() {
@@ -73,10 +73,10 @@ protected:
 private:
 
 	double epsilon() const{
-		if (base_rate_ < 1) return 1;
+		if (base_rate_ < 1) return 2;
 		
 		// provide fairness: the lower the rate, the stronger the step.
-		return max<double>(0.005, 1/base_rate_);
+		return max<double>(0.01, 2/base_rate_);
 	}
 
 	double avg_gradient() const {
