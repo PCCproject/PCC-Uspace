@@ -148,7 +148,7 @@ public:
 	virtual bool hibernate() { return false; }
 
 	static constexpr double kHibernationRate = 0.1;
-	static constexpr double kMinRateMbpsSlowStart = 0.2;
+	static constexpr double kMinRateMbpsSlowStart = 0.5;
    
    mutable std::recursive_mutex data_lock_;
 protected:

@@ -2411,7 +2411,7 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 
 		static uint64_t last_recieve_time = CTimer::getTime();
 		//double hibernation_thresh = 2. * 1500. * 8. / (1024. * 1024. * rtt_sec);
-		if (CTimer::getTime() - last_recieve_time < 800000){
+		if (CTimer::getTime() - last_recieve_time < 1000000){
 			m_pCC->exit_hibernate();
 		}
 		last_recieve_time = CTimer::getTime();

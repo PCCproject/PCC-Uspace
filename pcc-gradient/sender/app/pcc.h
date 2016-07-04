@@ -162,6 +162,7 @@ public:
 		slow_start_factor_ = 2;
 		continue_slow_start_ = true;
 		start_measurement_ = true;
+		rtt_history_.clear();
 		start_measurment_map_.clear();
 		end_measurment_map_.clear();
 		monitor_in_start_phase_ = -1;
@@ -385,7 +386,7 @@ protected:
     int search_monitor_number[2];
     bool start_measurement_;
 	double base_rate_;
-	static constexpr double kMinRateMbps = 2;
+	static constexpr double kMinRateMbps = 3;
 	static constexpr double kMaxRateMbps = 1024.0;
 
 	enum ConnectionState {
@@ -406,18 +407,6 @@ protected:
 
 	}
 	
-	virtual void restart() {
-		clear_pending_search();
-		continue_slow_start_ = true;
-		slow_start_factor_ = 2;
-		monitor_in_start_phase_ = -1;
-		setRate(base_rate_);
-		state_ = START;
-		prev_utility_ = -10000000;
-		ongoing_slow_start_monitors_.clear();
-		best_slow_start_rate_ = kMinRateMbpsSlowStart;
-	}
-
 	PCC() : start_measurement_(true), base_rate_(2 * kMinRateMbps), state_(START), monitor_in_start_phase_(-1), slow_start_factor_(2),
 			alpha_(kAlpha), beta_(kBeta), exponent_(kExponent), poly_utlity_(kPolyUtility), rate_(2 * kMinRateMbps), monitor_in_prog_(-1), utility_sum_(0), measurement_intervals_(0), prev_utility_(-10000000), continue_slow_start_(true), last_utility_(0), on_next_start_bind_to_end_(-1), hibernate_(false) {
 		m_dPktSndPeriod = 10000;
@@ -514,18 +503,18 @@ private:
 		}
 		*/
 		
-		if (start->rtt_panelty_ > 1.1 * end->rtt_panelty_) {
+		if (start->rtt_panelty_ > 1.3 * end->rtt_panelty_) {
 			//cout << "failed on rtt: " << start->rtt_panelty_ << "," << end->rtt_panelty_ << endl;
 			failed_count++;
 			return false;
 		}
-/*
-		if (end->rtt_panelty_ > 1.1 * start->rtt_panelty_) {
+
+		if (end->rtt_panelty_ > 1.3 * start->rtt_panelty_) {
 			//cout << "failed on rtt: " << start->rtt_panelty_ << "," << end->rtt_panelty_ << endl;
 			failed_count++;
 			return false;
 		}
-*/		
+		
 		/*
 		if (start->loss_panelty_ > end->loss_panelty_) {
 			cout << "failed on loss. Start = " << start->loss_panelty_ << ". End = " << end->loss_panelty_ << endl;
@@ -545,7 +534,7 @@ private:
 
 		long double loss_rate = (long double)((double) loss/(double) total);
 		long double loss_contribution = alpha_ * (total * (pow((1+loss_rate), exponent_)-1) - loss);
-		long double rtt_contribution = 3 * total*(pow(rtt_penalty,1.7) - 1);
+		long double rtt_contribution = 3.5 * total*(pow(rtt_penalty,1.6) - 1);
 		long double utility = ((long double)total - loss_contribution - rtt_contribution)/time;
 
 		if (out_measurement != NULL) {

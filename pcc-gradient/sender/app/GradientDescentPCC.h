@@ -11,12 +11,7 @@ protected:
 	virtual void search() {
 		guess();
 	}
-	
-	virtual void restart() {
-		init();
-		PCC::restart();
-	}
-	
+		
 	void ensure_min_change() {
 		/*
 		if ((prev_change_ >= 0) && (prev_change_ < kMinRateMbps / 2) && (base_rate_ < 3 * kMinRateMbps)) prev_change_ = kMinRateMbps / 2;
@@ -34,7 +29,6 @@ protected:
 	} 
 	
 	virtual double delta_for_base_rate() {
-		return 0.05;
 		if (base_rate_ < 1) return 0.25;
 		else if (base_rate_ < 2) return 0.2;
 		else if (base_rate_ < 3) return 0.15; 
@@ -45,7 +39,7 @@ protected:
 	virtual void do_last_change() {
 
 		ensure_min_change();
-		cout << "changing rate: " << rate() << " --> ";
+		cout << "Gradient: changing rate: " << rate() << " --> ";
 		base_rate_ += prev_change_;
 
 		if (base_rate_ < kMinRateMbps * (1 + delta_for_base_rate())) {
