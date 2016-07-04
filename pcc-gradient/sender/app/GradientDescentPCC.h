@@ -5,7 +5,7 @@
 
 class GradientDescentPCC: public PCC {
 public:
-	GradientDescentPCC() : first_(true), up_utility_(0), down_utility_(0), seq_large_incs_(0), consecutive_big_changes_(0), trend_count_(0), decision_count_(0), curr_(0), prev_change_(0), kRobustness(2),next_delta(0) {}
+	GradientDescentPCC() : first_(true), up_utility_(0), down_utility_(0), seq_large_incs_(0), consecutive_big_changes_(0), trend_count_(0), decision_count_(0), curr_(0), prev_change_(0), kRobustness(1),next_delta(0) {}
 
 protected:
 	virtual void search() {
@@ -18,13 +18,15 @@ protected:
 	}
 	
 	void ensure_min_change() {
+		/*
 		if ((prev_change_ >= 0) && (prev_change_ < kMinRateMbps / 2) && (base_rate_ < 3 * kMinRateMbps)) prev_change_ = kMinRateMbps / 2;
 		else if ((prev_change_ < 0) && (prev_change_ > -1 * kMinRateMbps / 2) && (base_rate_ < 3 * kMinRateMbps)) prev_change_ = -1 * kMinRateMbps / 2;
 		else if ((prev_change_ >= 0) && (prev_change_ < 2 * kMinRateMbps) && (base_rate_ < 5 * kMinRateMbps)) prev_change_ = 2 * kMinRateMbps;
 		else if ((prev_change_ < 0) && (prev_change_ > -2 * kMinRateMbps) && (base_rate_ < 5 * kMinRateMbps)) prev_change_ = -2 * kMinRateMbps;
+		*/
 		
-		if ((prev_change_ >= 0) && (prev_change_ < 0.01 * base_rate_)) prev_change_ = 0.01 * base_rate_;
-		if ((prev_change_ < 0) && (prev_change_ > -0.01 * base_rate_)) prev_change_ = -0.01 * base_rate_;
+		if ((prev_change_ >= 0) && (prev_change_ < 0.03 * base_rate_)) prev_change_ = 0.03 * base_rate_;
+		if ((prev_change_ < 0) && (prev_change_ > -0.03 * base_rate_)) prev_change_ = -0.03 * base_rate_;
 		
 		if ((prev_change_ >= 0) && (prev_change_ > 0.3 * base_rate_)) prev_change_ = 0.3 * base_rate_;
 		if ((prev_change_ < 0) && (prev_change_ < -0.3 * base_rate_)) prev_change_ = -0.3 * base_rate_;
@@ -32,9 +34,10 @@ protected:
 	} 
 	
 	virtual double delta_for_base_rate() {
-		if (base_rate_ < 1) return 0.2;
-		else if (base_rate_ < 2) return 0.15;
-		else if (base_rate_ < 3) return 0.1; 
+		return 0.05;
+		if (base_rate_ < 1) return 0.25;
+		else if (base_rate_ < 2) return 0.2;
+		else if (base_rate_ < 3) return 0.15; 
 		else if (base_rate_ < 5) return 0.05;
 		else return 0.05;
 	}
@@ -42,14 +45,14 @@ protected:
 	virtual void do_last_change() {
 
 		ensure_min_change();
+		cout << "changing rate: " << rate() << " --> ";
 		base_rate_ += prev_change_;
 
 		if (base_rate_ < kMinRateMbps * (1 + delta_for_base_rate())) {
 			base_rate_ = kMinRateMbps * (1 + delta_for_base_rate());
 		}
-
 		setRate(base_rate_);
-		//cout << "base_rate_ = " << base_rate_ << " rate = " << rate() << endl;
+		cout << rate() << endl;
 	}
 	
 	virtual void decide(long double start_utility, long double end_utility, bool timeout) {

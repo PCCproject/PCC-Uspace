@@ -65,6 +65,14 @@ public:
 	
 	virtual void enter_hibernate() {
 		if (hibernate_) return;
+		
+		if (rate() > 2 * kMinRateMbpsSlowStart) {
+			// todo: why timeout didn't get called here??
+			base_rate_ = 0.5 * rate();
+			setRate(0.5 * rate());
+			return;
+		}
+		
 		cout << "Enter hibernate!" <<endl;
 		hibernate_ = true;
 		pre_hibernate_rate_ = rate_;
@@ -125,8 +133,8 @@ public:
 		clear_pending_search();
 		ongoing_slow_start_monitors_.clear();
 		cout << "Rate " << rate() << " --> ";
-		base_rate_ = 0.5 * rate();
-		setRate(0.5 * rate());
+		base_rate_ = 0.75 * rate();
+		setRate(0.75 * rate());
 		cout << rate() << endl;
 		return false; 
 		
@@ -376,7 +384,7 @@ protected:
     int search_monitor_number[2];
     bool start_measurement_;
 	double base_rate_;
-	static constexpr double kMinRateMbps = 1;
+	static constexpr double kMinRateMbps = 2;
 	static constexpr double kMaxRateMbps = 1024.0;
 
 	enum ConnectionState {
@@ -483,6 +491,13 @@ private:
 	}
 
 	bool sanety_check(Measurement* start, Measurement* end) {
+		static int failed_count = 0;
+		
+		if (failed_count == 10) {
+			failed_count = 0;
+			return true;
+		}
+		
 		//return true;
 		if (end->test_rate_ < start->test_rate_) {
 			//cout << "swapping. Rates: " << start->test_rate_ << ", " << end->test_rate_ << endl;
@@ -498,23 +513,25 @@ private:
 		}
 		*/
 		
-		if (start->rtt_panelty_ > 1.2 * end->rtt_panelty_) {
+		if (start->rtt_panelty_ > 1.1 * end->rtt_panelty_) {
 			//cout << "failed on rtt: " << start->rtt_panelty_ << "," << end->rtt_panelty_ << endl;
+			failed_count++;
 			return false;
 		}
-
-		if (end->rtt_panelty_ > 1.2 * start->rtt_panelty_) {
+/*
+		if (end->rtt_panelty_ > 1.1 * start->rtt_panelty_) {
 			//cout << "failed on rtt: " << start->rtt_panelty_ << "," << end->rtt_panelty_ << endl;
+			failed_count++;
 			return false;
 		}
-		
+*/		
 		/*
 		if (start->loss_panelty_ > end->loss_panelty_) {
 			cout << "failed on loss. Start = " << start->loss_panelty_ << ". End = " << end->loss_panelty_ << endl;
 			return false;
 		}
 		*/
-
+		failed_count = 0;
 		return true; 
 	}
 
@@ -527,8 +544,8 @@ private:
 
 		long double loss_rate = (long double)((double) loss/(double) total);
 		long double loss_contribution = alpha_ * (total * (pow((1+loss_rate), exponent_)-1) - loss);
-		long double rtt_contribution = 4 * total*(pow(rtt_penalty,1.5) - 1);
-		long double utility = ((long double)total - loss_contribution)/time - rtt_contribution;
+		long double rtt_contribution = 3 * total*(pow(rtt_penalty,1.6) - 1);
+		long double utility = ((long double)total - loss_contribution - rtt_contribution)/time;
 
 		if (out_measurement != NULL) {
 			out_measurement->loss_panelty_ = loss / total;

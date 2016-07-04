@@ -3255,71 +3255,15 @@ uint64_t CUDT::calc_95_delay(int mon) {
 void CUDT::timeout_monitors() {
 	uint64_t current_time = CTimer::getTime();
 	int tmp = (current_monitor + 1) % 100;
-	static uint64_t last_called = CTimer::getTime();
-	bool update_last_called = false;
 
 	double rtt_sec = m_iRTT / (1000. * 1000.);
 	double hibernation_thresh = 2. * 1500. * 8. / (1024. * 1024. * rtt_sec);
 	
-	if (hibernation_thresh > m_pCC->kMinRateMbpsSlowStart){
-		m_pCC->exit_hibernate();
-		//cout << "+++Exiting hibernate, now the rtt is " << m_iRTT << endl;
-	} else {
-		m_pCC->enter_hibernate();
-
-		loss_record1.clear();
-		loss_record2.clear();
-		for (int mon_index = 0; mon_index < 100; mon_index++) {
-			state[mon_index] = 3;
-			total[mon_index] = 0;
-			lost[mon_index] = 0;
-			retransmission[mon_index] = 0;
-			new_transmission[mon_index] = 0;
-			latency[mon_index] = 0;
-			latency_seq_end[mon_index] = 0;
-			latency_time_start[mon_index] = 0;
-			latency_time_end[mon_index] = 0;
-			time_interval[mon_index] = 0;
-			rtt_count[mon_index] = 0;
-			rtt_value[mon_index] = 0;
-			deadlines[mon_index] = 0;
-			allocated_times_[mon_index] = 0;
-			m_last_rtt.clear();
-			rtts_[mon_index].clear();
-			last_ack_[mon_index] = 0;
-			last_rtt_ts_[mon_index] = 0;
-		}
-		monitor = true;
-		left_monitor = 0;
-		m_monitor_count = 0;
-		start_monitor(0);
-		last_called = CTimer::getTime();
-	}
-
-	
 	while (tmp != current_monitor) {
 		if ((state[tmp]==1) || (state[tmp]==2)) {
-			if (((CTimer::getTime() - last_called) > 1000) &&  (last_ack_[tmp] != 0)) {
-				//cout << "++++ " << (CTimer::getTime() - last_ack_[tmp]) + last_rtt_ts_[tmp];
-				//cout << " Time " << CTimer::getTime() << " last ack: " << last_ack_[tmp] << " last TS: "<<  last_rtt_ts_[tmp] << endl;
-				
-				if (int(CTimer::getTime() - last_ack_[tmp]) + last_rtt_ts_[tmp] > 500000){
-				//if (hibernation_thresh < m_pCC->kHibernationRate) {
-					hibernate_timestamp_ = CTimer::getTime();
-					
-					m_pCC->enter_hibernate();
-					break;
-				}
-				
-				//rtts_[tmp].push_back(int(CTimer::getTime() - last_ack_[tmp]) + last_rtt_ts_[tmp]);
-				update_last_called = true;
-			}
-
 			if((deadlines[tmp] < current_time) && (allocated_times_[tmp] > 0)) {
 				int count=0;
 				hibernate_timestamp_ = CTimer::getTime();
-				//cout<<"killing "<<tmp<<" at "<<current_time<<endl;
-				//cout << "waited for " << current_time - start_times_[tmp]<<endl;
 				m_monitor_count = 0;
 				for(int i=0;i<total[tmp];i++){
 					if(recv_ack[tmp][i]){
@@ -3332,8 +3276,9 @@ void CUDT::timeout_monitors() {
 				end_time[tmp] = current_time;
 				left_monitor--;
 				m_iRTT = allocated_times_[tmp];
+				
 				if (m_pCC->onTimeout(total[tmp],total[tmp]-left[tmp],(end_transmission_time[tmp]-start_time[tmp])/1000000,current_monitor,tmp, allocated_times_[tmp]/1000)) {
-					break;
+					continue;
 				}
 				//save_timeout_time();
 				
@@ -3364,15 +3309,44 @@ void CUDT::timeout_monitors() {
 	            left_monitor = 0;
 	            m_monitor_count = 0;
                 start_monitor(0);
-				break;
+				return;
 			}
 		}
-    tmp = (tmp + 1) % 100;
+		tmp = (tmp + 1) % 100;
 	}
 	
-	if (update_last_called) {
-		last_called = CTimer::getTime();
-	}
+	if (hibernation_thresh > m_pCC->kMinRateMbpsSlowStart){
+		m_pCC->exit_hibernate();
+	} else if (hibernation_thresh < m_pCC->kHibernationRate){		
+		m_pCC->enter_hibernate();
+
+		loss_record1.clear();
+		loss_record2.clear();
+		for (int mon_index = 0; mon_index < 100; mon_index++) {
+			state[mon_index] = 3;
+			total[mon_index] = 0;
+			lost[mon_index] = 0;
+			retransmission[mon_index] = 0;
+			new_transmission[mon_index] = 0;
+			latency[mon_index] = 0;
+			latency_seq_end[mon_index] = 0;
+			latency_time_start[mon_index] = 0;
+			latency_time_end[mon_index] = 0;
+			time_interval[mon_index] = 0;
+			rtt_count[mon_index] = 0;
+			rtt_value[mon_index] = 0;
+			deadlines[mon_index] = 0;
+			allocated_times_[mon_index] = 0;
+			m_last_rtt.clear();
+			rtts_[mon_index].clear();
+			last_ack_[mon_index] = 0;
+			last_rtt_ts_[mon_index] = 0;
+		}
+		monitor = true;
+		left_monitor = 0;
+		m_monitor_count = 0;
+		start_monitor(0);
+	}	
 }
 
 void CUDT::save_timeout_time() {
