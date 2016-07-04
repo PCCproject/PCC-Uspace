@@ -73,6 +73,16 @@ struct MoveStat {
       bool isup;
 };
 
+struct RecentEndMonitorStat {
+      int monitor;
+      double utility;
+      double loss;
+      double rtt;
+      double total;
+      double rate;
+      bool initialized = false;
+};
+
 class PCC : public CCC {
 public:
 	virtual ~PCC() {}
@@ -143,6 +153,7 @@ public:
 
 	virtual void onMonitorStart(int current_monitor, int& suggested_length) {
         ConnectionState old_state;
+        cerr<<"Monitor "<<current_monitor<<" starts"<<endl;
         do {
             old_state = state_;
             switch (state_) {
@@ -193,8 +204,9 @@ public:
 		utility_sum_ += curr_utility;
 		measurement_intervals_++;
         ConnectionState old_state;
+        cerr<<"Monitor "<<endMonitor<<" ended"<<endl;
         // TODO we should keep track of all monitors and closely mointoring RTT
-        // and utility change between monitors
+        // and utility change between monitor
         do {
             old_state = state_;
             switch (state_) {
@@ -213,6 +225,27 @@ public:
                     // and decide where to move the rate
                     // TODO: it should enter the MOVING state here, but I will just keep it simple to make it enter
                     // search state again. To first switch the architecture
+                    if(!recent_end_stat.initialized) {
+                        recent_end_stat.initialized = true;
+                    } else {
+                        if(recent_end_stat.rtt/ rtt > 1.6 || recent_end_stat.rtt / rtt <0.4){
+                            cerr<<"RTT deviation severe, halving rate and re-probing"<<endl;
+                            state_ = SEARCH;
+                            guess_measurement_bucket.clear();
+                            base_rate_ = base_rate_ / 2;
+                            if(base_rate_ < kMinRateMbps/ (1-kDelta)) {
+                               base_rate_ = kMinRateMbps / (1-kDelta);  
+                            }
+                            setRate(base_rate_);
+                            recent_end_stat.initialized = false;
+                            break;
+                        }
+                    }
+                    recent_end_stat.utility = curr_utility;
+                    recent_end_stat.total = total;
+                    recent_end_stat.loss = loss;
+                    recent_end_stat.rtt = rtt;
+                    recent_end_stat.monitor = endMonitor;
                     bool all_ready;
                     all_ready = true;
                     cerr<<"checking if all recording ready at monitor"<<current<<endl;
@@ -255,7 +288,7 @@ public:
                             break;
                         }
                         setRate(base_rate_);
-                        state_ = MOVING;
+                        state_ = SEARCH;
                         move_stat.bootstrapping = true;
                         move_stat.target_monitor = (current +1) % 100;
                         move_stat.next_rate = base_rate_;
@@ -333,7 +366,10 @@ public:
                     break;
                 case HIBERNATE:
                     double base_line_rate = 2 * 1.5 / 1024 * 8/(rtt);
-                    base_rate_ = kMinRateMbps>base_line_rate?kMinRateMbps:base_line_rate;
+                    if (base_line_rate < 0.4) {
+                    break;
+                    }
+                    base_rate_ =kMinRateMbps / (1-kDelta) >base_line_rate?kMinRateMbps / (1-kDelta):base_line_rate;
                     setRate(base_rate_);
                     guess_measurement_bucket.clear();
                     state_ = SEARCH;
@@ -361,13 +397,13 @@ protected:
 	double base_rate_;
 	bool kPrint;
 	double prev_change_;
-	static constexpr double kMinRateMbps = 0.25;
+	static constexpr double kMinRateMbps = 0.5;
 	static constexpr double kMinRateMbpsSlowStart = 0.1;
-	static constexpr double kHibernateRate = 0.005;
+	static constexpr double kHibernateRate = 0.05;
 	static constexpr double kMaxRateMbps = 1024.0;
 	static constexpr int kRobustness = 1;
-	static constexpr double kEpsilon = 0.015;
-	static constexpr double kDelta = 0.05;
+	static constexpr double kEpsilon = 0.15;
+	static constexpr double kDelta = 0.01;
 	static constexpr int kGoToStartCount = 50000;
 
 	enum ConnectionState {
@@ -414,6 +450,7 @@ protected:
         prev_change_ = 0;
 
 		setRTO(100000000);
+                recent_end_stat.initialized = false;
 		srand(time(NULL));
 		cerr << "new Code!!!" << endl;
 		cerr << "configuration: alpha = " << alpha_ << ", beta = " << beta_   << ", exponent = " << exponent_ << " poly utility = " << poly_utlity_ << endl;
@@ -549,8 +586,8 @@ public:
                 long double rtt_factor = rtt;
                 //TODO We should also consider adding just rtt into the utility function, because it is not just change that matters
                 // This may turn out to be extremely helpful during LTE environment
-		long double utility = ((long double)total - loss_contribution - rtt_contribution)/norm_measurement_interval/rtt;
-		//long double utility = ((long double)total - loss_contribution - rtt_contribution)/norm_measurement_interval;
+		//long double utility = ((long double)total - loss_contribution - rtt_contribution)/norm_measurement_interval/rtt;
+		long double utility = ((long double)total - loss_contribution - rtt_contribution)/norm_measurement_interval;
 
 		if (out_measurement != NULL) {
 			out_measurement->loss_panelty_ = loss_contribution / norm_measurement_interval;
@@ -579,11 +616,12 @@ public:
     int number_of_probes_;
 	vector<GuessStat> guess_measurement_bucket;
 	MoveStat move_stat;
+        RecentEndMonitorStat recent_end_stat;
     int guess_time_;
 	int current_start_monitor_;
 	long double last_utility_;
 	deque<double> rtt_history_;
-	static constexpr size_t kHistorySize = 1;
+	static constexpr size_t kHistorySize = 20;
 	int on_next_start_bind_to_end_;
 };
 

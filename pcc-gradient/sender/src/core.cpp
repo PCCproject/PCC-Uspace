@@ -76,7 +76,7 @@ const int32_t CMsgNo::m_iMsgNoTH = 0xFFFFFFF;
 const int32_t CMsgNo::m_iMaxMsgNo = 0x1FFFFFFF;
 
 const int CUDT::m_iVersion = 4;
-const int CUDT::m_iSYNInterval = 300000;
+const int CUDT::m_iSYNInterval = 1000000;
 const int CUDT::m_iSelfClockInterval = 64;
 
 
@@ -2156,8 +2156,8 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 		m_pSndQueue->m_pSndUList->update(this, false);
 
 		// Update RTT
-		m_iRTT = *((int32_t *)ctrlpkt.m_pcData + 1);
-		m_iRTTVar = *((int32_t *)ctrlpkt.m_pcData + 2);
+		//m_iRTT = *((int32_t *)ctrlpkt.m_pcData + 1);
+		//m_iRTTVar = *((int32_t *)ctrlpkt.m_pcData + 2);
 		//int rtt = *((int32_t *)ctrlpkt.m_pcData + 1);
 		//m_iRTTVar = (m_iRTTVar * 3 + abs(rtt - m_iRTT)) >> 2;
 		//m_iRTT = (m_iRTT * 7 + rtt) >> 3;
@@ -2208,10 +2208,10 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 		//   sendCtrl(4);
 
 		// RTT EWMA
-		m_iRTTVar = (m_iRTTVar * 3 + abs(rtt - m_iRTT)) >> 2;
-		m_iRTT = (m_iRTT * 7 + rtt) >> 3;
+		//m_iRTTVar = (m_iRTTVar * 3 + abs(rtt - m_iRTT)) >> 2;
+		//m_iRTT = (m_iRTT * 7 + rtt) >> 3;
 
-		m_pCC->setRTT(m_iRTT);
+		//m_pCC->setRTT(m_iRTT);
 
 		// update last ACK that has been received by the sender
 		if (CSeqNo::seqcmp(ack, m_iRcvLastAckAck) > 0)
@@ -2451,13 +2451,14 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 							rtt_value[Mon]=0;
 							rtt_count[Mon]=1;
                         }
+                                                m_iRTT = rtt_value[Mon]/double(rtt_count[Mon]);
 						last_rtt_ = m_iRTT;
+	                                        m_pCC->setRTT(m_iRTT);
 
 						m_last_rtt.push_front(last_rtt_);
 						if (m_last_rtt.size() > kRTTHistorySize) {
 							m_last_rtt.pop_back();
 						}
-
 
 						//m_last_rtt[Mon % 100] = rtt_value[Mon]/((double) rtt_count[Mon]);
                                                 //cout<<"Fill in rtt value as"<<m_last_rtt[Mon % 100]<<endl;
@@ -3071,7 +3072,7 @@ void CUDT::start_monitor(int length)
     //double rand_factor = double(rand()%10)/100.0;
 	//if(m_iRTT*(1.2)/m_pCC->m_dPktSndPeriod>10) length = m_iRTT*(0.5 + rand_factor)/m_pCC->m_dPktSndPeriod;
 		//cout << "min RTT is " << get_min_rtt() << endl;
-		allocated_times_[current_monitor] = 4 * get_min_rtt();//last_rtt_;//m_iRTT;//get_min_rtt();
+		allocated_times_[current_monitor] = 1.9 * get_min_rtt();//last_rtt_;//m_iRTT;//get_min_rtt();
                 if(allocated_times_[current_monitor]> 1000000) {
                     allocated_times_[current_monitor] = 1000000;
                 }
@@ -3083,17 +3084,20 @@ void CUDT::start_monitor(int length)
 	m_monitor_count++;
 
 	//double rand_factor = (rand() %10) / 100.;
-	int send_period = 1.1*m_iRTT; //100 * 1000; // 100 milliseconds
+	int send_period = 1.0*m_iRTT; //100 * 1000; // 100 milliseconds
 	//length = send_period*(0.5 + rand_factor)/m_pCC->m_dPktSndPeriod;
             if(send_period > 1000000) {
                send_period = 300000;
             }
 
-	if(send_period/m_pCC->m_dPktSndPeriod>10) {
+	if(send_period/m_pCC->m_dPktSndPeriod>2) {
             length = send_period/m_pCC->m_dPktSndPeriod;
         }
 	else {
-            length=10;
+            length=2;
+        }
+        if (length > 10) {
+           length = 10;
         }
     if (suggested_length < length) {
         length = suggested_length;

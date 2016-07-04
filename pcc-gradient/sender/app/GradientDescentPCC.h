@@ -12,11 +12,17 @@ protected:
         for(int i=0; i<number_of_probes_; i++) {
             GuessStat g = GuessStat();
             if (i%2 == 0) {
+                if((kDelta) * base_rate_ > 0.1) {
                 g.rate = (1 + kDelta) * base_rate_;
+                } else {
+                g.rate = base_rate_ + 0.1;
+                }
                 cerr<<"search up rate is "<<g.rate<<endl;
                 g.isup = true;
             } else{
+                if((kDelta) * base_rate_ > 0.1) {
                 g.rate = (1 - kDelta) * base_rate_;
+                } else {g.rate = base_rate_ - 0.1;}
                 g.isup = false;
                 cerr<<"search down rate is "<<g.rate<<endl;
             }
