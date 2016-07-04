@@ -76,8 +76,8 @@ protected:
                 if (change>0 && change < base_rate_*kDelta) { change = base_rate_ * kDelta;}
                 if (change <0 && change > base_rate_*kDelta * (-1)) {change = base_rate_ *kDelta * (-1);}
 
-                //if (change>0 && change < 0.1) { change = 0.1;}
-                //if (change <0 && change > -0.1) {change = -0.1;}
+                if (change>0 && change < 0.1) { change = 0.1;}
+                if (change <0 && change > -0.1) {change = -0.1;}
 
 		prev_change_ = change;
 

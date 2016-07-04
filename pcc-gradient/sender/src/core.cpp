@@ -76,7 +76,7 @@ const int32_t CMsgNo::m_iMsgNoTH = 0xFFFFFFF;
 const int32_t CMsgNo::m_iMaxMsgNo = 0x1FFFFFFF;
 
 const int CUDT::m_iVersion = 4;
-const int CUDT::m_iSYNInterval = 10000;
+const int CUDT::m_iSYNInterval = 300000;
 const int CUDT::m_iSelfClockInterval = 64;
 
 
@@ -2048,8 +2048,9 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 		// send ACK acknowledgement
 		// number of ACK2 can be much less than number of ACK
 		uint64_t now = CTimer::getTime();
-		if ((currtime - m_ullSndLastAck2Time > (uint64_t)m_iSYNInterval) || (ack == m_iSndLastAck2))
+		if ((currtime - m_ullSndLastAck2Time > (uint64_t)m_iSYNInterval))
 		{
+                        cout<<"send ACK ACK"<<endl;
 			sendCtrl(6, &ack);
 			m_iSndLastAck2 = ack;
 			m_ullSndLastAck2Time = now;

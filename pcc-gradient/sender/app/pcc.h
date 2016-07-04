@@ -89,6 +89,7 @@ public:
         cerr<<"Timeout happens!!"<<endl;
         state_ = HIBERNATE;
         setRate(kHibernateRate, true);
+        guess_measurement_bucket.clear();
         //ConnectionState old_state;
         //do {
         //    old_state = state_;
@@ -250,6 +251,7 @@ public:
                             cerr<<"trying to set rate below min rate in moving phase just decided, enter guessing"<<endl;
                             base_rate_ = kMinRateMbps/ (1 - kDelta);
                             state_ = SEARCH;
+                            guess_measurement_bucket.clear();
                             break;
                         }
                         setRate(base_rate_);
@@ -284,6 +286,7 @@ public:
                                 cerr<<"trying to set rate below min rate in moving phase bootstrapping, enter guessing"<<endl;
                                 base_rate_ = kMinRateMbps/ (1 - kDelta);
                                 state_ = SEARCH;
+                                guess_measurement_bucket.clear();
                                 break;
                             }
 
@@ -303,6 +306,7 @@ public:
                                 }
                                 setRate(base_rate_);
                                 state_ = SEARCH;
+                                guess_measurement_bucket.clear();
                             } else {
                                 cerr<<"direction same, keep moving with change of "<<change<<endl;
                                 move_stat.target_monitor = (current + 1) % 100;
@@ -314,6 +318,7 @@ public:
                                     cerr<<"trying to set rate below min rate in moving phase keep moving, enter guessing"<<endl;
                                     base_rate_ = kMinRateMbps/ (1 - kDelta);
                                     state_ = SEARCH;
+                                    guess_measurement_bucket.clear();
                                     break;
                                 }
 
@@ -356,9 +361,9 @@ protected:
 	double base_rate_;
 	bool kPrint;
 	double prev_change_;
-	static constexpr double kMinRateMbps = 0.5;
+	static constexpr double kMinRateMbps = 0.25;
 	static constexpr double kMinRateMbpsSlowStart = 0.1;
-	static constexpr double kHibernateRate = 0.03;
+	static constexpr double kHibernateRate = 0.005;
 	static constexpr double kMaxRateMbps = 1024.0;
 	static constexpr int kRobustness = 1;
 	static constexpr double kEpsilon = 0.015;
