@@ -18,12 +18,10 @@ protected:
 	}
 	
 	void ensure_min_change() {
-		/*
 		if ((prev_change_ >= 0) && (prev_change_ < kMinRateMbps / 2) && (base_rate_ < 3 * kMinRateMbps)) prev_change_ = kMinRateMbps / 2;
 		else if ((prev_change_ < 0) && (prev_change_ > -1 * kMinRateMbps / 2) && (base_rate_ < 3 * kMinRateMbps)) prev_change_ = -1 * kMinRateMbps / 2;
 		else if ((prev_change_ >= 0) && (prev_change_ < 2 * kMinRateMbps) && (base_rate_ < 5 * kMinRateMbps)) prev_change_ = 2 * kMinRateMbps;
 		else if ((prev_change_ < 0) && (prev_change_ > -2 * kMinRateMbps) && (base_rate_ < 5 * kMinRateMbps)) prev_change_ = -2 * kMinRateMbps;
-		*/
 		
 		if ((prev_change_ >= 0) && (prev_change_ < 0.01 * base_rate_)) prev_change_ = 0.01 * base_rate_;
 		if ((prev_change_ < 0) && (prev_change_ > -0.01 * base_rate_)) prev_change_ = -0.01 * base_rate_;

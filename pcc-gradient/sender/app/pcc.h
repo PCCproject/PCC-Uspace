@@ -400,7 +400,7 @@ protected:
 	virtual void restart() {
 		clear_pending_search();
 		continue_slow_start_ = true;
-		slow_start_factor_ = 2;
+		slow_start_factor_ = 1.5;
 		monitor_in_start_phase_ = -1;
 		setRate(base_rate_);
 		state_ = START;
@@ -409,7 +409,7 @@ protected:
 		best_slow_start_rate_ = kMinRateMbpsSlowStart;
 	}
 
-	PCC() : start_measurement_(true), base_rate_(2 * kMinRateMbps), state_(START), monitor_in_start_phase_(-1), slow_start_factor_(2),
+	PCC() : start_measurement_(true), base_rate_(2 * kMinRateMbps), state_(START), monitor_in_start_phase_(-1), slow_start_factor_(1.5),
 			alpha_(kAlpha), beta_(kBeta), exponent_(kExponent), poly_utlity_(kPolyUtility), rate_(2 * kMinRateMbps), monitor_in_prog_(-1), utility_sum_(0), measurement_intervals_(0), prev_utility_(-10000000), continue_slow_start_(true), last_utility_(0), on_next_start_bind_to_end_(-1), hibernate_(false) {
 		m_dPktSndPeriod = 10000;
 		m_dCWndSize = 100000.0;
