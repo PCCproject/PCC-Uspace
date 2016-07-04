@@ -66,10 +66,11 @@ public:
 	virtual void enter_hibernate() {
 		if (hibernate_) return;
 		
+		cout  << "hibernate? rate = "  << rate() << endl;
 		if (rate() > 2 * kMinRateMbpsSlowStart) {
-			// todo: why timeout didn't get called here??
 			base_rate_ = 0.5 * rate();
 			setRate(0.5 * rate());
+			state_ = SEARCH;
 			return;
 		}
 		
@@ -158,7 +159,7 @@ public:
 	
 	virtual void go_to_slow_start() {
 		state_ = START;
-		slow_start_factor_ = 1.5;
+		slow_start_factor_ = 2;
 		continue_slow_start_ = true;
 		start_measurement_ = true;
 		start_measurment_map_.clear();
@@ -194,7 +195,7 @@ public:
 		if (hibernate_) return;
 		//cout << "starting monitor " << current_monitor << " STATE = " << state_ << endl;
 		if (state_ == START) {
-			if (rate() * slow_start_factor_ < 10) {
+			if (rate() * slow_start_factor_ < 8) {
 				//cout << "in slow start, rate = " << rate() << endl;	
 				setRate(rate() * slow_start_factor_);
 				ongoing_slow_start_monitors_.insert(pair<int,double> (current_monitor, rate()));
@@ -408,7 +409,7 @@ protected:
 	virtual void restart() {
 		clear_pending_search();
 		continue_slow_start_ = true;
-		slow_start_factor_ = 1.5;
+		slow_start_factor_ = 2;
 		monitor_in_start_phase_ = -1;
 		setRate(base_rate_);
 		state_ = START;
@@ -417,7 +418,7 @@ protected:
 		best_slow_start_rate_ = kMinRateMbpsSlowStart;
 	}
 
-	PCC() : start_measurement_(true), base_rate_(2 * kMinRateMbps), state_(START), monitor_in_start_phase_(-1), slow_start_factor_(1.5),
+	PCC() : start_measurement_(true), base_rate_(2 * kMinRateMbps), state_(START), monitor_in_start_phase_(-1), slow_start_factor_(2),
 			alpha_(kAlpha), beta_(kBeta), exponent_(kExponent), poly_utlity_(kPolyUtility), rate_(2 * kMinRateMbps), monitor_in_prog_(-1), utility_sum_(0), measurement_intervals_(0), prev_utility_(-10000000), continue_slow_start_(true), last_utility_(0), on_next_start_bind_to_end_(-1), hibernate_(false) {
 		m_dPktSndPeriod = 10000;
 		m_dCWndSize = 100000.0;
@@ -544,7 +545,7 @@ private:
 
 		long double loss_rate = (long double)((double) loss/(double) total);
 		long double loss_contribution = alpha_ * (total * (pow((1+loss_rate), exponent_)-1) - loss);
-		long double rtt_contribution = 3 * total*(pow(rtt_penalty,1.6) - 1);
+		long double rtt_contribution = 3 * total*(pow(rtt_penalty,1.7) - 1);
 		long double utility = ((long double)total - loss_contribution - rtt_contribution)/time;
 
 		if (out_measurement != NULL) {

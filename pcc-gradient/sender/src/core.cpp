@@ -139,9 +139,10 @@ CUDT::CUDT()
 	remove( "/home/yossi/timeout_times.txt" );
 	for (int i = 0; i < 100; i++) {
 		state[i] = 0;
-		last_ack_[i] = 0;
-		last_rtt_ts_[i] = 0;
 	}
+	last_ack_ = CTimer::getTime();
+	last_rtt_ts_ = 0;
+
 	hibernate_timestamp_ = CTimer::getTime();
 }
 
@@ -200,9 +201,10 @@ CUDT::CUDT(const CUDT& ancestor)
 	remove( "/home/yossi/timeout_times.txt" ); 
 	for (int i = 0; i < 100; i++) {
 		state[i] = 0;
-		last_ack_[i] = 0;
-		last_rtt_ts_[i] = 0;
 	}
+	last_ack_ = CTimer::getTime();
+	last_rtt_ts_ = 0;
+
 	hibernate_timestamp_ = CTimer::getTime();
 }
 
@@ -2403,9 +2405,17 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 		uint64_t rtt = int(CTimer::getTime() - m_StartTime) - send_timestamp[Mon][tsn_payload[last_position]&0xFFFF];
 		rtt_value[Mon]+= rtt;
 		//rtts_[Mon].push_back(int(CTimer::getTime() - m_StartTime) - send_timestamp[Mon][tsn_payload[last_position]&0xFFFF]);
-		rtts_[Mon].push_back(int(CTimer::getTime() - last_ack_[Mon]));
-		last_ack_[Mon] = CTimer::getTime();
-		last_rtt_ts_[Mon] = rtt;
+		rtts_[Mon].push_back(rtt);
+		last_ack_ = CTimer::getTime();
+		last_rtt_ts_ = rtt;
+
+		static uint64_t last_recieve_time = CTimer::getTime();
+		//double hibernation_thresh = 2. * 1500. * 8. / (1024. * 1024. * rtt_sec);
+		if (CTimer::getTime() - last_recieve_time < 800000){
+			m_pCC->exit_hibernate();
+		}
+		last_recieve_time = CTimer::getTime();
+
 		if(latency_time_start[Mon] == 0){
 			latency_time_start[Mon]=ctrlpkt.m_iTimeStamp;
 			latency_seq_start[Mon] = tsn_payload[last_position] & 0xFFFF;
@@ -2427,6 +2437,7 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
             if (SeqNoInMonitor == total[monitorNo] -1) {
                 includeThisMonitor = true;
             }
+			
 			//pkt_sending[monitorNo][SeqNoInMonitor] = ctrlpkt.m_iTimeStamp;
 			//cout<<pkt_sending[monitorNo][SeqNoInMonitor]<<endl;
 
@@ -2491,8 +2502,11 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 						}
 						*/
 						m_pCC->onMonitorEnds(total[tmp],total[tmp]-left[tmp],(end_transmission_time[tmp]-start_time[tmp])/1000000,current_monitor,tmp, rtt);
+						//double rtt_sec = m_iRTT / (1000. * 1000.);
+
 						m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
 						if (!left_monitor) break;
+
 					}
 					tmp = (tmp+99)%100;
 				}
@@ -3118,8 +3132,6 @@ void CUDT::start_monitor(int length)
 
 	//ygi: hack here!
 	rtts_[current_monitor].clear();
-	last_ack_[current_monitor] = 0;
-	last_rtt_ts_[current_monitor] = 0;
 	m_pCC->onMonitorStart(current_monitor);
 	m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
     time_interval[current_monitor] = m_pCC->m_dPktSndPeriod;
@@ -3256,12 +3268,46 @@ void CUDT::timeout_monitors() {
 	uint64_t current_time = CTimer::getTime();
 	int tmp = (current_monitor + 1) % 100;
 
-	double rtt_sec = m_iRTT / (1000. * 1000.);
-	double hibernation_thresh = 2. * 1500. * 8. / (1024. * 1024. * rtt_sec);
-	
+	//double rtt_sec = m_iRTT / (1000. * 1000.);
+	//double hibernation_thresh = 2. * 1500. * 8. / (1024. * 1024. * rtt_sec);
+	if (int(CTimer::getTime() - last_ack_) + last_rtt_ts_ > 1000000) {
+		cout << "In this monitor the signal delay is " << int(CTimer::getTime() - last_ack_) + last_rtt_ts_ << endl;
+		m_pCC->enter_hibernate();
+
+		loss_record1.clear();
+		loss_record2.clear();
+		for (unsigned int mon_index = 0; mon_index < 100; mon_index++) {
+			state[mon_index] = 3;
+			total[mon_index] = 0;
+			lost[mon_index] = 0;
+			retransmission[mon_index] = 0;
+			new_transmission[mon_index] = 0;
+			latency[mon_index] = 0;
+			latency_seq_end[mon_index] = 0;
+			latency_time_start[mon_index] = 0;
+			latency_time_end[mon_index] = 0;
+			time_interval[mon_index] = 0;
+			rtt_count[mon_index] = 0;
+			rtt_value[mon_index] = 0;
+			deadlines[mon_index] = 0;
+			allocated_times_[mon_index] = 0;
+			m_last_rtt.clear();
+			rtts_[mon_index].clear();
+		}
+		last_ack_ = CTimer::getTime();
+		last_rtt_ts_ = 0;
+		
+		monitor = true;
+		left_monitor = 0;
+		m_monitor_count = 0;
+		start_monitor(0);
+		return;
+	}
 	while (tmp != current_monitor) {
 		if ((state[tmp]==1) || (state[tmp]==2)) {
+			
 			if((deadlines[tmp] < current_time) && (allocated_times_[tmp] > 0)) {
+				
 				int count=0;
 				hibernate_timestamp_ = CTimer::getTime();
 				m_monitor_count = 0;
@@ -3281,7 +3327,7 @@ void CUDT::timeout_monitors() {
 					continue;
 				}
 				//save_timeout_time();
-				
+								
 	            loss_record1.clear();
 	            loss_record2.clear();
 	            for (unsigned int mon_index = 0; mon_index < 100; mon_index++) {
@@ -3301,9 +3347,9 @@ void CUDT::timeout_monitors() {
 	            	allocated_times_[mon_index] = 0;
 					m_last_rtt.clear();
 					rtts_[mon_index].clear();
-					last_ack_[mon_index] = 0;
-					last_rtt_ts_[mon_index] = 0;
 	            }
+				last_ack_ = CTimer::getTime();
+				last_rtt_ts_ = 0;
 				
 	            monitor = true;
 	            left_monitor = 0;
@@ -3314,39 +3360,6 @@ void CUDT::timeout_monitors() {
 		}
 		tmp = (tmp + 1) % 100;
 	}
-	
-	if (hibernation_thresh > m_pCC->kMinRateMbpsSlowStart){
-		m_pCC->exit_hibernate();
-	} else if (hibernation_thresh < m_pCC->kHibernationRate){		
-		m_pCC->enter_hibernate();
-
-		loss_record1.clear();
-		loss_record2.clear();
-		for (int mon_index = 0; mon_index < 100; mon_index++) {
-			state[mon_index] = 3;
-			total[mon_index] = 0;
-			lost[mon_index] = 0;
-			retransmission[mon_index] = 0;
-			new_transmission[mon_index] = 0;
-			latency[mon_index] = 0;
-			latency_seq_end[mon_index] = 0;
-			latency_time_start[mon_index] = 0;
-			latency_time_end[mon_index] = 0;
-			time_interval[mon_index] = 0;
-			rtt_count[mon_index] = 0;
-			rtt_value[mon_index] = 0;
-			deadlines[mon_index] = 0;
-			allocated_times_[mon_index] = 0;
-			m_last_rtt.clear();
-			rtts_[mon_index].clear();
-			last_ack_[mon_index] = 0;
-			last_rtt_ts_[mon_index] = 0;
-		}
-		monitor = true;
-		left_monitor = 0;
-		m_monitor_count = 0;
-		start_monitor(0);
-	}	
 }
 
 void CUDT::save_timeout_time() {

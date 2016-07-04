@@ -25,11 +25,11 @@ protected:
 		else if ((prev_change_ < 0) && (prev_change_ > -2 * kMinRateMbps) && (base_rate_ < 5 * kMinRateMbps)) prev_change_ = -2 * kMinRateMbps;
 		*/
 		
-		if ((prev_change_ >= 0) && (prev_change_ < 0.03 * base_rate_)) prev_change_ = 0.03 * base_rate_;
-		if ((prev_change_ < 0) && (prev_change_ > -0.03 * base_rate_)) prev_change_ = -0.03 * base_rate_;
+		if ((prev_change_ >= 0) && (prev_change_ < 0.005 * base_rate_)) prev_change_ = 0.005 * base_rate_;
+		if ((prev_change_ < 0) && (prev_change_ > -0.005 * base_rate_)) prev_change_ = -0.005 * base_rate_;
 		
-		if ((prev_change_ >= 0) && (prev_change_ > 0.3 * base_rate_)) prev_change_ = 0.3 * base_rate_;
-		if ((prev_change_ < 0) && (prev_change_ < -0.3 * base_rate_)) prev_change_ = -0.3 * base_rate_;
+		if ((prev_change_ >= 0) && (prev_change_ > 0.15 * base_rate_)) prev_change_ = 0.15 * base_rate_;
+		if ((prev_change_ < 0) && (prev_change_ < -0.15 * base_rate_)) prev_change_ = -0.15 * base_rate_;
 
 	} 
 	

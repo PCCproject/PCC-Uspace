@@ -309,8 +309,8 @@ private: // monitor
    uint64_t send_timestamp[100][30000];
    int rtt_count[100];
    uint64_t rtt_value[100];
-   uint64_t last_ack_[100];
-   uint64_t last_rtt_ts_[100];
+   uint64_t last_ack_;
+   uint64_t last_rtt_ts_;
    uint64_t hibernate_timestamp_;
    bool monitor;
    int test;

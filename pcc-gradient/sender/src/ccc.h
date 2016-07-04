@@ -147,8 +147,8 @@ public:
 	virtual void exit_hibernate() {cout << "++++++++++++++++++++++legacy Exit hibernate" << endl; }
 	virtual bool hibernate() { return false; }
 
-	static constexpr double kHibernationRate = 0.05;
-	static constexpr double kMinRateMbpsSlowStart = 0.3;
+	static constexpr double kHibernationRate = 0.1;
+	static constexpr double kMinRateMbpsSlowStart = 0.2;
    
    mutable std::recursive_mutex data_lock_;
 protected:
