@@ -39,14 +39,14 @@ protected:
 	virtual void do_last_change() {
 
 		ensure_min_change();
-		cout << "Gradient: changing rate: " << rate() << " --> ";
+		cout << "Gradient: Applying change " << prev_change_ << " changing rate: " << base_rate_ << " --> ";
 		base_rate_ += prev_change_;
 
 		if (base_rate_ < kMinRateMbps * (1 + delta_for_base_rate())) {
 			base_rate_ = kMinRateMbps * (1 + delta_for_base_rate());
 		}
 		setRate(base_rate_);
-		cout << rate() << endl;
+		cout << base_rate_ << endl;
 	}
 	
 	virtual void decide(long double start_utility, long double end_utility, bool timeout) {

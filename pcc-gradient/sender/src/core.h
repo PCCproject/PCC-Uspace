@@ -441,6 +441,7 @@ private: // synchronization: mutexes and conditions
    double get_min_rtt() const;
    double get_rtt_sd() const;
    double get_avg_rtt() const;
+   void adjustMSS();
    uint64_t calc_95_delay(int mon);
 
 private: // Generation and processing of packets

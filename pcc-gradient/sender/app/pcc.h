@@ -78,13 +78,14 @@ public:
 		hibernate_ = true;
 		pre_hibernate_rate_ = rate_;
 		rate_ = kHibernationRate;
+		//m_iMSS = 100;
 		m_dPktSndPeriod = (m_iMSS * 8.0) / rate_;
 	}
 	virtual void exit_hibernate() {
 		if (!hibernate_) return;
 		cout << "Exit hibernate!" <<endl;
 		hibernate_ = false;
-		go_to_slow_start();
+		go_to_slow_start(false);
 		//rate_ = pre_hibernate_rate_;
 		//m_dPktSndPeriod = (m_iMSS * 8.0) / rate_;
 	}
@@ -100,7 +101,6 @@ public:
 	virtual void onLoss(const int32_t*, const int&) {}
 	virtual bool onTimeout(int total, int loss, double in_time, int current, int endMonitor, double rtt){
 		lock_guard<mutex> lck(monitor_mutex_);
-		
 		if (hibernate_) return false;
 		
 		cout << "timeout called" <<endl;
@@ -121,21 +121,13 @@ public:
 			state_ = SEARCH;
 			return false;			
 		}
-
-		/*
-		cout << "handling timeout: ";
-		
-		cout << "In timeout! " << endMonitor<< endl;
-		go_to_slow_start();
-		return false;
-		*/
 		
 		// decrease rate not by funciton
 		clear_pending_search();
 		ongoing_slow_start_monitors_.clear();
 		cout << "Rate " << rate() << " --> ";
-		base_rate_ = 0.75 * rate();
-		setRate(0.75 * rate());
+		base_rate_ = 0.5 * rate();
+		setRate(0.5 * rate());
 		cout << rate() << endl;
 		return false; 
 		
@@ -157,7 +149,7 @@ public:
 		return true;
 	}
 	
-	virtual void go_to_slow_start() {
+	virtual void go_to_slow_start(bool keep_rate) {
 		state_ = START;
 		slow_start_factor_ = 2;
 		continue_slow_start_ = true;
@@ -170,8 +162,10 @@ public:
 		ongoing_slow_start_monitors_.clear();
 		best_slow_start_rate_ = kMinRateMbpsSlowStart;
 
-		base_rate_ = kMinRateMbpsSlowStart;
-		setRate(base_rate_);
+		if (!keep_rate) {
+			base_rate_ = kMinRateMbpsSlowStart;
+			setRate(base_rate_);
+		}
 		
 		cout << "going to slow start: rate = "<< rate_ << "mbps" << endl; 
 		
@@ -196,7 +190,7 @@ public:
 		if (hibernate_) return;
 		//cout << "starting monitor " << current_monitor << " STATE = " << state_ << endl;
 		if (state_ == START) {
-			if (rate() * slow_start_factor_ < 8) {
+			if (rate() * slow_start_factor_ < 8){
 				//cout << "in slow start, rate = " << rate() << endl;	
 				setRate(rate() * slow_start_factor_);
 				ongoing_slow_start_monitors_.insert(pair<int,double> (current_monitor, rate()));
@@ -377,6 +371,7 @@ public:
 		kPolyUtility = polyUtility;
 	}
 
+	double rate() const { return rate_; }
 protected:
 
 	static double kAlpha, kBeta, kExponent;
@@ -386,7 +381,7 @@ protected:
     int search_monitor_number[2];
     bool start_measurement_;
 	double base_rate_;
-	static constexpr double kMinRateMbps = 3;
+	static constexpr double kMinRateMbps = 0.5;
 	static constexpr double kMaxRateMbps = 1024.0;
 
 	enum ConnectionState {
@@ -407,8 +402,8 @@ protected:
 
 	}
 	
-	PCC() : start_measurement_(true), base_rate_(2 * kMinRateMbps), state_(START), monitor_in_start_phase_(-1), slow_start_factor_(2),
-			alpha_(kAlpha), beta_(kBeta), exponent_(kExponent), poly_utlity_(kPolyUtility), rate_(2 * kMinRateMbps), monitor_in_prog_(-1), utility_sum_(0), measurement_intervals_(0), prev_utility_(-10000000), continue_slow_start_(true), last_utility_(0), on_next_start_bind_to_end_(-1), hibernate_(false) {
+	PCC() : start_measurement_(true), base_rate_(kMinRateMbpsSlowStart), state_(START), monitor_in_start_phase_(-1), slow_start_factor_(2),
+			alpha_(kAlpha), beta_(kBeta), exponent_(kExponent), poly_utlity_(kPolyUtility), rate_(kMinRateMbpsSlowStart), monitor_in_prog_(-1), utility_sum_(0), measurement_intervals_(0), prev_utility_(-10000000), continue_slow_start_(true), last_utility_(0), on_next_start_bind_to_end_(-1), hibernate_(false) {
 		m_dPktSndPeriod = 10000;
 		m_dCWndSize = 100000.0;
 		setRTO(100000000);
@@ -425,15 +420,19 @@ protected:
 		}
 		*/
 	}
-
+	
 	virtual void setRate(double mbps) {
 		if (state_ == START) {
 			if (mbps < kMinRateMbpsSlowStart){
 				cout << "rate is mimimal at slow start, changing to " << kMinRateMbpsSlowStart << " instead" << endl;
 				mbps = kMinRateMbpsSlowStart;
 			}
-		} else if (mbps < 0.9 * kMinRateMbps){
-			go_to_slow_start();
+		} else if (mbps < kMinRateMbps){
+			rate_ = mbps;
+			m_dPktSndPeriod = (m_iMSS * 8.0) / mbps;
+			cout << "Keeping rate at " << mbps << endl;
+			go_to_slow_start(true);
+			return;
 		}
 
 		if (mbps > kMaxRateMbps) {
@@ -443,8 +442,6 @@ protected:
 		rate_ = mbps;
 		m_dPktSndPeriod = (m_iMSS * 8.0) / mbps;
 	}
-
-	double rate() const { return rate_; }
 
 private:
 
