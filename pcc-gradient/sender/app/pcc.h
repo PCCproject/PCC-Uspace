@@ -66,7 +66,6 @@ public:
 	virtual void enter_hibernate() {
 		if (hibernate_) return;
 		
-		cout  << "hibernate? rate = "  << rate() << endl;
 		if (rate() > 2 * kMinRateMbpsSlowStart) {
 			base_rate_ = 0.5 * rate();
 			setRate(0.5 * rate());
@@ -74,18 +73,15 @@ public:
 			return;
 		}
 		
-		cout << "Enter hibernate!" <<endl;
 		hibernate_ = true;
 		pre_hibernate_rate_ = rate_;
 		rate_ = kHibernationRate;
-		//m_iMSS = 100;
 		m_dPktSndPeriod = (m_iMSS * 8.0) / rate_;
 	}
 	virtual void exit_hibernate() {
 		if (!hibernate_) return;
-		cout << "Exit hibernate!" <<endl;
 		hibernate_ = false;
-		go_to_slow_start(false);
+		go_to_slow_start();
 		//rate_ = pre_hibernate_rate_;
 		//m_dPktSndPeriod = (m_iMSS * 8.0) / rate_;
 	}
@@ -101,34 +97,33 @@ public:
 	virtual void onLoss(const int32_t*, const int&) {}
 	virtual bool onTimeout(int total, int loss, double in_time, int current, int endMonitor, double rtt){
 		lock_guard<mutex> lck(monitor_mutex_);
+		
 		if (hibernate_) return false;
 		
-		cout << "timeout called" <<endl;
 		if (state_ == SEARCH) {
 			if (start_measurment_map_.find(endMonitor) == start_measurment_map_.end() && end_measurment_map_.find(endMonitor) == end_measurment_map_.end()) {
-				cout << "IN SEARCH: monitor " << endMonitor << " already gone!" << endl;
 				return true;
 			} 
 		} else if (ongoing_slow_start_monitors_.find(endMonitor) == ongoing_slow_start_monitors_.end()) {
-			cout << "IN START: monitor " << endMonitor << " already gone!" << endl;
 			return true;
 		} else {
-			cout << "in timeout: quitting slow start" << endl;
 			prev_utility_ = -10000000;
 			base_rate_ = best_slow_start_rate_;
 			setRate(best_slow_start_rate_);
-			//cout << "exit slow start, rate = " << best_slow_start_rate_ << endl;
 			state_ = SEARCH;
 			return false;			
 		}
+
+		/*
+		go_to_slow_start();
+		return false;
+		*/
 		
 		// decrease rate not by funciton
 		clear_pending_search();
 		ongoing_slow_start_monitors_.clear();
-		cout << "Rate " << rate() << " --> ";
-		base_rate_ = 0.5 * rate();
-		setRate(0.5 * rate());
-		cout << rate() << endl;
+		base_rate_ = 0.75 * rate();
+		setRate(0.75 * rate());
 		return false; 
 		
 		Measurement* this_measurement = get_monitor_measurement(endMonitor);
@@ -136,20 +131,15 @@ public:
 			return true;
 		}
 		
-		cout << "loss rate for interval " << endMonitor << ": " <<  ((double) loss) / total << endl;
-		cout << "total = " << total << " loss = " << loss << endl;
 		long double curr_utility = utility(total, loss - 1, 100000, 100000, NULL);
-		double r = rate();
 		if (update_on_search(endMonitor, curr_utility, rtt, loss, this_measurement, TIMEOUT)) {
-			cout << "we updated" <<endl;
 			//clear_pending_search();
-			cout << "changed: " << r << " --> " << rate() << endl;
 			return false;
 		}
 		return true;
 	}
 	
-	virtual void go_to_slow_start(bool keep_rate) {
+	virtual void go_to_slow_start() {
 		state_ = START;
 		slow_start_factor_ = 2;
 		continue_slow_start_ = true;
@@ -162,13 +152,8 @@ public:
 		ongoing_slow_start_monitors_.clear();
 		best_slow_start_rate_ = kMinRateMbpsSlowStart;
 
-		if (!keep_rate) {
-			base_rate_ = kMinRateMbpsSlowStart;
-			setRate(base_rate_);
-		}
-		
-		cout << "going to slow start: rate = "<< rate_ << "mbps" << endl; 
-		
+		base_rate_ = kMinRateMbpsSlowStart;
+		setRate(base_rate_);
 	}
 	
 	virtual void onACK(const int& ack){}
@@ -188,14 +173,11 @@ public:
 	virtual void onMonitorStart(int current_monitor) {
 		lock_guard<mutex> lck(monitor_mutex_);
 		if (hibernate_) return;
-		//cout << "starting monitor " << current_monitor << " STATE = " << state_ << endl;
 		if (state_ == START) {
-			if (rate() * slow_start_factor_ < 8){
-				//cout << "in slow start, rate = " << rate() << endl;	
+			//if (rate() * slow_start_factor_ < 10) {
 				setRate(rate() * slow_start_factor_);
 				ongoing_slow_start_monitors_.insert(pair<int,double> (current_monitor, rate()));
-				//cout << "doubling the rate --> " << rate() << endl;
-			}
+			//}
 			if (ongoing_slow_start_monitors_.size() == 0) {
 				prev_utility_ = -10000000;
 				base_rate_ = best_slow_start_rate_;
@@ -205,7 +187,6 @@ public:
 			}
 		} 
 		if (state_ == SEARCH) {
-			//cout << "start_measurement_ " << start_measurement_ << endl;
 			if (start_measurement_) {
 				if (start_measurment_map_.find(current_monitor) == start_measurment_map_.end()) {
 					start_measurment_map_.insert(pair<int,shared_ptr<Measurement> >(current_monitor, shared_ptr<Measurement>(new Measurement(base_rate_, on_next_start_bind_to_end_, rate(), FIRST, current_monitor))));
@@ -214,7 +195,6 @@ public:
 					// there was already a pending end to this measurement.
 					if (on_next_start_bind_to_end_ >= 0) {
 						start_measurement_ = false;
-						//cout  << "special case: bind to end" <<endl;
 						on_next_start_bind_to_end_ = -1;
 					}
 				}
@@ -226,7 +206,6 @@ public:
 					}
 				} else {
 					clear_pending_search();
-					//cout  << "error" << endl;
 					return;
 				}
 			}
@@ -270,14 +249,12 @@ public:
 				if (!continue_slow_start) {
 					base_rate_ = best_slow_start_rate_;
 					setRate(best_slow_start_rate_);
-					cout << "exit slow start, best rate = " << best_slow_start_rate_ << endl;
 					state_ = SEARCH;
 					ongoing_slow_start_monitors_.clear();
 					
 				} else {
 					prev_utility_ = curr_utility;
 					best_slow_start_rate_ = ongoing_slow_start_monitors_.at(endMonitor);
-					cout << "continue slow start, best rate = " << best_slow_start_rate_ << endl;
 				}
 				ongoing_slow_start_monitors_.erase(endMonitor);
 			}
@@ -300,7 +277,6 @@ public:
 			end_measurment_map_.at(endMonitor)->loss_ = loss;
 			end_measurment_map_.at(endMonitor)->context_ = context;
 		} else {
-			cout << "didn't find monitor " << endMonitor << endl;
 			return false;
 		}
 
@@ -371,7 +347,6 @@ public:
 		kPolyUtility = polyUtility;
 	}
 
-	double rate() const { return rate_; }
 protected:
 
 	static double kAlpha, kBeta, kExponent;
@@ -381,7 +356,7 @@ protected:
     int search_monitor_number[2];
     bool start_measurement_;
 	double base_rate_;
-	static constexpr double kMinRateMbps = 0.3;
+	static constexpr double kMinRateMbps = 1;
 	static constexpr double kMaxRateMbps = 1024.0;
 
 	enum ConnectionState {
@@ -395,21 +370,19 @@ protected:
 	virtual void decide(long double start_utility, long double end_utility, bool force_change) = 0;
 
 	virtual void clear_pending_search() {
-		//cout << "clear pending! " <<endl;
 		start_measurment_map_.clear();
 		end_measurment_map_.clear();
 		start_measurement_ = true;
 
 	}
 	
-	PCC() : start_measurement_(true), base_rate_(kMinRateMbpsSlowStart), state_(START), monitor_in_start_phase_(-1), slow_start_factor_(2),
-			alpha_(kAlpha), beta_(kBeta), exponent_(kExponent), poly_utlity_(kPolyUtility), rate_(kMinRateMbpsSlowStart), monitor_in_prog_(-1), utility_sum_(0), measurement_intervals_(0), prev_utility_(-10000000), continue_slow_start_(true), last_utility_(0), on_next_start_bind_to_end_(-1), hibernate_(false) {
+	PCC() : start_measurement_(true), base_rate_(2 * kMinRateMbps), state_(START), monitor_in_start_phase_(-1), slow_start_factor_(2),
+			alpha_(kAlpha), beta_(kBeta), exponent_(kExponent), poly_utlity_(kPolyUtility), rate_(2 * kMinRateMbps), monitor_in_prog_(-1), utility_sum_(0), measurement_intervals_(0), prev_utility_(-10000000), continue_slow_start_(true), last_utility_(0), on_next_start_bind_to_end_(-1), hibernate_(false) {
 		m_dPktSndPeriod = 10000;
 		m_dCWndSize = 100000.0;
 		setRTO(100000000);
 		srand(time(NULL));
 		best_slow_start_rate_ = kMinRateMbpsSlowStart;
-		cout << "new Code - Master!!!" << endl;
 		cout << "configuration: alpha = " << alpha_ << ", beta = " << beta_   << ", exponent = " << exponent_ << " poly utility = " << poly_utlity_ << endl;
 
 		/*
@@ -420,29 +393,24 @@ protected:
 		}
 		*/
 	}
-	
+
 	virtual void setRate(double mbps) {
 		if (state_ == START) {
 			if (mbps < kMinRateMbpsSlowStart){
-				cout << "rate is mimimal at slow start, changing to " << kMinRateMbpsSlowStart << " instead" << endl;
 				mbps = kMinRateMbpsSlowStart;
 			}
-		} else if (mbps < kMinRateMbps){
-			rate_ = mbps;
-			m_dPktSndPeriod = (m_iMSS * 8.0) / mbps;
-			cout << "Keeping rate at " << mbps << endl;
-			go_to_slow_start(true);
-			return;
+		} else if (mbps < 0.9 * kMinRateMbps){
+			go_to_slow_start();
 		}
 
 		if (mbps > kMaxRateMbps) {
 			mbps = kMaxRateMbps;
-			cout << "rate is maximal, changing to " << kMaxRateMbps << " instead" << endl;
 		}
-		//cout << "+++Rate is " << rate() << endl;
 		rate_ = mbps;
 		m_dPktSndPeriod = (m_iMSS * 8.0) / mbps;
 	}
+
+	double rate() const { return rate_; }
 
 private:
 
@@ -488,7 +456,6 @@ private:
 		
 		//return true;
 		if (end->test_rate_ < start->test_rate_) {
-			//cout << "swapping. Rates: " << start->test_rate_ << ", " << end->test_rate_ << endl;
 			Measurement* swap_temp = start;
 			start = end;
 			end = swap_temp;
@@ -496,26 +463,22 @@ private:
 
 		/*
 		if (start->context_ == TIMEOUT) && (end->context_ != TIMEOUT){
-			cout << "failed on context" << endl;
 			return false;
 		}
 		*/
 		
 		if (start->rtt_panelty_ > 1.6 * end->rtt_panelty_) {
-			//cout << "failed on rtt: " << start->rtt_panelty_ << "," << end->rtt_panelty_ << endl;
 			failed_count++;
 			return false;
 		}
 
 		if (end->rtt_panelty_ > 1.6 * start->rtt_panelty_) {
-			//cout << "failed on rtt: " << start->rtt_panelty_ << "," << end->rtt_panelty_ << endl;
 			failed_count++;
 			return false;
 		}
 		
 		/*
 		if (start->loss_panelty_ > end->loss_panelty_) {
-			cout << "failed on loss. Start = " << start->loss_panelty_ << ". End = " << end->loss_panelty_ << endl;
 			return false;
 		}
 		*/
@@ -528,11 +491,11 @@ private:
 		double rtt_penalty = rtt / get_min_rtt(rtt);
 		//if (rtt_penalty > 2) rtt_penalty  = 2;
 		//if (rtt_penalty < -2) rtt_penalty  = -2;
-		exponent_ = 2.5;
+		exponent_ = 3;
 
 		long double loss_rate = (long double)((double) loss/(double) total);
 		long double loss_contribution = alpha_ * (total * (pow((1+loss_rate), exponent_)-1) - loss);
-		long double rtt_contribution = 3.5 * total*(pow(rtt_penalty,1.6) - 1);
+		long double rtt_contribution = 3 * total*(pow(rtt_penalty,1.5) - 1);
 		long double utility = ((long double)total - loss_contribution - rtt_contribution)/time;
 
 		if (out_measurement != NULL) {
@@ -540,8 +503,6 @@ private:
 			out_measurement->rtt_panelty_ = rtt;//rtt_contribution / time;
 			out_measurement->actual_packets_sent_rate_ = total / time;
 		}
-		//cout << ". rtt_contribution: " << rtt_contribution << endl;
-		//cout << "utility at rate: " << total / time << " " << utility << endl; 
 		return utility;
 	}
 
@@ -564,7 +525,7 @@ private:
 	int current_start_monitor_;
 	long double last_utility_;
 	deque<double> rtt_history_;
-	static constexpr size_t kHistorySize = 4;
+	static constexpr size_t kHistorySize = 10;
 	mutex monitor_mutex_;
 	int on_next_start_bind_to_end_;
 	bool hibernate_;

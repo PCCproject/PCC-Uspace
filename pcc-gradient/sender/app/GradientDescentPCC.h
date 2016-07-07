@@ -23,13 +23,12 @@ protected:
 		if ((prev_change_ >= 0) && (prev_change_ < 0.005 * base_rate_)) prev_change_ = 0.005 * base_rate_;
 		if ((prev_change_ < 0) && (prev_change_ > -0.005 * base_rate_)) prev_change_ = -0.005 * base_rate_;
 		
-		if ((prev_change_ >= 0) && (prev_change_ > 0.15 * base_rate_)) prev_change_ = 0.15 * base_rate_;
-		if ((prev_change_ < 0) && (prev_change_ < -0.15 * base_rate_)) prev_change_ = -0.15 * base_rate_;
+		if ((prev_change_ >= 0) && (prev_change_ > 0.1 * base_rate_)) prev_change_ = 0.1 * base_rate_;
+		if ((prev_change_ < 0) && (prev_change_ < -0.1 * base_rate_)) prev_change_ = -0.1 * base_rate_;
 
 	} 
 	
 	virtual double delta_for_base_rate() {
-		return 0.05;
 		if (base_rate_ < 1) return 0.25;
 		else if (base_rate_ < 2) return 0.2;
 		else if (base_rate_ < 3) return 0.15; 
@@ -40,16 +39,13 @@ protected:
 	virtual void do_last_change() {
 
 		ensure_min_change();
-		cout << "Gradient: Applying change " << prev_change_ << " changing rate: " << base_rate_ << " --> ";
 		base_rate_ += prev_change_;
-
-		if (kMinRateMbps > base_rate_ * (1 - delta_for_base_rate())) {
-			cout << "Going to slow rate!" << endl;
-			go_to_slow_start(false);
-		} else {
-			setRate(base_rate_);
-		} 
-		cout << base_rate_ << endl;
+		//cout << "Gradient: " << prev_change_ << " new base rate:" << base_rate_ << endl;
+		if (base_rate_ * (1 - delta_for_base_rate()) < kMinRateMbps) {
+			go_to_slow_start();
+			//base_rate_ = kMinRateMbps * (1 + delta_for_base_rate());
+		}
+		setRate(base_rate_);
 	}
 	
 	virtual void decide(long double start_utility, long double end_utility, bool timeout) {
@@ -67,7 +63,9 @@ protected:
 		if (change * prev_change_ >= 0) decision_count_++;
 		else decision_count_ = 0;
 		
-		prev_change_ = change * (pow(decision_count_, 1.5) + 1);				
+		decision_count_ = min<int>(decision_count_, 10);
+		
+		prev_change_ = change * (pow(decision_count_, 2) + 1);				
 		do_last_change();
 		clear_pending_search();
 		kRobustness = min<int>(1 + 3 / base_rate_, 2);
@@ -76,10 +74,10 @@ protected:
 private:
 
 	double epsilon() const{
-		if (base_rate_ < 1) return 2;
+		if (base_rate_ < 1) return 1;
 		
 		// provide fairness: the lower the rate, the stronger the step.
-		return max<double>(0.01, 2/base_rate_);
+		return 0.5 * min<double>(0.05, base_rate_ / 100);//1/base_rate_
 	}
 
 	double avg_gradient() const {
@@ -88,7 +86,6 @@ private:
 		for (int i = 0; i < kRobustness; i++) {
 			base += 99;
 			sum += prev_gradiants_[base % 100];
-			//cout << "gradient " << prev_gradiants_[base % 100] << " ";
 		}
 		return sum / kRobustness;
 	}
@@ -100,7 +97,6 @@ private:
 		if (start_measurement_) {
 			next_delta = delta_for_base_rate() * base_rate_;
 			setRate(base_rate_ - next_delta);
-			//cout << "guessing between: " << base_rate_ - next_delta << " and " << base_rate_ + next_delta << endl;
 		} else {
 			setRate(base_rate_ + next_delta);
 		}
