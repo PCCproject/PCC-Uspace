@@ -146,10 +146,9 @@ public:
    	virtual void enter_hibernate() { cout << "++++++++++++++++++++legacy Enter hibernate" << endl; }
 	virtual void exit_hibernate() {cout << "++++++++++++++++++++++legacy Exit hibernate" << endl; }
 	virtual bool hibernate() { return false; }
-	virtual double rate() const {cout << "OLDDDDDDDDDDDDDDDDDD" << endl; return 0;}
 
-	static constexpr double kHibernationRate = 0.05; 
-	static constexpr double kMinRateMbpsSlowStart = 0.05; 
+	static constexpr double kHibernationRate = 0.1;
+	static constexpr double kMinRateMbpsSlowStart = 0.5;
    
    mutable std::recursive_mutex data_lock_;
 protected:

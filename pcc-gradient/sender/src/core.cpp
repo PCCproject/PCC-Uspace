@@ -2411,7 +2411,7 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 
 		static uint64_t last_recieve_time = CTimer::getTime();
 		//double hibernation_thresh = 2. * 1500. * 8. / (1024. * 1024. * rtt_sec);
-		if (CTimer::getTime() - last_recieve_time < 800000){
+		if (CTimer::getTime() - last_recieve_time < 1000000){
 			m_pCC->exit_hibernate();
 		}
 		last_recieve_time = CTimer::getTime();
@@ -3120,24 +3120,6 @@ double CUDT::get_min_rtt() const {
 	return min;
 }
 
-void CUDT::adjustMSS() {
-	double rtt_seconds = m_iRTT / 1000000.;
-	double rate_bytes = m_pCC->rate() * 1024 * 1024 / 8;
-	int bdp = rate_bytes * rtt_seconds;
-	int new_mss = min<int>(1500,  bdp / 20);
-	new_mss = max<int>(new_mss, 100);
-	
-	if (m_iMSS == new_mss) return;
-	cout << "New MSS: " << new_mss << " BDP = " << bdp<< endl;
-	
-	m_iMSS = new_mss;
-	m_ConnReq.m_iMSS = m_iMSS;
-	m_iUDPRcvBufSize = m_iRcvBufSize * m_iMSS;
-	m_iPktSize = m_iMSS - 28;
-	m_pCC->setMSS(m_iMSS);
-	m_pCC->m_dPktSndPeriod = (m_iMSS * 8.0) / m_pCC->rate();
-}
-
 void CUDT::start_monitor(int length) 
 {
 	//cout << "start monitor!" << endl;
@@ -3149,7 +3131,6 @@ void CUDT::start_monitor(int length)
 	//int count = 0;
 
 	//ygi: hack here!
-	adjustMSS();
 	rtts_[current_monitor].clear();
 	m_pCC->onMonitorStart(current_monitor);
 	m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
@@ -3159,7 +3140,7 @@ void CUDT::start_monitor(int length)
 	//cout << "min RTT is " << get_min_rtt() << endl;
 	//cout << "Allocated time: slack = " << 4 * get_rtt_sd() << " last RTT = " << last_rtt_ << endl;
 	//cout << "the standard deviation is " << get_rtt_sd() << endl;
-	allocated_times_[current_monitor] = min<double>(get_min_rtt() + 5 * get_rtt_sd(), 1.5*get_min_rtt()); 
+	allocated_times_[current_monitor] = min<double>(1.1*get_min_rtt() + 5 * get_rtt_sd(), 2 * get_min_rtt());
 	//cout << "minrtt = " << get_min_rtt() << " deviation = " << get_rtt_sd() << ".  allocating " << allocated_times_[current_monitor] << endl;
 	//cout << "allocating: " << 10 * get_rtt_sd() / 1000. << "sec" <<endl;
 	if(allocated_times_[current_monitor]> 1000000) {
@@ -3179,12 +3160,10 @@ void CUDT::start_monitor(int length)
 		send_period = 300000;
 	}
 
-	//cout << "length should be: " << send_period/m_pCC->m_dPktSndPeriod << endl;
-	
 	if(send_period/m_pCC->m_dPktSndPeriod>30) {
 		length = send_period/m_pCC->m_dPktSndPeriod;
 	} else {
-		length=20;
+		length=30;
 		if (m_pCC->hibernate()) {
 			cout << "in hibernate! sending 1 monitor packet" <<endl;
 			cout << "*** I was supposed to send " << send_period/m_pCC->m_dPktSndPeriod << " packets. Since the RTT is " << m_iRTT << " and send period is " << send_period<< endl; 
@@ -3192,8 +3171,6 @@ void CUDT::start_monitor(int length)
 		}
 	}
 
-	//cout << "spanning send period over " << length * m_pCC->m_dPktSndPeriod / 1000000 << " sec" <<endl;
-	
 //#ifdef EXPERIMENTAL_FEATURE_CONTINOUS_SEND
 	//	length=50000/m_pCC->m_dPktSndPeriod;
 // length = 10;
@@ -3293,7 +3270,7 @@ void CUDT::timeout_monitors() {
 
 	//double rtt_sec = m_iRTT / (1000. * 1000.);
 	//double hibernation_thresh = 2. * 1500. * 8. / (1024. * 1024. * rtt_sec);
-	if (int(CTimer::getTime() - last_ack_) + last_rtt_ts_ > 400000) {
+	if (int(CTimer::getTime() - last_ack_) + last_rtt_ts_ > 1000000) {
 		cout << "In this monitor the signal delay is " << int(CTimer::getTime() - last_ack_) + last_rtt_ts_ << endl;
 		m_pCC->enter_hibernate();
 
