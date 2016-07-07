@@ -97,7 +97,6 @@ public:
 	virtual void onLoss(const int32_t*, const int&) {}
 	virtual bool onTimeout(int total, int loss, double in_time, int current, int endMonitor, double rtt){
 		lock_guard<mutex> lck(monitor_mutex_);
-		
 		if (hibernate_) return false;
 		
 		if (state_ == SEARCH) {
@@ -122,8 +121,8 @@ public:
 		// decrease rate not by funciton
 		clear_pending_search();
 		ongoing_slow_start_monitors_.clear();
-		base_rate_ = 0.75 * rate();
-		setRate(0.75 * rate());
+		base_rate_ = 0.5 * rate();
+		setRate(0.5 * rate());
 		return false; 
 		
 		Measurement* this_measurement = get_monitor_measurement(endMonitor);
@@ -495,7 +494,7 @@ private:
 		exponent_ = 3;
 
 		long double loss_rate = (long double)((double) loss/(double) total);
-		long double loss_contribution = alpha_ * (total * (pow((1+loss_rate), exponent_)-1) - loss);
+		long double loss_contribution = alpha_ * (total * (pow((1+loss_rate), exponent_)-1) - 2 * loss);
 		long double rtt_contribution = 3 * total*(pow(rtt_penalty,1.5) - 1);
 		long double utility = ((long double)total - loss_contribution - rtt_contribution)/time;
 
@@ -526,7 +525,7 @@ private:
 	int current_start_monitor_;
 	long double last_utility_;
 	deque<double> rtt_history_;
-	static constexpr size_t kHistorySize = 10;
+	static constexpr size_t kHistorySize = 4;
 	mutex monitor_mutex_;
 	int on_next_start_bind_to_end_;
 	bool hibernate_;

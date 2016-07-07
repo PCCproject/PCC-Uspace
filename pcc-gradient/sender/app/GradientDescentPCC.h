@@ -21,7 +21,7 @@ protected:
 		*/
 		//return false;
 		
-		/*
+		
 		if ((prev_change_ >= 0) && (prev_change_ < 0.005 * base_rate_)) {
 			prev_change_ = 0.005 * base_rate_;
 			return true;
@@ -30,25 +30,24 @@ protected:
 			prev_change_ = -0.005 * base_rate_;
 			return true;
 		}
-		*/
 		
-		if ((prev_change_ >= 0) && (prev_change_ > 0.15 * base_rate_)) {
-			prev_change_ = 0.15 * base_rate_;
+		
+		if ((prev_change_ >= 0) && (prev_change_ > 0.1 * base_rate_)) {
+			prev_change_ = 0.1 * base_rate_;
 			return true;
 		}
-		if ((prev_change_ < 0) && (prev_change_ < -0.15 * base_rate_)) {
-			prev_change_ = -0.15 * base_rate_;
+		if ((prev_change_ < 0) && (prev_change_ < -0.1 * base_rate_)) {
+			prev_change_ = -0.1 * base_rate_;
 			return true;
 		}
 		return false;
 	} 
 	
 	virtual double delta_for_base_rate() {
-		return 0.05;
-		if (base_rate_ < 1) return 0.25;
-		else if (base_rate_ < 2) return 0.2;
-		else if (base_rate_ < 3) return 0.15; 
-		else if (base_rate_ < 5) return 0.05;
+		if (base_rate_ < 1) return 0.3;
+		else if (base_rate_ < 2) return 0.25;
+		else if (base_rate_ < 3) return 0.2; 
+		else if (base_rate_ < 10) return 0.1;
 		else return 0.05;
 	}
 	
@@ -85,7 +84,6 @@ protected:
 		if (change * prev_change_ >= 0) decision_count_++;
 		else decision_count_ = 0;
 		
-		decision_count_ = min<int>(decision_count_, 10);
 		//cout << "multiplier: " << (pow(decision_count_, 2) + 1) * epsilon() << " Gradient " << gradient << endl;
 		prev_change_ = change * (pow(decision_count_, 2) + 1);				
 		do_last_change();
@@ -96,7 +94,12 @@ protected:
 private:
 
 	double epsilon() const{
-		return base_rate_ / 1000000;
+		if (base_rate_ > 20) return base_rate_ / 1000000;
+		else if (base_rate_ > 10) return 2 * base_rate_ / 1000000;
+		else return 10 * base_rate_ / 1000000;
+		//return 0.00002;
+		//return 1/10000.
+		
 		if (base_rate_ < 1) return 1;
 		
 		// provide fairness: the lower the rate, the stronger the step.
