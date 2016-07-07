@@ -12,23 +12,39 @@ protected:
 		guess();
 	}
 		
-	void ensure_min_change() {
+	bool ensure_min_change() {
 		/*
 		if ((prev_change_ >= 0) && (prev_change_ < kMinRateMbps / 2) && (base_rate_ < 3 * kMinRateMbps)) prev_change_ = kMinRateMbps / 2;
 		else if ((prev_change_ < 0) && (prev_change_ > -1 * kMinRateMbps / 2) && (base_rate_ < 3 * kMinRateMbps)) prev_change_ = -1 * kMinRateMbps / 2;
 		else if ((prev_change_ >= 0) && (prev_change_ < 2 * kMinRateMbps) && (base_rate_ < 5 * kMinRateMbps)) prev_change_ = 2 * kMinRateMbps;
 		else if ((prev_change_ < 0) && (prev_change_ > -2 * kMinRateMbps) && (base_rate_ < 5 * kMinRateMbps)) prev_change_ = -2 * kMinRateMbps;
 		*/
+		//return false;
 		
-		if ((prev_change_ >= 0) && (prev_change_ < 0.005 * base_rate_)) prev_change_ = 0.005 * base_rate_;
-		if ((prev_change_ < 0) && (prev_change_ > -0.005 * base_rate_)) prev_change_ = -0.005 * base_rate_;
+		/*
+		if ((prev_change_ >= 0) && (prev_change_ < 0.005 * base_rate_)) {
+			prev_change_ = 0.005 * base_rate_;
+			return true;
+		}
+		if ((prev_change_ < 0) && (prev_change_ > -0.005 * base_rate_)) {
+			prev_change_ = -0.005 * base_rate_;
+			return true;
+		}
+		*/
 		
-		if ((prev_change_ >= 0) && (prev_change_ > 0.1 * base_rate_)) prev_change_ = 0.1 * base_rate_;
-		if ((prev_change_ < 0) && (prev_change_ < -0.1 * base_rate_)) prev_change_ = -0.1 * base_rate_;
-
+		if ((prev_change_ >= 0) && (prev_change_ > 0.15 * base_rate_)) {
+			prev_change_ = 0.15 * base_rate_;
+			return true;
+		}
+		if ((prev_change_ < 0) && (prev_change_ < -0.15 * base_rate_)) {
+			prev_change_ = -0.15 * base_rate_;
+			return true;
+		}
+		return false;
 	} 
 	
 	virtual double delta_for_base_rate() {
+		return 0.05;
 		if (base_rate_ < 1) return 0.25;
 		else if (base_rate_ < 2) return 0.2;
 		else if (base_rate_ < 3) return 0.15; 
@@ -37,8 +53,14 @@ protected:
 	}
 	
 	virtual void do_last_change() {
-
-		ensure_min_change();
+		static int total = 0;
+		static int enforced = 0;
+		if (ensure_min_change()) {
+			enforced++;
+		}
+		total++;
+		
+		//if (total % 10 == 0) cout << "Enforced change: " << (double) enforced / total << endl;
 		base_rate_ += prev_change_;
 		//cout << "Gradient: " << prev_change_ << " new base rate:" << base_rate_ << endl;
 		if (base_rate_ * (1 - delta_for_base_rate()) < kMinRateMbps) {
@@ -64,7 +86,7 @@ protected:
 		else decision_count_ = 0;
 		
 		decision_count_ = min<int>(decision_count_, 10);
-		
+		//cout << "multiplier: " << (pow(decision_count_, 2) + 1) * epsilon() << " Gradient " << gradient << endl;
 		prev_change_ = change * (pow(decision_count_, 2) + 1);				
 		do_last_change();
 		clear_pending_search();
@@ -74,7 +96,7 @@ protected:
 private:
 
 	double epsilon() const{
-		return base_rate_ / 100;
+		return base_rate_ / 1000000;
 		if (base_rate_ < 1) return 1;
 		
 		// provide fairness: the lower the rate, the stronger the step.

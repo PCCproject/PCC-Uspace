@@ -447,6 +447,7 @@ private:
 	}
 
 	bool sanety_check(Measurement* start, Measurement* end) {
+		//return true;
 		static int failed_count = 0;
 		
 		if (failed_count == 10) {
