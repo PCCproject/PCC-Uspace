@@ -3254,7 +3254,7 @@ uint64_t CUDT::calc_95_delay(int mon) {
 	if (rtts_[mon].size() <= 1) return last_ret_;
 	//rtts_[mon].erase(rtts_[mon].begin());
 	sort(rtts_[mon].begin(), rtts_[mon].end());
-	int index = ceil<int>(0.95 * rtts_[mon].size());
+	int index = floor<int>(0.95 * rtts_[mon].size());
 	uint64_t ret = rtts_[mon].at(index);
 	last_ret_ = ret;
 	//ret = rtts_[mon].at(rtts_[mon].size() - 1);
