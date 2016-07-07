@@ -74,6 +74,7 @@ protected:
 private:
 
 	double epsilon() const{
+		return base_rate_ / 100;
 		if (base_rate_ < 1) return 1;
 		
 		// provide fairness: the lower the rate, the stronger the step.
