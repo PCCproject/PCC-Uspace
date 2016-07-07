@@ -381,7 +381,7 @@ protected:
     int search_monitor_number[2];
     bool start_measurement_;
 	double base_rate_;
-	static constexpr double kMinRateMbps = 0.5;
+	static constexpr double kMinRateMbps = 0.3;
 	static constexpr double kMaxRateMbps = 1024.0;
 
 	enum ConnectionState {
@@ -439,6 +439,7 @@ protected:
 			mbps = kMaxRateMbps;
 			cout << "rate is maximal, changing to " << kMaxRateMbps << " instead" << endl;
 		}
+		//cout << "+++Rate is " << rate() << endl;
 		rate_ = mbps;
 		m_dPktSndPeriod = (m_iMSS * 8.0) / mbps;
 	}

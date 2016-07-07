@@ -29,6 +29,7 @@ protected:
 	} 
 	
 	virtual double delta_for_base_rate() {
+		return 0.05;
 		if (base_rate_ < 1) return 0.25;
 		else if (base_rate_ < 2) return 0.2;
 		else if (base_rate_ < 3) return 0.15; 
@@ -42,10 +43,12 @@ protected:
 		cout << "Gradient: Applying change " << prev_change_ << " changing rate: " << base_rate_ << " --> ";
 		base_rate_ += prev_change_;
 
-		if (base_rate_ < kMinRateMbps * (1 + delta_for_base_rate())) {
-			base_rate_ = kMinRateMbps * (1 + delta_for_base_rate());
-		}
-		setRate(base_rate_);
+		if (kMinRateMbps > base_rate_ * (1 - delta_for_base_rate())) {
+			cout << "Going to slow rate!" << endl;
+			go_to_slow_start(false);
+		} else {
+			setRate(base_rate_);
+		} 
 		cout << base_rate_ << endl;
 	}
 	
@@ -64,7 +67,7 @@ protected:
 		if (change * prev_change_ >= 0) decision_count_++;
 		else decision_count_ = 0;
 		
-		prev_change_ = change * (pow(decision_count_, 2.5) + 1);				
+		prev_change_ = change * (pow(decision_count_, 1.5) + 1);				
 		do_last_change();
 		clear_pending_search();
 		kRobustness = min<int>(1 + 3 / base_rate_, 2);
