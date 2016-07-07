@@ -3159,7 +3159,7 @@ void CUDT::start_monitor(int length)
 	//cout << "min RTT is " << get_min_rtt() << endl;
 	//cout << "Allocated time: slack = " << 4 * get_rtt_sd() << " last RTT = " << last_rtt_ << endl;
 	//cout << "the standard deviation is " << get_rtt_sd() << endl;
-	allocated_times_[current_monitor] = 1.1*get_min_rtt() + 5 * get_rtt_sd(); 
+	allocated_times_[current_monitor] = min<double>(1.1*get_min_rtt() + 5 * get_rtt_sd(), 2*get_min_rtt()); 
 	//cout << "minrtt = " << get_min_rtt() << " deviation = " << get_rtt_sd() << ".  allocating " << allocated_times_[current_monitor] << endl;
 	//cout << "allocating: " << 10 * get_rtt_sd() / 1000. << "sec" <<endl;
 	if(allocated_times_[current_monitor]> 1000000) {
