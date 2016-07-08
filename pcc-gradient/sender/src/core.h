@@ -370,7 +370,7 @@ private: // Status
    int m_iRTT;                                  // RTT, in microseconds
    int last_rtt_;
    deque<double> m_last_rtt;
-   static const size_t kRTTHistorySize = 10;
+   static const size_t kRTTHistorySize = 2;
    //double m_last_rtt[100];
    int m_monitor_count;
    int m_iRTTVar;                               // RTT variance

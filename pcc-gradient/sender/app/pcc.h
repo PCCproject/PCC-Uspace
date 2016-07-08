@@ -97,9 +97,18 @@ public:
 	virtual void onLoss(const int32_t*, const int&) {}
 	virtual bool onTimeout(int total, int loss, double in_time, int current, int endMonitor, double rtt){
         cerr<<"Timeout happens!!"<<endl;
+        base_rate_ = base_rate_ / 2;
+        if (base_rate_ < kMinRateMbps + 0.25) {
         state_ = HIBERNATE;
         setRate(kHibernateRate, true);
         guess_measurement_bucket.clear();
+        return true; 
+        } else {
+        guess_measurement_bucket.clear();
+        state_ = SEARCH;
+        setRate(base_rate_);
+        return true;
+        }
         //ConnectionState old_state;
         //do {
         //    old_state = state_;
@@ -370,6 +379,9 @@ public:
                     break;
                     }
                     base_rate_ =kMinRateMbps / (1-kDelta) >base_line_rate?kMinRateMbps / (1-kDelta):base_line_rate;
+                    if(base_rate_ == kMinRateMbps) {
+                        base_rate_ += 0.25;
+                    }
                     setRate(base_rate_);
                     guess_measurement_bucket.clear();
                     state_ = SEARCH;
@@ -397,13 +409,13 @@ protected:
 	double base_rate_;
 	bool kPrint;
 	double prev_change_;
-	static constexpr double kMinRateMbps = 0.5;
+	static constexpr double kMinRateMbps = 0.1;
 	static constexpr double kMinRateMbpsSlowStart = 0.1;
 	static constexpr double kHibernateRate = 0.05;
 	static constexpr double kMaxRateMbps = 1024.0;
 	static constexpr int kRobustness = 1;
-	static constexpr double kEpsilon = 0.15;
-	static constexpr double kDelta = 0.01;
+	static constexpr double kEpsilon = 0.03;
+	static constexpr double kDelta = 0.1;
 	static constexpr int kGoToStartCount = 50000;
 
 	enum ConnectionState {
@@ -587,7 +599,7 @@ public:
                 //TODO We should also consider adding just rtt into the utility function, because it is not just change that matters
                 // This may turn out to be extremely helpful during LTE environment
 		//long double utility = ((long double)total - loss_contribution - rtt_contribution)/norm_measurement_interval/rtt;
-		long double utility = ((long double)total - loss_contribution - rtt_contribution)/norm_measurement_interval;
+		long double utility = (((long double)total - loss_contribution) - rtt_contribution)/time/norm_measurement_interval;
 
 		if (out_measurement != NULL) {
 			out_measurement->loss_panelty_ = loss_contribution / norm_measurement_interval;

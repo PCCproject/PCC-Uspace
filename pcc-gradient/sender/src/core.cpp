@@ -2050,7 +2050,7 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 		uint64_t now = CTimer::getTime();
 		if ((currtime - m_ullSndLastAck2Time > (uint64_t)m_iSYNInterval))
 		{
-                        cout<<"send ACK ACK"<<endl;
+                        //cout<<"send ACK ACK"<<endl;
 			sendCtrl(6, &ack);
 			m_iSndLastAck2 = ack;
 			m_ullSndLastAck2Time = now;
@@ -3072,7 +3072,7 @@ void CUDT::start_monitor(int length)
     //double rand_factor = double(rand()%10)/100.0;
 	//if(m_iRTT*(1.2)/m_pCC->m_dPktSndPeriod>10) length = m_iRTT*(0.5 + rand_factor)/m_pCC->m_dPktSndPeriod;
 		//cout << "min RTT is " << get_min_rtt() << endl;
-		allocated_times_[current_monitor] = 1.9 * get_min_rtt();//last_rtt_;//m_iRTT;//get_min_rtt();
+		allocated_times_[current_monitor] = 2.0 * get_min_rtt();//last_rtt_;//m_iRTT;//get_min_rtt();
                 if(allocated_times_[current_monitor]> 1000000) {
                     allocated_times_[current_monitor] = 1000000;
                 }
@@ -3189,7 +3189,7 @@ bool CUDT::timeout_monitors() {
 			if((deadlines[tmp] < current_time) && (allocated_times_[tmp] > 0)) {
 				int count=0;
 				//cout<<"killing "<<tmp<<" at "<<current_time<<endl;
-				//cout << "waited more than " << allocated_times_[tmp] <<endl;
+				cout << "waited more than " << allocated_times_[tmp] <<endl;
 				m_monitor_count = 0;
 				for(int i=0;i<total[tmp];i++){
 					if(recv_ack[tmp][i]){
