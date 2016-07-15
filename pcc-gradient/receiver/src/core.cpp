@@ -99,7 +99,7 @@ CUDT::CUDT()
    initSynch();
 
    // Default UDT configurations
-   m_iMSS = 1500;
+   m_iMSS = 100;
    m_bSynSending = true;
    m_bSynRecving = true;
    m_iFlightFlagSize = 100000;
@@ -2498,9 +2498,9 @@ int CUDT::processData(CUnit* unit)
        return -1;}
 /*
    counter_32767++;
-   if (counter_32767 == 1) {
+   if (counter_32767 == 20) {
       tsn_payload[counter_32767-1] = packet.m_iMsgNo;
-      sendCtrl(32767, NULL, tsn_payload, 1*4);
+      sendCtrl(32767, NULL, tsn_payload, 20*4);
       counter_32767 = 0;
    } else {
       tsn_payload[counter_32767-1] = packet.m_iMsgNo;
