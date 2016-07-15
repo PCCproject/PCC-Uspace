@@ -68,7 +68,7 @@ protected:
 		//}
 		//trend_count_ = 0;
 
-		double change = 2 * rate() /100 * kEpsilon * avg_gradient(); 
+		double change = 2 * rate() /1500 * kEpsilon * avg_gradient(); 
 
 		if (force_change) {
 			cout << "avg. gradient = " << avg_gradient() << endl;
@@ -80,10 +80,10 @@ protected:
 		//if ((change >= 0) && (change < getMinChange())) change = getMinChange();
 
                 if (change>0 && change < base_rate_*kDelta) { change = base_rate_ * kDelta;}
-				if (change>0 && change > 0.2 * base_rate_) { change = base_rate_ * 0.2;}
+				if (change>0 && change > 0.1 * base_rate_) { change = base_rate_ * 0.1;}
 				
                 if (change <0 && change > base_rate_*kDelta * (-1)) {change = base_rate_ *kDelta * (-1);}
-				if (change <0 && change < 0.2 * base_rate_*(-1)) {change = base_rate_ *0.2 * (-1);}
+				if (change <0 && change < 0.1 * base_rate_*(-1)) {change = base_rate_ *0.1 * (-1);}
 
                 //if (change>0 && change < 0.1) { change = 0.1;}
                 //if (change <0 && change > -0.1) {change = -0.1;}

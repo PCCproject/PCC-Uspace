@@ -3090,14 +3090,15 @@ void CUDT::start_monitor(int length)
                send_period = 300000;
             }
 
-	if(send_period/m_pCC->m_dPktSndPeriod>30) {
+	if(send_period/m_pCC->m_dPktSndPeriod>20) {
             length = send_period/m_pCC->m_dPktSndPeriod;
     } else {
-            length=30;
+            length=20;
     }
+	/*
 	if (length > 70) {
 		length = 70;
-	}
+	}*/
     if (suggested_length < length) {
         length = suggested_length;
     }

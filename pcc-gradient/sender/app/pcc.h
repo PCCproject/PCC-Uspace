@@ -614,7 +614,7 @@ public:
                 // This may turn out to be extremely helpful during LTE environment
 		//long double utility = ((long double)total - loss_contribution - rtt_contribution)/norm_measurement_interval/rtt;
 		//long double utility = (((long double)total - loss_contribution) - rtt_contribution)/time/norm_measurement_interval;
-		long double utility = ((((long double)total - loss_contribution)) - rtt_contribution)/time;
+		long double utility = ((((long double)2 * total - loss_contribution)) - rtt_contribution)/time;
 		//long double utility = ((((long double)total - loss_contribution))/time/(pow(rtt_penalty, 4)*1000));
 
 		if (out_measurement != NULL) {
