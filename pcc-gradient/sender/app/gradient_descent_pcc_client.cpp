@@ -218,12 +218,6 @@ DWORD WINAPI monitor(LPVOID s)
 		rtt_sum += perf.msRTT;
 		iteration_count++;		
 	}
-/*
-	if (i == 200) {
-		cout << "Terminating test!" <<endl;
-		return 0;
-	}
-*/		
    }
 
    #ifndef WIN32

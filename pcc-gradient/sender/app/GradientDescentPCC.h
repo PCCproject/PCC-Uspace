@@ -5,132 +5,113 @@
 
 class GradientDescentPCC: public PCC {
 public:
-	GradientDescentPCC() : first_(true), up_utility_(0), down_utility_(0), seq_large_incs_(0), consecutive_big_changes_(0), trend_count_(0), decision_count_(0), curr_(0), prev_change_(0), kRobustness(2),next_delta(0) {}
+	GradientDescentPCC() : first_(true), up_utility_(0), down_utility_(0), seq_large_incs_(0), consecutive_big_changes_(0), trend_count_(1), decision_count_(0), curr_(0), next_delta(0) {}
 
 protected:
-	virtual void search() {
-		guess();
+	virtual void search(int current_monitor) {
+        for(int i=0; i<number_of_probes_; i++) {
+            GuessStat g = GuessStat();
+            if (i%2 == 0) {
+                if((kDelta) * base_rate_ > 0.1) {
+                g.rate = (1 + kDelta) * base_rate_;
+                } else {
+                g.rate = base_rate_ + 0.1;
+                }
+                cerr<<"search up rate is "<<g.rate<<endl;
+                g.isup = true;
+            } else{
+                if((kDelta) * base_rate_ > 0.1) {
+                g.rate = (1 - kDelta) * base_rate_;
+                } else {g.rate = base_rate_ - 0.1;}
+                g.isup = false;
+                cerr<<"search down rate is "<<g.rate<<endl;
+            }
+            g.ready = false;
+            g.monitor = (current_monitor+i) % 100;
+            guess_measurement_bucket.push_back(g);
+        }
 	}
-		
-	bool ensure_min_change() {
-		/*
-		if ((prev_change_ >= 0) && (prev_change_ < kMinRateMbps / 2) && (base_rate_ < 3 * kMinRateMbps)) prev_change_ = kMinRateMbps / 2;
-		else if ((prev_change_ < 0) && (prev_change_ > -1 * kMinRateMbps / 2) && (base_rate_ < 3 * kMinRateMbps)) prev_change_ = -1 * kMinRateMbps / 2;
-		else if ((prev_change_ >= 0) && (prev_change_ < 2 * kMinRateMbps) && (base_rate_ < 5 * kMinRateMbps)) prev_change_ = 2 * kMinRateMbps;
-		else if ((prev_change_ < 0) && (prev_change_ > -2 * kMinRateMbps) && (base_rate_ < 5 * kMinRateMbps)) prev_change_ = -2 * kMinRateMbps;
-		*/
-		//return false;
-		
-		
-		if ((prev_change_ >= 0) && (prev_change_ < 0.005 * base_rate_)) {
-			prev_change_ = 0.005 * base_rate_;
-			return true;
-		}
-		if ((prev_change_ < 0) && (prev_change_ > -0.005 * base_rate_)) {
-			prev_change_ = -0.005 * base_rate_;
-			return true;
-		}
-		
-		
-		if ((prev_change_ >= 0) && (prev_change_ > 0.1 * base_rate_)) {
-			prev_change_ = 0.1 * base_rate_;
-			return true;
-		}
-		if ((prev_change_ < 0) && (prev_change_ < -0.1 * base_rate_)) {
-			prev_change_ = -0.1 * base_rate_;
-			return true;
-		}
-		return false;
-	} 
-	
-	virtual double delta_for_base_rate() {
-		if (base_rate_ < 1) return 0.3;
-		else if (base_rate_ < 2) return 0.25;
-		else if (base_rate_ < 3) return 0.2; 
-		else if (base_rate_ < 10) return 0.1;
-		else return 0.05;
+
+	virtual void restart() {
+		init();
+		PCC::restart();
 	}
-	
-	virtual void do_last_change() {
-		static int total = 0;
-		static int enforced = 0;
-		if (ensure_min_change()) {
-			enforced++;
-		}
-		total++;
-		
-		//if (total % 10 == 0) cout << "Enforced change: " << (double) enforced / total << endl;
-		base_rate_ += prev_change_;
-		//cout << "Gradient: " << prev_change_ << " new base rate:" << base_rate_ << endl;
-		if (base_rate_ * (1 - delta_for_base_rate()) < kMinRateMbps) {
-			go_to_slow_start();
-			//base_rate_ = kMinRateMbps * (1 + delta_for_base_rate());
-		}
-		setRate(base_rate_);
+
+	virtual void clear_state() {
+		PCC::clear_state();
+		first_ = true;
+		up_utility_ = 0;
+		down_utility_ = 0;
+		seq_large_incs_ = 0;
+		consecutive_big_changes_ = 0;
+		trend_count_ = 0;
+		decision_count_ = 0;
+		curr_ = 0;
+		prev_change_ = 0;
 	}
-	
-	virtual void decide(long double start_utility, long double end_utility, bool timeout) {
-		double gradient = -1 * (start_utility - end_utility) / (2 * delta_for_base_rate());
+	virtual double decide(long double start_utility, long double end_utility, double old_rate, double new_rate, bool force_change) {
+		double gradient = (end_utility - start_utility) / (new_rate - old_rate);
+                cerr<<"gradient is "<<gradient<<endl;
 		prev_gradiants_[curr_] = gradient;
 
-		trend_count_++;
-		curr_ = (curr_ + 1) % 100;
-		if ((trend_count_ < kRobustness) && (!timeout)) {
-			return;
+		
+		if (gradient * prev_gradiants_[(curr_ + 99) % 100] > 0) {
+			trend_count_++;
+		} else {
+			trend_count_ = 1;
 		}
-		trend_count_ = 0;
-		
-		double change = epsilon() * avg_gradient();	
-		if (change * prev_change_ >= 0) decision_count_++;
-		else decision_count_ = 0;
-		
-		//cout << "multiplier: " << (pow(decision_count_, 2) + 1) * epsilon() << " Gradient " << gradient << endl;
-		prev_change_ = change * (pow(decision_count_, 2) + 1);				
-		do_last_change();
-		clear_pending_search();
-		kRobustness = min<int>(1 + 3 / base_rate_, 2);
+		//if (trend_count_ > 4) trend_count_ = 4;
+		//trend_count_++;
+		curr_ = (curr_ + 1) % 100;
+		//if ((trend_count_ < kRobustness) && (!force_change)) {
+		//	return;
+		//}
+		//trend_count_ = 0;
+
+		double change = 2 * rate() /100 * kEpsilon * avg_gradient(); 
+
+		if (force_change) {
+			cout << "avg. gradient = " << avg_gradient() << endl;
+			cout << "rate = " << rate() << endl;
+			cout << "computed change: " << change << endl;
+		}
+                cerr<<"change before force to min change is "<< change<<endl;
+
+		//if ((change >= 0) && (change < getMinChange())) change = getMinChange();
+
+                if (change>0 && change < base_rate_*kDelta) { change = base_rate_ * kDelta;}
+				if (change>0 && change > 0.2 * base_rate_) { change = base_rate_ * 0.2;}
+				
+                if (change <0 && change > base_rate_*kDelta * (-1)) {change = base_rate_ *kDelta * (-1);}
+				if (change <0 && change < 0.2 * base_rate_*(-1)) {change = base_rate_ *0.2 * (-1);}
+
+                //if (change>0 && change < 0.1) { change = 0.1;}
+                //if (change <0 && change > -0.1) {change = -0.1;}
+
+		prev_change_ = change;
+		cout << "change: " << change << " base rate: " << base_rate_ << endl;
+		if (change == 0) cout << "Change is zero!" << endl;
+                cerr<<"change is "<<change<<endl;
+        return change;
+
 	}
-	
+
 private:
-
-	double epsilon() const{
-		if (base_rate_ > 20) return base_rate_ / 1000000;
-		else if (base_rate_ > 10) return 2 * base_rate_ / 1000000;
-		else return 10 * base_rate_ / 1000000;
-		//return 0.00002;
-		//return 1/10000.
-		
-		if (base_rate_ < 1) return 1;
-		
-		// provide fairness: the lower the rate, the stronger the step.
-		return 0.5 * min<double>(0.05, base_rate_ / 100);//1/base_rate_
-	}
-
 	double avg_gradient() const {
 		int base = curr_;
 		double sum = 0;
 		for (int i = 0; i < kRobustness; i++) {
 			base += 99;
 			sum += prev_gradiants_[base % 100];
+			//cout << "gradient " << prev_gradiants_[base % 100] << " ";
 		}
 		return sum / kRobustness;
 	}
 	void guess() {
-		if (first_) {
-			if (start_measurement_) base_rate_ = rate();
-			if (!start_measurement_) first_ = false;
-		}
-		if (start_measurement_) {
-			next_delta = delta_for_base_rate() * base_rate_;
-			setRate(base_rate_ - next_delta);
-		} else {
-			setRate(base_rate_ + next_delta);
-		}
-
 	}
 	void adapt() {
 	}
-	
+
 	virtual void init() {
 		trend_count_ = 0;
 		curr_ = 0;
@@ -151,10 +132,9 @@ private:
 	int decision_count_;
 	int curr_;
 	double prev_gradiants_[100];
-	double prev_change_;
-	int kRobustness;
+
 	double next_delta;
 };
 
 #endif
- 
+

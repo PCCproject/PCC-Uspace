@@ -14,25 +14,22 @@
 #include <deque>
 #include <mutex>
 #include <thread>
+#include <stdlib.h>
 //#define DEBUG_PRINT
 
 using namespace std;
+
+bool kInTimeout = false;
 
 enum MeasurementType {
 	FIRST,
 	SECOND
 };
 
-enum MeasurementContext {
-	NORMAL,
-	TIMEOUT
-};
-
-
 class Measurement {
 	public:
-		Measurement(double base_rate, int other_monitor, double test_rate, MeasurementType t, int monitor_number): utility_(0), base_rate_(base_rate), other_monitor_(other_monitor), set_(false), rtt_(0), loss_(0), loss_panelty_(0), rtt_panelty_(0), test_rate_(test_rate), type_(t), monitor_number_(monitor_number), context_(NORMAL) {}
-		
+		Measurement(double base_rate, int other_monitor, double test_rate, MeasurementType t, int monitor_number): utility_(0), base_rate_(base_rate), other_monitor_(other_monitor), set_(false), rtt_(0), loss_(0), loss_panelty_(0), rtt_panelty_(0), test_rate_(test_rate), type_(t), monitor_number_(monitor_number) {}
+
 		Measurement* copy() const {
 			Measurement* ret = new Measurement(base_rate_, other_monitor_, test_rate_, type_, monitor_number_);
 			ret->utility_ = utility_;
@@ -40,10 +37,9 @@ class Measurement {
 			ret->loss_ = loss_;
 			ret->loss_panelty_ = loss_panelty_;
 			ret->actual_packets_sent_rate_ = actual_packets_sent_rate_;
-			ret->context_ = context_;
 			return ret;
 		}
-		
+
 		long double utility_;
 		double base_rate_;
 		int other_monitor_;
@@ -56,37 +52,42 @@ class Measurement {
 		double test_rate_;
 		MeasurementType type_;
 		int monitor_number_;
-		MeasurementContext context_;
+};
+
+struct GuessStat {
+      int monitor;
+      double rate;
+      long double utility;
+      bool ready;
+      bool isup;
+	  double rtt;
+};
+
+
+struct MoveStat {
+      double rate;
+      double next_rate;
+      double change;
+      long double utility;
+      int target_monitor;
+      bool bootstrapping;
+      bool isup;
+};
+
+struct RecentEndMonitorStat {
+      int monitor;
+      double utility;
+      double loss;
+      double rtt;
+      double total;
+      double rate;
+      bool initialized = false;
 };
 
 class PCC : public CCC {
 public:
 	virtual ~PCC() {}
-	
-	virtual void enter_hibernate() {
-		if (hibernate_) return;
-		
-		if (rate() > 2 * kMinRateMbpsSlowStart) {
-			base_rate_ = 0.5 * rate();
-			setRate(0.5 * rate());
-			state_ = SEARCH;
-			return;
-		}
-		
-		hibernate_ = true;
-		pre_hibernate_rate_ = rate_;
-		rate_ = kHibernationRate;
-		m_dPktSndPeriod = (m_iMSS * 8.0) / rate_;
-	}
-	virtual void exit_hibernate() {
-		if (!hibernate_) return;
-		hibernate_ = false;
-		go_to_slow_start();
-		//rate_ = pre_hibernate_rate_;
-		//m_dPktSndPeriod = (m_iMSS * 8.0) / rate_;
-	}
-	virtual bool hibernate() { return hibernate_; }
-	
+
 	long double avg_utility() {
 		if (measurement_intervals_ > 0) {
 			return utility_sum_ / measurement_intervals_;
@@ -96,65 +97,56 @@ public:
 
 	virtual void onLoss(const int32_t*, const int&) {}
 	virtual bool onTimeout(int total, int loss, double in_time, int current, int endMonitor, double rtt){
-		lock_guard<mutex> lck(monitor_mutex_);
-		if (hibernate_) return false;
-		
-		if (state_ == SEARCH) {
-			if (start_measurment_map_.find(endMonitor) == start_measurment_map_.end() && end_measurment_map_.find(endMonitor) == end_measurment_map_.end()) {
-				return true;
-			} 
-		} else if (ongoing_slow_start_monitors_.find(endMonitor) == ongoing_slow_start_monitors_.end()) {
-			return true;
-		} else {
-			prev_utility_ = -10000000;
-			base_rate_ = best_slow_start_rate_;
-			setRate(best_slow_start_rate_);
+        cerr<<"Timeout happens!!"<<endl;
+        base_rate_ = base_rate_ / 2;
+        if (base_rate_ < kMinRateMbps + 0.1) {
+			state_ = HIBERNATE;
+			setRate(kHibernateRate, true);
+			guess_measurement_bucket.clear();
+			return true; 
+        } else {
+			guess_measurement_bucket.clear();
 			state_ = SEARCH;
-			return false;			
-		}
-
-		/*
-		go_to_slow_start();
-		return false;
-		*/
-		
-		// decrease rate not by funciton
-		clear_pending_search();
-		ongoing_slow_start_monitors_.clear();
-		base_rate_ = 0.5 * rate();
-		setRate(0.5 * rate());
-		return false; 
-		
-		Measurement* this_measurement = get_monitor_measurement(endMonitor);
-		if ((this_measurement == NULL) && (state_ != START)) {
+			setRate(base_rate_);
 			return true;
-		}
-		
-		long double curr_utility = utility(total, loss - 1, 100000, 100000, NULL);
-		if (update_on_search(endMonitor, curr_utility, rtt, loss, this_measurement, TIMEOUT)) {
-			//clear_pending_search();
-			return false;
-		}
-		return true;
-	}
-	
-	virtual void go_to_slow_start() {
-		state_ = START;
-		slow_start_factor_ = 2;
-		continue_slow_start_ = true;
-		start_measurement_ = true;
-		rtt_history_.clear();
-		start_measurment_map_.clear();
-		end_measurment_map_.clear();
-		monitor_in_start_phase_ = -1;
-		prev_utility_ = -10000000;
-		ongoing_slow_start_monitors_.clear();
-		best_slow_start_rate_ = kMinRateMbpsSlowStart;
+        }
+        //ConnectionState old_state;
+        //do {
+        //    old_state = state_;
+        //    switch (state_) {
+        //        case START:
+		//	        if (monitor_in_start_phase_ != -1) {
+		//	        	return;
+		//	        }
+		//	        monitor_in_start_phase_ = current_monitor;
+		//	        setRate(rate() * slow_start_factor_);
+        //            cerr<<"slow starting of monitor"<<current_monitor<<endl;
+        //            break;
+        //        case SEARCH:
+        //            cerr<<"Monitor "<<current_monitor<<"is in search state"<<endl;
+        //            state_ = RECORDING;
+		//	        search(current_monitor);
+        //            guess_time_ = 0;
+        //            break;
+        //        case RECORDING:
+        //            if(guess_time_ != number_of_probes_) {
+        //                cerr<<"Monitor "<<current_monitor<<"is in recording state "<<guess_time_<<"th trial with rate of"<<guess_measurement_bucket[guess_time_].rate<<endl;
+        //                setRate(guess_measurement_bucket[guess_time_].rate);
+        //                guess_time_ ++;
+        //            } else {
+        //                cerr<<"Monitor "<<current_monitor<<"is in recording state, waiting result for recording to come back"<<endl;
+        //                setRate(base_rate_);
+        //            }
+        //            break;
+        //        case MOVING:
+        //            // TODO: should handle how we move and how we record utility as well
+        //            cerr<<"monitor "<<current_monitor<<"is in moving state setting rate to"<<move_stat.next_rate<<endl;
+        //            setRate(move_stat.next_rate);
+        //            break;
+        //    }
 
-		base_rate_ = kMinRateMbpsSlowStart;
-		setRate(base_rate_);
+        //} while(old_state != state_);
 	}
-	
 	virtual void onACK(const int& ack){}
 
 	void keep_last_measurement(Measurement* measurement) {
@@ -169,176 +161,245 @@ public:
 		}
 	}
 
-	virtual void onMonitorStart(int current_monitor) {
-		lock_guard<mutex> lck(monitor_mutex_);
-		if (hibernate_) return;
-		if (state_ == START) {
-			//if (rate() * slow_start_factor_ < 10) {
-				setRate(rate() * slow_start_factor_);
-				ongoing_slow_start_monitors_.insert(pair<int,double> (current_monitor, rate()));
-			//}
-			if (ongoing_slow_start_monitors_.size() == 0) {
-				prev_utility_ = -10000000;
-				base_rate_ = best_slow_start_rate_;
-				setRate(best_slow_start_rate_);
-				clear_pending_search();
-				state_ = SEARCH;
-			}
-		} 
-		if (state_ == SEARCH) {
-			if (start_measurement_) {
-				if (start_measurment_map_.find(current_monitor) == start_measurment_map_.end()) {
-					start_measurment_map_.insert(pair<int,shared_ptr<Measurement> >(current_monitor, shared_ptr<Measurement>(new Measurement(base_rate_, on_next_start_bind_to_end_, rate(), FIRST, current_monitor))));
-					current_start_monitor_ = current_monitor;
-					
-					// there was already a pending end to this measurement.
-					if (on_next_start_bind_to_end_ >= 0) {
-						start_measurement_ = false;
-						on_next_start_bind_to_end_ = -1;
-					}
-				}
-			} else {
-				if (start_measurment_map_.find(current_start_monitor_) != start_measurment_map_.end()) {
-					if (end_measurment_map_.find(current_monitor) == end_measurment_map_.end()) {
-						end_measurment_map_.insert(pair<int,shared_ptr<Measurement> >(current_monitor, shared_ptr<Measurement>(new Measurement(base_rate_, current_start_monitor_, rate(), SECOND, current_monitor))));
-						start_measurment_map_.at(current_start_monitor_)->other_monitor_ = current_monitor;
-					}
-				} else {
-					clear_pending_search();
-					return;
-				}
-			}
-			search();
-			start_measurement_ = !start_measurement_;
-		}
-	}
+	virtual void onMonitorStart(int current_monitor, int& suggested_length) {
+        ConnectionState old_state;
+        cerr<<"Monitor "<<current_monitor<<" starts"<<endl;
+        do {
+            old_state = state_;
+            switch (state_) {
+                case START:
+			        if (monitor_in_start_phase_ != -1) {
+			        	return;
+			        }
+			        monitor_in_start_phase_ = current_monitor;
+			        setRate(rate() * slow_start_factor_);
+                    cerr<<"slow starting of monitor"<<current_monitor<<endl;
+                    break;
+                case SEARCH:
+                    cerr<<"Monitor "<<current_monitor<<"is in search state"<<endl;
+                    state_ = RECORDING;
+			        search(current_monitor);
+                    guess_time_ = 0;
+                    break;
+                case RECORDING:
+                    if(guess_time_ != number_of_probes_) {
+                        cerr<<"Monitor "<<current_monitor<<"is in recording state "<<guess_time_<<"th trial with rate of"<<guess_measurement_bucket[guess_time_].rate<<endl;
+                        setRate(guess_measurement_bucket[guess_time_].rate);
+                        guess_time_ ++;
+                    } else {
+                        cerr<<"Monitor "<<current_monitor<<"is in recording state, waiting result for recording to come back"<<endl;
+                        setRate(base_rate_);
+                    }
+                    break;
+                case MOVING:
+                    // TODO: should handle how we move and how we record utility as well
+                    cerr<<"monitor "<<current_monitor<<"is in moving state setting rate to"<<move_stat.next_rate<<endl;
+                    setRate(move_stat.next_rate);
+                    break;
+                case HIBERNATE:
+                    cerr<<"Hibernating, setting it to really low rate"<<endl;
+                    setRate(kHibernateRate, true);
+                    suggested_length = 1;
+                    break;
+            }
 
-
-	Measurement* get_monitor_measurement(int monitor) {
-		if (start_measurment_map_.find(monitor) != start_measurment_map_.end()) {
-			return start_measurment_map_.at(monitor).get();
-		}
-
-		if (end_measurment_map_.find(monitor) != end_measurment_map_.end()) {
-			return end_measurment_map_.at(monitor).get();
-		}
-		return NULL;
+        } while(old_state != state_);
 	}
 
 	virtual void onMonitorEnds(int total, int loss, double in_time, int current, int endMonitor, double rtt) {
-		lock_guard<mutex> lck(monitor_mutex_);
-		if (hibernate_) return;
-		Measurement* this_measurement = get_monitor_measurement(endMonitor);
-		if ((this_measurement == NULL) && (state_ != START)) {
-			return;
-		}
-	
 		rtt /= (1000 * 1000);
 		if (rtt == 0) rtt = 0.0001;
-		
-		long double curr_utility = utility(total, loss, in_time, rtt, this_measurement);
+		long double curr_utility = utility(total, loss, in_time, rtt, NULL);
 		last_utility_ = curr_utility;
 		utility_sum_ += curr_utility;
 		measurement_intervals_++;
+        ConnectionState old_state;
+        cerr<<"Monitor "<<endMonitor<<" ended"<<endl;
+        // TODO we should keep track of all monitors and closely mointoring RTT
+        // and utility change between monitor
+        do {
+            old_state = state_;
+            switch (state_) {
+                case START:
+                    // TODO to aid debuggin as we change code architecture, we will not
+                    // have slow start here, we will immediately transit to SEARCH state
+                    state_ = SEARCH;
+                    break;
+                case SEARCH:
+                    // When doing search (calculating the results and stuff), onmonitorends should do nothing
+                    // and ignore the monitor that ended
+                    cerr<<"monitor"<<endMonitor<< "ends in search state, this should not happen often"<<endl;
+                    break;
+                case RECORDING:
+                    // onMoniitorEnd will check if all search results have come back
+                    // and decide where to move the rate
+                    // TODO: it should enter the MOVING state here, but I will just keep it simple to make it enter
+                    // search state again. To first switch the architecture
+                    if(!recent_end_stat.initialized) {
+                        recent_end_stat.initialized = true;
+                    } else {
+                        if(recent_end_stat.rtt/ rtt > 1.3 || recent_end_stat.rtt / rtt <0.7){
+                            cerr<<"RTT deviation severe, halving rate and re-probing"<<endl;
+                            state_ = SEARCH;
+                            guess_measurement_bucket.clear();
+                            //base_rate_ = base_rate_ / 2;
+                            if(base_rate_ < kMinRateMbps/ (1-kDelta)) {
+                               base_rate_ = kMinRateMbps / (1-kDelta);  
+                            }
+                            setRate(base_rate_);
+                            recent_end_stat.initialized = false;
+                            break;
+                        }
+                    }
+                    recent_end_stat.utility = curr_utility;
+                    recent_end_stat.total = total;
+                    recent_end_stat.loss = loss;
+                    recent_end_stat.rtt = rtt;
+                    recent_end_stat.monitor = endMonitor;
+                    bool all_ready;
+                    all_ready = true;
+                    cerr<<"checking if all recording ready at monitor"<<current<<endl;
+                    for (int i=0; i<number_of_probes_; i++) {
+                        if (guess_measurement_bucket[i].monitor == endMonitor) {
+                            cerr<<"found matching monitor"<<endMonitor<<endl;
+                            guess_measurement_bucket[i].utility = curr_utility;
+							guess_measurement_bucket[i].rtt = rtt;
+                            guess_measurement_bucket[i].ready = true;
+                        }
 
-		
-		if(state_ == START) {
-			bool continue_slow_start = (curr_utility > prev_utility_);
-			if (ongoing_slow_start_monitors_.find(endMonitor) != ongoing_slow_start_monitors_.end()) {
-				if (!continue_slow_start) {
-					base_rate_ = best_slow_start_rate_;
-					setRate(best_slow_start_rate_);
-					state_ = SEARCH;
-					ongoing_slow_start_monitors_.clear();
-					
-				} else {
-					prev_utility_ = curr_utility;
-					best_slow_start_rate_ = ongoing_slow_start_monitors_.at(endMonitor);
-				}
-				ongoing_slow_start_monitors_.erase(endMonitor);
-			}
-		} else if(state_ == SEARCH) {
-			update_on_search(endMonitor, curr_utility, rtt, loss, this_measurement, NORMAL);
-		}
+                        if(guess_measurement_bucket[i].ready == false) {
+                            all_ready = false;
+                        }
+                    }
+
+                    if (all_ready) {
+                        double utility_down=0, utility_up=0;
+                        double rate_up = 0, rate_down = 0;
+						GuessStat *up = NULL;
+						GuessStat *down = NULL;
+                        for (int i=0; i<number_of_probes_; i++) {
+                            if(guess_measurement_bucket[i].isup) {
+                                utility_up += guess_measurement_bucket[i].utility;
+                                rate_up = guess_measurement_bucket[i].rate;
+								up = &guess_measurement_bucket[i];
+                            } else {
+                                utility_down += guess_measurement_bucket[i].utility;
+                                rate_down = guess_measurement_bucket[i].rate;
+								down = &guess_measurement_bucket[i];
+                            }
+                        }
+                        int factor = number_of_probes_/2;
+                        // Sanity check maybe needed here, but not sure
+                        // but watch out for huge jump is needed
+                        // maybe this will work, if this does not, need to revisit sanity check
+						if (sanity_check(up, down)) {
+							double change = decide(utility_down/factor, utility_up/factor, rate_down, rate_up, false);
+							cerr<<"all record is acquired and ready to change by "<<change<<endl;
+							base_rate_ += change;
+						
+							if (base_rate_ < kMinRateMbps) {
+								cerr<<"trying to set rate below min rate in moving phase just decided, enter guessing"<<endl;
+								base_rate_ = kMinRateMbps/ (1 - kDelta);
+								state_ = SEARCH;
+								guess_measurement_bucket.clear();
+								break;
+							}
+							setRate(base_rate_);
+							state_ = SEARCH;
+							move_stat.bootstrapping = true;
+							move_stat.target_monitor = (current +1) % 100;
+							move_stat.next_rate = base_rate_;
+							move_stat.rate = base_rate_;
+							move_stat.change = change;
+							guess_measurement_bucket.clear();
+						}
+                    }
+                    break;
+                case MOVING:
+                    if (endMonitor > move_stat.target_monitor) {
+                        // should handle the fact that when endMonitor is larger than the target monitor
+                        // somethign really bad should have happened
+                        cerr<<"end monitor:"<<endMonitor<<"is larger than the target monitor: "<<move_stat.target_monitor<<endl;
+                    }
+                    if(endMonitor == move_stat.target_monitor) {
+                        cerr<<"find the right monitor"<<endMonitor<<endl;
+                        if(move_stat.bootstrapping) {
+                            cerr<<"bootstrapping move operations"<<endl;
+                            move_stat.bootstrapping = false;
+                            move_stat.utility = curr_utility;
+                            // change stay the same
+                            move_stat.target_monitor = (current + 1) % 100;
+                            cerr<<"target monitor is "<<(current + 1) % 100;
+                            move_stat.next_rate = move_stat.next_rate + move_stat.change;
+                            base_rate_ = move_stat.next_rate;
+
+                            if (base_rate_ < kMinRateMbps) {
+                                cerr<<"trying to set rate below min rate in moving phase bootstrapping, enter guessing"<<endl;
+                                base_rate_ = kMinRateMbps/ (1 - kDelta);
+                                state_ = SEARCH;
+                                guess_measurement_bucket.clear();
+                                break;
+                            }
+
+                            setRate(base_rate_);
+                        } else {
+                            // see if the change direction is wrong and is reversed
+                            double change = decide(move_stat.utility, curr_utility, move_stat.next_rate - move_stat.change, move_stat.next_rate, false);
+                            cerr<<"change for move is "<<change<<endl;
+                            if (change * move_stat.change < 0) {
+                                cerr<<"direction changed"<<endl;
+                                cerr<<"change is "<<change<<" old change is "<<move_stat.change<<endl;
+                            // the direction is different, need to move to old rate start to re-guess
+                                if (abs(change) > abs(move_stat.change)) {
+                                    base_rate_ = move_stat.next_rate + change;
+                                } else {
+                                    base_rate_ = move_stat.next_rate - move_stat.change;
+                                }
+                                setRate(base_rate_);
+                                state_ = SEARCH;
+                                guess_measurement_bucket.clear();
+                            } else {
+                                cerr<<"direction same, keep moving with change of "<<change<<endl;
+                                move_stat.target_monitor = (current + 1) % 100;
+                                move_stat.utility = curr_utility;
+                                move_stat.next_rate = move_stat.change + move_stat.next_rate;
+                                base_rate_ = move_stat.next_rate;
+
+                                if (base_rate_ < kMinRateMbps) {
+                                    cerr<<"trying to set rate below min rate in moving phase keep moving, enter guessing"<<endl;
+                                    base_rate_ = kMinRateMbps/ (1 - kDelta);
+                                    state_ = SEARCH;
+                                    guess_measurement_bucket.clear();
+                                    break;
+                                }
+
+                                setRate(base_rate_);
+                            }
+                        }
+                    }
+		            prev_utility_ = curr_utility;
+                    // should add target monitor
+                    // decide based on prev_utility_
+                    // and prev_rate_
+                    break;
+                case HIBERNATE:
+                    double base_line_rate = 2 * 1.5 / 1024 * 8/(rtt);
+                    if (base_line_rate < 0.4) {
+                    break;
+                    }
+                    base_rate_ =kMinRateMbps / (1-kDelta) >base_line_rate?kMinRateMbps / (1-kDelta):base_line_rate;
+                    if(base_rate_ == kMinRateMbps) {
+                        base_rate_ += 0.1;
+                    }
+                    setRate(base_rate_);
+                    guess_measurement_bucket.clear();
+                    state_ = SEARCH;
+            }
+
+        } while(old_state != state_);
+
 	}
 
-	bool update_on_search(int endMonitor, long double curr_utility, double rtt, int loss, Measurement* this_measurement, MeasurementContext context) { 
-		if(start_measurment_map_.find(endMonitor) != start_measurment_map_.end()) {
-				start_measurment_map_.at(endMonitor)->utility_ = curr_utility;
-				start_measurment_map_.at(endMonitor)->set_ = true;
-				start_measurment_map_.at(endMonitor)->rtt_ = rtt;
-				start_measurment_map_.at(endMonitor)->loss_ = loss;
-				start_measurment_map_.at(endMonitor)->context_ = context;
-		} else if(end_measurment_map_.find(endMonitor) != end_measurment_map_.end()) {
-			end_measurment_map_.at(endMonitor)->utility_ = curr_utility;
-			end_measurment_map_.at(endMonitor)->set_ = true;
-			end_measurment_map_.at(endMonitor)->rtt_ = rtt;
-			end_measurment_map_.at(endMonitor)->loss_ = loss;
-			end_measurment_map_.at(endMonitor)->context_ = context;
-		} else {
-			return false;
-		}
-
-		if(isAllSearchResultBack(endMonitor)) {
-			int start_utility = 0;
-			int end_utility = 0;
-			int other_monitor;
-
-			double start_base = 0;
-			double end_base = 1;
-			bool check_result = false;
-			Measurement* private_copy = NULL;
-			if (start_measurment_map_.find(endMonitor) != start_measurment_map_.end()) {
-				start_utility = start_measurment_map_.at(endMonitor)->utility_;
-				other_monitor = start_measurment_map_.at(endMonitor)->other_monitor_;
-				
-				if (end_measurment_map_.find(other_monitor) != end_measurment_map_.end()) {
-					end_utility = end_measurment_map_.at(other_monitor)->utility_;
-					
-					start_base = start_measurment_map_.at(endMonitor)->base_rate_;
-					end_base = end_measurment_map_.at(other_monitor)->base_rate_;					
-					check_result = sanety_check(start_measurment_map_.at(endMonitor).get(), end_measurment_map_.at(other_monitor).get());
-					if (!check_result) private_copy = this_measurement->copy();
-					
-					end_measurment_map_.erase(other_monitor);
-				}
-				//delete start_measurment_map_.at(endMonitor);
-				start_measurment_map_.erase(endMonitor);
-				
-			} else {
-				end_utility = end_measurment_map_.at(endMonitor)->utility_;
-				other_monitor = end_measurment_map_.at(endMonitor)->other_monitor_;
-				
-				if (start_measurment_map_.find(other_monitor) != start_measurment_map_.end()) {
-					start_utility = start_measurment_map_.at(other_monitor)->utility_;
-					
-					start_base = start_measurment_map_.at(other_monitor)->base_rate_;
-					end_base = end_measurment_map_.at(endMonitor)->base_rate_;
-
-					check_result = sanety_check(start_measurment_map_.at(other_monitor).get(), end_measurment_map_.at(endMonitor).get());
-					if (!check_result) private_copy = this_measurement->copy();
-					
-					start_measurment_map_.erase(other_monitor);
-				}
-
-				end_measurment_map_.erase(endMonitor);
-			}
-			
-			if (start_base == end_base) {
-				if (check_result) {
-					decide(start_utility, end_utility, false);
-					return true;
-				} else {
-					//do_last_change();
-					keep_last_measurement(private_copy);
-				}
-				//start_measurment_map_.clear();
-				//end_measurment_map_.clear();
-			}
-		}
-		return false;
-	}
-	
 	static void set_utility_params(double alpha = 4, double beta = 54, double exponent = 1.5, bool polyUtility = true) {
 		kAlpha = alpha;
 		kBeta = beta;
@@ -355,34 +416,65 @@ protected:
     int search_monitor_number[2];
     bool start_measurement_;
 	double base_rate_;
-	static constexpr double kMinRateMbps = 1;
+	bool kPrint;
+	double prev_change_;
+	static constexpr double kMinRateMbps = 0.25;
+	static constexpr double kMinRateMbpsSlowStart = 0.1;
+	static constexpr double kHibernateRate = 0.005;
 	static constexpr double kMaxRateMbps = 1024.0;
+	static constexpr int kRobustness = 1;
+	static constexpr double kEpsilon = 0.03;
+	static constexpr double kDelta = 0.01;
+	static constexpr int kGoToStartCount = 50000;
 
 	enum ConnectionState {
 		START,
-		SEARCH
+		SEARCH,
+        RECORDING,
+        MOVING,
+        HIBERNATE
 	} state_;
 
-	virtual void do_last_change() = 0;
-	virtual void search() = 0;
-	virtual double delta_for_base_rate() = 0;
-	virtual void decide(long double start_utility, long double end_utility, bool force_change) = 0;
 
-	virtual void clear_pending_search() {
+	virtual void search(int current_monitor) = 0;
+	virtual double decide(long double start_utility, long double end_utility, double old_rate, double new_rate,  bool force_change) = 0;
+
+	virtual void clear_state() {
+		continue_slow_start_ = true;
+		start_measurement_ = true;
+		slow_start_factor_ = 1.1;
 		start_measurment_map_.clear();
 		end_measurment_map_.clear();
-		start_measurement_ = true;
-
+		state_ = SEARCH;
+		monitor_in_start_phase_ = -1;
+		prev_utility_ = -10000000;
+		kPrint = false;
 	}
-	
-	PCC() : start_measurement_(true), base_rate_(2 * kMinRateMbps), state_(START), monitor_in_start_phase_(-1), slow_start_factor_(2),
-			alpha_(kAlpha), beta_(kBeta), exponent_(kExponent), poly_utlity_(kPolyUtility), rate_(2 * kMinRateMbps), monitor_in_prog_(-1), utility_sum_(0), measurement_intervals_(0), prev_utility_(-10000000), continue_slow_start_(true), last_utility_(0), on_next_start_bind_to_end_(-1), hibernate_(false) {
+
+	virtual void restart() {
+		continue_slow_start_ = true;
+		start_measurement_ = true;
+		slow_start_factor_ = 1.2;
+		start_measurment_map_.clear();
+		end_measurment_map_.clear();
+		monitor_in_start_phase_ = -1;
+		setRate(base_rate_);
+		kPrint = false;
+		state_ = SEARCH;
+		prev_utility_ = -10000000;
+	}
+
+	PCC() : start_measurement_(true), base_rate_(0.6), kPrint(false), state_(START), monitor_in_start_phase_(-1), slow_start_factor_(2), number_of_probes_(2), guess_time_(0),
+			alpha_(kAlpha), beta_(kBeta), exponent_(kExponent), poly_utlity_(kPolyUtility), rate_(0.5), monitor_in_prog_(-1), utility_sum_(0), measurement_intervals_(0), prev_utility_(-10000000), continue_slow_start_(true), last_utility_(0) {
 		m_dPktSndPeriod = 10000;
 		m_dCWndSize = 100000.0;
+        prev_change_ = 0;
+
 		setRTO(100000000);
+                recent_end_stat.initialized = false;
 		srand(time(NULL));
-		best_slow_start_rate_ = kMinRateMbpsSlowStart;
-		cout << "configuration: alpha = " << alpha_ << ", beta = " << beta_   << ", exponent = " << exponent_ << " poly utility = " << poly_utlity_ << endl;
+		cerr << "new Code!!!" << endl;
+		cerr << "configuration: alpha = " << alpha_ << ", beta = " << beta_   << ", exponent = " << exponent_ << " poly utility = " << poly_utlity_ << endl;
 
 		/*
 		if (!latency_mode) {
@@ -393,25 +485,47 @@ protected:
 		*/
 	}
 
-	virtual void setRate(double mbps) {
+	virtual double getMinChange(){
+		if (base_rate_ > kMinRateMbps) {
+			return kMinRateMbps;
+		} else if (base_rate_ > kMinRateMbps / 2) {
+			return kMinRateMbps / 2;
+		} else {
+			return 2 * kMinRateMbpsSlowStart;
+		}
+	}
+	virtual void setRate(double mbps, bool force=false) {
+        if(force) {
+		m_dPktSndPeriod = (m_iMSS * 8.0) / mbps;
+        return;
+        }
+		cerr << "set rate: " << rate_ << " --> " << mbps << endl;
 		if (state_ == START) {
 			if (mbps < kMinRateMbpsSlowStart){
+					cerr << "rate is mimimal at slow start, changing to " << kMinRateMbpsSlowStart << " instead" << endl;
 				mbps = kMinRateMbpsSlowStart;
 			}
-		} else if (mbps < 0.9 * kMinRateMbps){
-			go_to_slow_start();
+		} else if (mbps < kMinRateMbps){
+				cerr << "rate is mimimal, changing to " << kMinRateMbps << " instead" << endl;
+			mbps = kMinRateMbps;
 		}
 
 		if (mbps > kMaxRateMbps) {
 			mbps = kMaxRateMbps;
+			cerr << "rate is maximal, changing to " << kMaxRateMbps << " instead" << endl;
 		}
 		rate_ = mbps;
 		m_dPktSndPeriod = (m_iMSS * 8.0) / mbps;
+		//cerr << "setting rate: mbps = " << mbps << endl;
 	}
 
 	double rate() const { return rate_; }
 
-private:
+public:
+	static double get_rtt(double rtt) {
+		double conv_diff = (double)(((long) (rtt * 1000 * 1000)) % kMillisecondsDigit);
+		return conv_diff / (1000.0 * 1000.0);
+	}
 
     double isAllSearchResultBack(int current_monitor) {
 		if ((start_measurment_map_.find(current_monitor) != start_measurment_map_.end()) && (start_measurment_map_.at(current_monitor)->set_)) {
@@ -436,7 +550,7 @@ private:
 				}
 			}
 		}
-		
+
 		rtt_history_.push_front(curr_rtt);
 		if (rtt_history_.size() > kHistorySize) {
 			rtt_history_.pop_back();
@@ -445,66 +559,73 @@ private:
 		return min;
 	}
 
-	bool sanety_check(Measurement* start, Measurement* end) {
-		//return true;
-		static int failed_count = 0;
-		
-		if (failed_count == 10) {
-			failed_count = 0;
-			return true;
-		}
-		
-		//return true;
-		if (end->test_rate_ < start->test_rate_) {
-			Measurement* swap_temp = start;
+	bool sanity_check(GuessStat* start, GuessStat* end) {
+		return true;
+		if (end->rate < start->rate) {
+			GuessStat* swap_temp = start;
 			start = end;
 			end = swap_temp;
 		}
 
 		/*
-		if (start->context_ == TIMEOUT) && (end->context_ != TIMEOUT){
+		if (start->loss_panelty_ < end->loss_panelty_) {
+			//cerr << "failed on loss. Start = " << start->loss_panelty_ << ". End = " << end->loss_panelty_ << endl;
 			return false;
 		}
 		*/
-		
-		if (start->rtt_panelty_ > 1.6 * end->rtt_panelty_) {
-			failed_count++;
+		if (start->rtt > 1.2 * end->rtt) {
+			return false;
+		}
+		if (end->rtt > 1.2 * start->rtt) {
 			return false;
 		}
 
-		if (end->rtt_panelty_ > 1.6 * start->rtt_panelty_) {
-			failed_count++;
-			return false;
-		}
-		
 		/*
-		if (start->loss_panelty_ > end->loss_panelty_) {
+		if (start->actual_packets_sent_rate_ < end->actual_packets_sent_rate_) {
+			//cerr << "failed on packets sent" << endl;
 			return false;
-		}
-		*/
-		failed_count = 0;
-		return true; 
+		}*/
+		return true;
 	}
 
 	virtual long double utility(unsigned long total, unsigned long loss, double time, double rtt, Measurement* out_measurement) {
+		static long double last_measurement_interval = 1;
+
+		long double norm_measurement_interval = last_measurement_interval;
+
+		if (!kInTimeout) {
+			norm_measurement_interval = time / rtt;
+			last_measurement_interval = norm_measurement_interval;
+		}
+
+
 		// convert to milliseconds
 		double rtt_penalty = rtt / get_min_rtt(rtt);
+                cerr<<"RTT penalty is"<<rtt_penalty<<endl;
+                cerr<<"rtt is"<<rtt<<endl;
 		//if (rtt_penalty > 2) rtt_penalty  = 2;
 		//if (rtt_penalty < -2) rtt_penalty  = -2;
-		exponent_ = 3;
+		exponent_ = 2.5;
 
-		long double loss_rate = (long double)((double) loss/(double) total);
-		long double loss_contribution = alpha_ * (total * (pow((1+loss_rate), exponent_)-1) - 2 * loss);
-		long double rtt_contribution = 3 * total*(pow(rtt_penalty,1.5) - 1);
-		long double utility = ((long double)total - loss_contribution - rtt_contribution)/time;
+		long double loss_contribution = total * (long double) (alpha_* (pow((1+((long double)((double) loss/(double) total))), exponent_)-1));
+		long double rtt_contribution = 12 * total*rtt;//(pow(rtt_penalty, 2) - 1);
+		//long double rtt_factor = rtt;
+                //TODO We should also consider adding just rtt into the utility function, because it is not just change that matters
+                // This may turn out to be extremely helpful during LTE environment
+		//long double utility = ((long double)total - loss_contribution - rtt_contribution)/norm_measurement_interval/rtt;
+		//long double utility = (((long double)total - loss_contribution) - rtt_contribution)/time/norm_measurement_interval;
+		long double utility = ((((long double)total - loss_contribution)) - rtt_contribution)/time;
+		//long double utility = ((((long double)total - loss_contribution))/time/(pow(rtt_penalty, 4)*1000));
 
 		if (out_measurement != NULL) {
-			out_measurement->loss_panelty_ = loss / total;
-			out_measurement->rtt_panelty_ = rtt;//rtt_contribution / time;
-			out_measurement->actual_packets_sent_rate_ = total / time;
+			out_measurement->loss_panelty_ = loss_contribution / norm_measurement_interval;
+			out_measurement->rtt_panelty_ = rtt_contribution / norm_measurement_interval;
+			out_measurement->actual_packets_sent_rate_ = total / norm_measurement_interval;
 		}
 		return utility;
 	}
+
+	static const long kMillisecondsDigit = 10 * 1000;
 
 	int monitor_in_start_phase_;
 	double slow_start_factor_;
@@ -517,19 +638,19 @@ private:
 	long double utility_sum_;
 	size_t measurement_intervals_;
 	long double prev_utility_;
-	double best_slow_start_rate_;
-	map<int, double> ongoing_slow_start_monitors_;
 	bool continue_slow_start_;
 	map<int, shared_ptr<Measurement> > start_measurment_map_;
 	map<int, shared_ptr<Measurement> > end_measurment_map_;
+    int number_of_probes_;
+	vector<GuessStat> guess_measurement_bucket;
+	MoveStat move_stat;
+        RecentEndMonitorStat recent_end_stat;
+    int guess_time_;
 	int current_start_monitor_;
 	long double last_utility_;
 	deque<double> rtt_history_;
-	static constexpr size_t kHistorySize = 4;
-	mutex monitor_mutex_;
+	static constexpr size_t kHistorySize = 1;
 	int on_next_start_bind_to_end_;
-	bool hibernate_;
-	double pre_hibernate_rate_;
 };
 
 #endif

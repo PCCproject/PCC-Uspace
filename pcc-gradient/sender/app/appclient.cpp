@@ -12,7 +12,6 @@
 #include <udt.h>
 #include <signal.h>
 #include "cc.h"
-#include <execinfo.h>
 
 using namespace std;
 
@@ -23,19 +22,6 @@ unsigned int iteration_count = 0;
 
 
 BBCC* cchandle = NULL;
-
-void handler(int sig) {
-  void *array[10];
-  size_t size;
-
-  // get void*'s for all entries on the stack
-  size = backtrace(array, 10);
-
-  // print out all the frames to stderr
-  fprintf(stderr, "Error: signal %d:\n", sig);
-  backtrace_symbols_fd(array, size, STDERR_FILENO);
-  exit(1);
-}
 
 void intHandler(int dummy) {
 	if (iteration_count  > 0) {
@@ -62,7 +48,6 @@ int main(int argc, char* argv[])
       return 0;
    }
 	signal(SIGINT, intHandler);
-	signal(SIGSEGV, handler); 
 //sleep(1500);
    // use this function to initialize the UDT library
    UDT::startup();
