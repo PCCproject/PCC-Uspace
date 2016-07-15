@@ -56,6 +56,8 @@ written by
 #include "queue.h"
 #include <vector>
 #include <deque>
+#include <mutex>
+#include <thread>
 #include "time.h"
 
 enum UDTSockType {UDT_STREAM = 1, UDT_DGRAM};
@@ -309,9 +311,6 @@ private: // monitor
    uint64_t send_timestamp[100][30000];
    int rtt_count[100];
    uint64_t rtt_value[100];
-   uint64_t last_ack_;
-   uint64_t last_rtt_ts_;
-   uint64_t hibernate_timestamp_;
    bool monitor;
    int test;
 //   int retransmission_list[60000], max_retransmission_list, min_retransmission_list_seqNo;
@@ -371,7 +370,7 @@ private: // Status
    int m_iRTT;                                  // RTT, in microseconds
    int last_rtt_;
    deque<double> m_last_rtt;
-   static const size_t kRTTHistorySize = 10;
+   static const size_t kRTTHistorySize = 2;
    //double m_last_rtt[100];
    int m_monitor_count;
    int m_iRTTVar;                               // RTT variance
@@ -435,13 +434,12 @@ private: // synchronization: mutexes and conditions
    pthread_mutex_t m_RecvLock;                  // used to synchronize "recv" call
 
    pthread_mutex_t m_LossrecordLock;
+   mutex monitor_mutex_;
+
    void initSynch();
    void destroySynch();
    void releaseSynch();
    double get_min_rtt() const;
-   double get_rtt_sd() const;
-   double get_avg_rtt() const;
-   uint64_t calc_95_delay(int mon);
 
 private: // Generation and processing of packets
    void sendCtrl(const int& pkttype, void* lparam = NULL, void* rparam = NULL, const int& size = 0);
@@ -450,13 +448,11 @@ private: // Generation and processing of packets
    int processData(CUnit* unit);
    int listen(sockaddr* addr, CPacket& packet);
    void add_to_loss_record(int32_t loss1, int32_t loss2);
-   void timeout_monitors();
+   bool timeout_monitors();
    double estimate_rtt_for_timedout_monitors(int monitor);
    uint64_t deadlines[100];
    uint64_t allocated_times_[100];
-   vector<uint64_t> rtts_[100];
-   //uint64_t start_times_[100];
-   
+
    static const uint64_t kMinTimeoutMillis = 10;
 private: // Trace
    uint64_t m_StartTime;                        // timestamp when the UDT entity is started
@@ -520,7 +516,7 @@ private: // for UDP multiplexer
    void init_state();
    void save_timeout_time();
    time_t start_;
-   
+
 private: // for epoll
    std::set<int> m_sPollID;                     // set of epoll ID to trigger
    void addEPoll(const int eid);

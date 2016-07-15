@@ -42,12 +42,10 @@ written by
 #ifndef __UDT_CCC_H__
 #define __UDT_CCC_H__
 
-#include <mutex>
+
 #include "udt.h"
 #include "packet.h"
 
-#include <iostream>
-using namespace std;
 
 class UDT_API CCC
 {
@@ -141,16 +139,8 @@ public:
 
    virtual void onMonitorEnds(int /*total*/, int /*loss*/, double /*time*/, int /*skip*/,int /*num*/, double /*rtt*/){}
 
-   virtual void onMonitorStart(int /*monitor_number*/){}
+   virtual void onMonitorStart(int /*monitor_number*/, int&){}
 
-   	virtual void enter_hibernate() { cout << "++++++++++++++++++++legacy Enter hibernate" << endl; }
-	virtual void exit_hibernate() {cout << "++++++++++++++++++++++legacy Exit hibernate" << endl; }
-	virtual bool hibernate() { return false; }
-
-	static constexpr double kHibernationRate = 0.1;
-	static constexpr double kMinRateMbpsSlowStart = 0.5;
-   
-   mutable std::recursive_mutex data_lock_;
 protected:
 
       // Functionality:
@@ -274,7 +264,7 @@ public:
    virtual void onACK(const int32_t&);
    virtual void onLoss(const int32_t*, const int&);
    virtual bool onTimeout(int /*total*/, int /*loss*/, double /*in_time*/, int /*current*/, int /*endMonitor*/, double /*rtt*/);
-	
+
 private:
    int m_iRCInterval;			// UDT Rate control interval
    uint64_t m_LastRCTime;		// last rate increase time

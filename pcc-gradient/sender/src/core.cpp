@@ -55,7 +55,6 @@ written by
 #include <cmath>
 #include <sstream>
 #include <iostream>
-#include <algorithm>
 #include "queue.h"
 #include "core.h"
 
@@ -77,7 +76,7 @@ const int32_t CMsgNo::m_iMsgNoTH = 0xFFFFFFF;
 const int32_t CMsgNo::m_iMaxMsgNo = 0x1FFFFFFF;
 
 const int CUDT::m_iVersion = 4;
-const int CUDT::m_iSYNInterval = 10000;
+const int CUDT::m_iSYNInterval = 1000000;
 const int CUDT::m_iSelfClockInterval = 64;
 
 
@@ -102,7 +101,7 @@ CUDT::CUDT()
 
 
 	// Default UDT configurations
-	m_iMSS = 1500;
+	m_iMSS = 100;
 	m_bSynSending = true;
 	m_bSynRecving = true;
 	m_iFlightFlagSize = 100000;
@@ -137,13 +136,7 @@ CUDT::CUDT()
 	m_ullLingerExpiration = 0;
 	start_ = time(NULL);
 	remove( "/home/yossi/timeout_times.txt" );
-	for (int i = 0; i < 100; i++) {
-		state[i] = 0;
-	}
-	last_ack_ = CTimer::getTime();
-	last_rtt_ts_ = 0;
-
-	hibernate_timestamp_ = CTimer::getTime();
+	for (int i = 0; i < 100; i++) state[i] = 0;
 }
 
 CUDT::CUDT(const CUDT& ancestor)
@@ -198,14 +191,8 @@ CUDT::CUDT(const CUDT& ancestor)
 	m_bPeerHealth = true;
 	m_ullLingerExpiration = 0;
 	start_ = time(NULL);
-	remove( "/home/yossi/timeout_times.txt" ); 
-	for (int i = 0; i < 100; i++) {
-		state[i] = 0;
-	}
-	last_ack_ = CTimer::getTime();
-	last_rtt_ts_ = 0;
-
-	hibernate_timestamp_ = CTimer::getTime();
+	remove( "/home/yossi/timeout_times.txt" );
+	for (int i = 0; i < 100; i++) state[i] = 0;
 }
 
 CUDT::~CUDT()
@@ -2061,8 +2048,9 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 		// send ACK acknowledgement
 		// number of ACK2 can be much less than number of ACK
 		uint64_t now = CTimer::getTime();
-		if ((currtime - m_ullSndLastAck2Time > (uint64_t)m_iSYNInterval) || (ack == m_iSndLastAck2))
+		if ((currtime - m_ullSndLastAck2Time > (uint64_t)m_iSYNInterval))
 		{
+                        //cout<<"send ACK ACK"<<endl;
 			sendCtrl(6, &ack);
 			m_iSndLastAck2 = ack;
 			m_ullSndLastAck2Time = now;
@@ -2168,8 +2156,8 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 		m_pSndQueue->m_pSndUList->update(this, false);
 
 		// Update RTT
-		m_iRTT = *((int32_t *)ctrlpkt.m_pcData + 1);
-		m_iRTTVar = *((int32_t *)ctrlpkt.m_pcData + 2);
+		//m_iRTT = *((int32_t *)ctrlpkt.m_pcData + 1);
+		//m_iRTTVar = *((int32_t *)ctrlpkt.m_pcData + 2);
 		//int rtt = *((int32_t *)ctrlpkt.m_pcData + 1);
 		//m_iRTTVar = (m_iRTTVar * 3 + abs(rtt - m_iRTT)) >> 2;
 		//m_iRTT = (m_iRTT * 7 + rtt) >> 3;
@@ -2220,10 +2208,10 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 		//   sendCtrl(4);
 
 		// RTT EWMA
-		m_iRTTVar = (m_iRTTVar * 3 + abs(rtt - m_iRTT)) >> 2;
-		m_iRTT = (m_iRTT * 7 + rtt) >> 3;
+		//m_iRTTVar = (m_iRTTVar * 3 + abs(rtt - m_iRTT)) >> 2;
+		//m_iRTT = (m_iRTT * 7 + rtt) >> 3;
 
-		m_pCC->setRTT(m_iRTT);
+		//m_pCC->setRTT(m_iRTT);
 
 		// update last ACK that has been received by the sender
 		if (CSeqNo::seqcmp(ack, m_iRcvLastAckAck) > 0)
@@ -2402,20 +2390,7 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 		int last_position = (int)(ctrlpkt.getLength() / 4)-1;
 		int Mon = tsn_payload[last_position]>>16;
 		rtt_count[Mon]++;
-		uint64_t rtt = int(CTimer::getTime() - m_StartTime) - send_timestamp[Mon][tsn_payload[last_position]&0xFFFF];
-		rtt_value[Mon]+= rtt;
-		//rtts_[Mon].push_back(int(CTimer::getTime() - m_StartTime) - send_timestamp[Mon][tsn_payload[last_position]&0xFFFF]);
-		rtts_[Mon].push_back(rtt);
-		last_ack_ = CTimer::getTime();
-		last_rtt_ts_ = rtt;
-
-		static uint64_t last_recieve_time = CTimer::getTime();
-		//double hibernation_thresh = 2. * 1500. * 8. / (1024. * 1024. * rtt_sec);
-		if (CTimer::getTime() - last_recieve_time < 1000000){
-			m_pCC->exit_hibernate();
-		}
-		last_recieve_time = CTimer::getTime();
-
+		rtt_value[Mon]+= int(CTimer::getTime() - m_StartTime) - send_timestamp[Mon][tsn_payload[last_position]&0xFFFF];
 		if(latency_time_start[Mon] == 0){
 			latency_time_start[Mon]=ctrlpkt.m_iTimeStamp;
 			latency_seq_start[Mon] = tsn_payload[last_position] & 0xFFFF;
@@ -2424,6 +2399,7 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 			latency_seq_end[Mon] = tsn_payload[last_position] & 0xFFFF;
 		}
 		for (int i = 0, n = (int)(ctrlpkt.getLength() / 4); i < n; ++ i) {
+	        lock_guard<mutex> lck(monitor_mutex_);
 			monitorNo = tsn_payload[i] >> 16;
 			SeqNoInMonitor = tsn_payload[i] & 0xFFFF;
 			++ m_iRecvNAKTotal;
@@ -2437,7 +2413,6 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
             if (SeqNoInMonitor == total[monitorNo] -1) {
                 includeThisMonitor = true;
             }
-			
 			//pkt_sending[monitorNo][SeqNoInMonitor] = ctrlpkt.m_iTimeStamp;
 			//cout<<pkt_sending[monitorNo][SeqNoInMonitor]<<endl;
 
@@ -2451,7 +2426,6 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
                 } else {
                     tmp = (monitorNo+99)%100;
                 }
-
 				int count=0;
 				//.....................
 				while (tmp!=current_monitor) {
@@ -2477,36 +2451,22 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 							rtt_value[Mon]=0;
 							rtt_count[Mon]=1;
                         }
-						
-						last_rtt_ = rtt_value[Mon]/((double) rtt_count[Mon]);
-						uint64_t rtt = calc_95_delay(tmp);// * (end_transmission_time[tmp]-start_time[tmp])/1000000;
-						//cout << "Signal delay: " << rtt <<endl;
-						
+                                                m_iRTT = rtt_value[Mon]/double(rtt_count[Mon]);
+						last_rtt_ = m_iRTT;
+	                                        m_pCC->setRTT(m_iRTT);
+
 						m_last_rtt.push_front(last_rtt_);
 						if (m_last_rtt.size() > kRTTHistorySize) {
 							m_last_rtt.pop_back();
 						}
-						
-						
+
 						//m_last_rtt[Mon % 100] = rtt_value[Mon]/((double) rtt_count[Mon]);
                                                 //cout<<"Fill in rtt value as"<<m_last_rtt[Mon % 100]<<endl;
                                                 //cerr<<"Monitor"<<tmp<<"ends at"<<CTimer::getTime()<<endl;
-						//rtt_value[Mon]/double(rtt_count[Mon])
-						//cout << "RTT = " << last_rtt_ / 1000;
-						//cout << "Time since start: " << time(NULL) - start_ <<  " sec" <<endl;
-						
-						/*
-						if ((CTimer::getTime() - hibernate_timestamp_ > 1000000) && (m_pCC->hibernate())){
-							m_pCC->exit_hibernate();
-							cout << "+++Exiting hibernate, now the rtt is " << m_iRTT << endl;
-						}
-						*/
-						m_pCC->onMonitorEnds(total[tmp],total[tmp]-left[tmp],(end_transmission_time[tmp]-start_time[tmp])/1000000,current_monitor,tmp, rtt);
-						//double rtt_sec = m_iRTT / (1000. * 1000.);
 
+						m_pCC->onMonitorEnds(total[tmp],total[tmp]-left[tmp],(end_transmission_time[tmp]-start_time[tmp])/1000000,current_monitor,tmp, rtt_value[Mon]/double(rtt_count[Mon]));
 						m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
 						if (!left_monitor) break;
-
 					}
 					tmp = (tmp+99)%100;
 				}
@@ -2533,7 +2493,11 @@ int CUDT::packData(CPacket& packet, uint64_t& ts)
 	bool probe = false;
 	uint64_t entertime;
 	CTimer::rdtsc(entertime);
-	timeout_monitors();
+	if(timeout_monitors()) {
+        // if there is any thing get timeouted, reset monitor
+       start_monitor(0);
+    }
+
 	if ((0 != m_ullTargetTime) && (entertime > m_ullTargetTime))
 		m_ullTimeDiff += entertime - m_ullTargetTime;
 	// Loss retransmission always has higher priority.
@@ -3075,43 +3039,12 @@ void CUDT::removeEPoll(const int eid)
 	s_UDTUnited.m_EPoll.disable_write(m_SocketID, m_sPollID);
 }
 
-double CUDT::get_avg_rtt() const {
-	if (m_last_rtt.size() < 10) {
-		return last_rtt_;
-	}
-	double sum = 0;
-	for (deque<double>::const_iterator it = m_last_rtt.begin(); it!=m_last_rtt.end(); ++it) {
-		sum += *it;
-	}
-	return sum / m_last_rtt.size();
-}
-
-double CUDT::get_rtt_sd() const {
-	if (m_last_rtt.size() < 10) {
-		return last_rtt_;
-	}
-
-	double avg = get_avg_rtt();
-
-	double var = 0;
-	//cout << "samples: ";
-	for (deque<double>::const_iterator it = m_last_rtt.begin(); it!=m_last_rtt.end(); ++it) {
-		//cout << *it << " ";
-		var += pow(*it - avg, 2);
-	}
-	//cout << endl;
-	var /= m_last_rtt.size();
-	return pow(var, 0.5);
-
-}
-
-
 double CUDT::get_min_rtt() const {
 	double min = 0;
 	if ((m_last_rtt.size()) > 0) {
 		min = *m_last_rtt.begin();
 		for (deque<double>::const_iterator it = m_last_rtt.begin(); it!=m_last_rtt.end(); ++it) {
-			if (min > *it) { 
+			if (min > *it) {
 				min = *it;
 			}
 		}
@@ -3120,8 +3053,9 @@ double CUDT::get_min_rtt() const {
 	return min;
 }
 
-void CUDT::start_monitor(int length) 
+void CUDT::start_monitor(int length)
 {
+	lock_guard<mutex> lck(monitor_mutex_);
 	//cout << "start monitor!" << endl;
 	m_iMonitorCurrSeqNo=0;
 	previous_monitor = current_monitor;
@@ -3131,45 +3065,42 @@ void CUDT::start_monitor(int length)
 	//int count = 0;
 
 	//ygi: hack here!
-	rtts_[current_monitor].clear();
-	m_pCC->onMonitorStart(current_monitor);
+    int suggested_length = 100000;
+	m_pCC->onMonitorStart(current_monitor, suggested_length);
 	m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
     time_interval[current_monitor] = m_pCC->m_dPktSndPeriod;
     //double rand_factor = double(rand()%10)/100.0;
 	//if(m_iRTT*(1.2)/m_pCC->m_dPktSndPeriod>10) length = m_iRTT*(0.5 + rand_factor)/m_pCC->m_dPktSndPeriod;
-	//cout << "min RTT is " << get_min_rtt() << endl;
-	//cout << "Allocated time: slack = " << 4 * get_rtt_sd() << " last RTT = " << last_rtt_ << endl;
-	//cout << "the standard deviation is " << get_rtt_sd() << endl;
-	allocated_times_[current_monitor] = min<double>(1.1 * get_avg_rtt() + 5 * get_rtt_sd(), 2 * get_avg_rtt()); 
-	//cout << "minrtt = " << get_min_rtt() << " deviation = " << get_rtt_sd() << ".  allocating " << allocated_times_[current_monitor] << endl;
-	//cout << "allocating: " << 10 * get_rtt_sd() / 1000. << "sec" <<endl;
-	if(allocated_times_[current_monitor]> 1000000) {
-		allocated_times_[current_monitor] = 1000000;
-	}
-	if (allocated_times_[current_monitor]< kMinTimeoutMillis) {
-		allocated_times_[current_monitor] = kMinTimeoutMillis;
-	}
-	//cout << "m_iRTT: " << m_iRTT << ". Min RTT = " << get_min_rtt() << " allocated time = " << allocated_times_[current_monitor] << endl;
-	//cout << "monitor " << current_monitor << ", deadline is " << deadlines[current_monitor] << " --> " << x << endl;
+		//cout << "min RTT is " << get_min_rtt() << endl;
+		allocated_times_[current_monitor] = 2.0 * get_min_rtt();//last_rtt_;//m_iRTT;//get_min_rtt();
+                if(allocated_times_[current_monitor]> 1000000) {
+                    allocated_times_[current_monitor] = 1000000;
+                }
+				if (allocated_times_[current_monitor]< kMinTimeoutMillis) {
+                    allocated_times_[current_monitor] = kMinTimeoutMillis;
+                }
+		//cout << "m_iRTT: " << m_iRTT << ". Min RTT = " << get_min_rtt() << endl;
+		//cout << "monitor " << current_monitor << ", deadline is " << deadlines[current_monitor] << " --> " << x << endl;
 	m_monitor_count++;
 
 	//double rand_factor = (rand() %10) / 100.;
-	int send_period = 1 * m_iRTT; //100 * 1000; // 100 milliseconds
+	int send_period = 1.0*m_iRTT; //100 * 1000; // 100 milliseconds
 	//length = send_period*(0.5 + rand_factor)/m_pCC->m_dPktSndPeriod;
-    if(send_period > 1000000) {
-		send_period = 300000;
-	}
+            if(send_period > 1000000) {
+               send_period = 300000;
+            }
 
 	if(send_period/m_pCC->m_dPktSndPeriod>30) {
-		length = send_period/m_pCC->m_dPktSndPeriod;
-	} else {
-		length=30;
-		if (m_pCC->hibernate()) {
-			cout << "in hibernate! sending 1 monitor packet" <<endl;
-			cout << "*** I was supposed to send " << send_period/m_pCC->m_dPktSndPeriod << " packets. Since the RTT is " << m_iRTT << " and send period is " << send_period<< endl; 
-			length=1;
-		}
+            length = send_period/m_pCC->m_dPktSndPeriod;
+    } else {
+            length=30;
+    }
+	if (length > 70) {
+		length = 70;
 	}
+    if (suggested_length < length) {
+        length = suggested_length;
+    }
 
 //#ifdef EXPERIMENTAL_FEATURE_CONTINOUS_SEND
 	//	length=50000/m_pCC->m_dPktSndPeriod;
@@ -3177,8 +3108,7 @@ void CUDT::start_monitor(int length)
 // #endif
 	// add the transmition time
 	//if (length > 100) length = 100;
-	//start_times_[current_monitor] = CTimer::getTime();
-	deadlines[current_monitor] = CTimer::getTime() + allocated_times_[current_monitor] + (length + 1) * m_pCC->m_dPktSndPeriod;
+	deadlines[current_monitor] = CTimer::getTime() + allocated_times_[current_monitor] + length * m_pCC->m_dPktSndPeriod;
     //cerr<<"start monitor "<<current_monitor<< " at:"<<CTimer::getTime()<<" with allocated timeout of "<<allocated_times_[current_monitor]<<" and send period of "        <<length * m_pCC->m_dPktSndPeriod<<endl;
 	state[current_monitor] = 1;
 	latency[current_monitor]=0;
@@ -3249,67 +3179,16 @@ void CUDT::init_state() {
 
 }
 
-uint64_t CUDT::calc_95_delay(int mon) {
-	static uint64_t last_ret_ = last_rtt_;
-	if (rtts_[mon].size() <= 1) return last_ret_;
-	//rtts_[mon].erase(rtts_[mon].begin());
-	sort(rtts_[mon].begin(), rtts_[mon].end());
-	int index = floor<int>(0.95 * rtts_[mon].size());
-	uint64_t ret = rtts_[mon].at(index);
-	last_ret_ = ret;
-	//ret = rtts_[mon].at(rtts_[mon].size() - 1);
-	
-	rtts_[mon].clear();
-	//cout  << "Current time: " << CTimer::getTime() << endl;
-	return ret;
-}
-
-void CUDT::timeout_monitors() {
+bool CUDT::timeout_monitors() {
+	lock_guard<mutex> lck(monitor_mutex_);
 	uint64_t current_time = CTimer::getTime();
 	int tmp = (current_monitor + 1) % 100;
-
-	//double rtt_sec = m_iRTT / (1000. * 1000.);
-	//double hibernation_thresh = 2. * 1500. * 8. / (1024. * 1024. * rtt_sec);
-	if (int(CTimer::getTime() - last_ack_) + last_rtt_ts_ > 1000000) {
-		cout << "In this monitor the signal delay is " << int(CTimer::getTime() - last_ack_) + last_rtt_ts_ << endl;
-		m_pCC->enter_hibernate();
-
-		loss_record1.clear();
-		loss_record2.clear();
-		for (unsigned int mon_index = 0; mon_index < 100; mon_index++) {
-			state[mon_index] = 3;
-			total[mon_index] = 0;
-			lost[mon_index] = 0;
-			retransmission[mon_index] = 0;
-			new_transmission[mon_index] = 0;
-			latency[mon_index] = 0;
-			latency_seq_end[mon_index] = 0;
-			latency_time_start[mon_index] = 0;
-			latency_time_end[mon_index] = 0;
-			time_interval[mon_index] = 0;
-			rtt_count[mon_index] = 0;
-			rtt_value[mon_index] = 0;
-			deadlines[mon_index] = 0;
-			allocated_times_[mon_index] = 0;
-			m_last_rtt.clear();
-			rtts_[mon_index].clear();
-		}
-		last_ack_ = CTimer::getTime();
-		last_rtt_ts_ = 0;
-		
-		monitor = true;
-		left_monitor = 0;
-		m_monitor_count = 0;
-		start_monitor(0);
-		return;
-	}
 	while (tmp != current_monitor) {
 		if ((state[tmp]==1) || (state[tmp]==2)) {
-			
 			if((deadlines[tmp] < current_time) && (allocated_times_[tmp] > 0)) {
-				
 				int count=0;
-				hibernate_timestamp_ = CTimer::getTime();
+				//cout<<"killing "<<tmp<<" at "<<current_time<<endl;
+				cout << "waited more than " << allocated_times_[tmp] <<endl;
 				m_monitor_count = 0;
 				for(int i=0;i<total[tmp];i++){
 					if(recv_ack[tmp][i]){
@@ -3321,13 +3200,8 @@ void CUDT::timeout_monitors() {
 				lost[tmp]=total[tmp]-left[tmp];
 				end_time[tmp] = current_time;
 				left_monitor--;
+				m_pCC->onTimeout(total[tmp],total[tmp]-left[tmp],(end_transmission_time[tmp]-start_time[tmp])/1000000,current_monitor,tmp, allocated_times_[tmp]/1000);
 				m_iRTT = allocated_times_[tmp];
-				
-				if (m_pCC->onTimeout(total[tmp],total[tmp]-left[tmp],(end_transmission_time[tmp]-start_time[tmp])/1000000,current_monitor,tmp, allocated_times_[tmp]/1000)) {
-					continue;
-				}
-				//save_timeout_time();
-								
 	            loss_record1.clear();
 	            loss_record2.clear();
 	            for (unsigned int mon_index = 0; mon_index < 100; mon_index++) {
@@ -3346,25 +3220,22 @@ void CUDT::timeout_monitors() {
 	            	deadlines[mon_index] = 0;
 	            	allocated_times_[mon_index] = 0;
 					m_last_rtt.clear();
-					rtts_[mon_index].clear();
 	            }
-				last_ack_ = CTimer::getTime();
-				last_rtt_ts_ = 0;
-				
+
 	            monitor = true;
 	            left_monitor = 0;
 	            m_monitor_count = 0;
-                start_monitor(0);
-				return;
+                return true;
 			}
 		}
-		tmp = (tmp + 1) % 100;
+    tmp = (tmp + 1) % 100;
 	}
+    return false;
 }
 
 void CUDT::save_timeout_time() {
 	cout << "saving to file" << endl;
-	
+
 	std::ofstream outfile("/home/yossi/timeout_times.txt", std::ios_base::app);
 	outfile << "timeout at time " << time(NULL) - start_ <<  ". Last RTTs: ";
 	for(unsigned int i = 0; (i < m_last_rtt.size()) && (i < 10); i++) {

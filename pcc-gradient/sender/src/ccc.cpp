@@ -96,7 +96,6 @@ void CCC::sendCustomMsg(CPacket& pkt) const
    if (NULL != u)
    {
       pkt.m_iID = u->m_PeerID;
-	  lock_guard<std::recursive_mutex> lck(data_lock_);
       u->m_pSndQueue->sendto(u->m_pPeerAddr, pkt);
    }
 }
