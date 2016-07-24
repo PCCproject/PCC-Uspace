@@ -131,10 +131,17 @@ CloseHandle(m_BufLock);
 #endif
 }
 
+void CSndBuffer::resizeMSS(int new_size) {
+    // need a new lock to lock data structure
+    // copy out all the data between currblock and
+	CGuard bufferguard(m_BufLock);
+
+}
 
 void CSndBuffer::addBuffer(const char* data, const int& len, const int& ttl, const bool& order)
 {
 //cout <<"ADD BUFFER!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
+	CGuard bufferguard(m_BufLock);
 	int size = len / m_iMSS;
 	if ((len % m_iMSS) != 0)
 		size ++;
@@ -171,9 +178,7 @@ void CSndBuffer::addBuffer(const char* data, const int& len, const int& ttl, con
 	}
 	m_pLastBlock = s;
 
-	CGuard::enterCS(m_BufLock);
 	m_iCount += size;
-	CGuard::leaveCS(m_BufLock);
 
 /*	m_iNextMsgNo ++;
 	if (m_iNextMsgNo == CMsgNo::m_iMaxMsgNo)
@@ -235,9 +240,7 @@ while (buffer_p != bufferEnder) {
 cout << buffer_p->first_block->m_iBufferNo << endl;
 cout << "end check\n";*/
 
-	CGuard::enterCS(m_BufLock);
 	m_iCount += size;
-	CGuard::leaveCS(m_BufLock);
 
 /*	m_iNextMsgNo ++;
 	if (m_iNextMsgNo == CMsgNo::m_iMaxMsgNo)
@@ -249,6 +252,7 @@ cout << "end check\n";*/
 int CSndBuffer::readData(char** data, int32_t& msgno)
 {
 	// No data to read
+	CGuard bufferguard(m_BufLock);
 	if (m_pCurrBlock == m_pLastBlock)
 		return 0;
 
@@ -407,7 +411,6 @@ int CSndBuffer::getCurrBufSize() const
 
 void CSndBuffer::increase()
 {
-        CGuard::enterCS(m_BufLock);
 
         int unitsize = m_pBuffer->m_iSize;
 	// new physical buffer
@@ -525,7 +528,6 @@ cout << "end increase testing\n";*/
 		pc += m_iMSS;
 	}
 
-        CGuard::leaveCS(m_BufLock);
 	/*   Block* test_p = m_pFirstBlock;
    for (int i = 0; i < m_iSize+33; ++ i) {
       test_p = test_p->m_pNext;
