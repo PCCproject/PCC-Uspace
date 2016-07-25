@@ -75,6 +75,7 @@ public:
 
    int addBufferFromFile(std::fstream& ifs, const int& len);
 
+
       // Functionality:
       //    Find data position to pack a DATA packet from the furthest reading point.
       // Parameters:
@@ -115,6 +116,8 @@ public:
 
    int getCurrBufSize() const;
 
+   void resizeMSS(int size);
+
 private:
    void increase();
 
@@ -138,7 +141,7 @@ private:
    // m_pFirstBlock:    The first block
    // m_pCurrBlock:	The current block
    // m_pLastBlock:     The last block (if first == last, buffer is empty)
-   int FirstBlock;   
+   int FirstBlock;
 
    struct Buffer
    {
@@ -154,6 +157,8 @@ private:
    int m_iMSS;                          // maximum seqment/packet size
 
    int m_iCount;			// number of used blocks
+
+   int m_iBlockSize;
 
 private:
    CSndBuffer(const CSndBuffer&);

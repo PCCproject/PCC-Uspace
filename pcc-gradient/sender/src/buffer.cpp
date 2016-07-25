@@ -57,8 +57,9 @@ CSndBuffer::CSndBuffer(const int& size, const int& mss):
 		m_iCount(0)
 {
 	// initial physical buffer of "size"
+    m_iBlockSize = 1500;
 	m_pBuffer = new Buffer;
-	m_pBuffer->m_pcData = new char [m_iSize * m_iMSS];
+	m_pBuffer->m_pcData = new char [m_iSize * m_iBlockSize];
 	m_pBuffer->m_iSize = m_iSize;
 	m_pBuffer->m_pNext = m_pBuffer;
 	bufferEnder = m_pBuffer;
@@ -85,7 +86,7 @@ CSndBuffer::CSndBuffer(const int& size, const int& mss):
 	{
 		pb->m_pcData = pc;
 		pb = pb->m_pNext;
-		pc += m_iMSS;
+		pc += m_iBlockSize;
 	}
 
 	m_pFirstBlock = m_pCurrBlock = m_pLastBlock = m_pBlock;
@@ -131,10 +132,76 @@ CloseHandle(m_BufLock);
 #endif
 }
 
-void CSndBuffer::resizeMSS(int new_size) {
+void CSndBuffer::resizeMSS(int newSize) {
     // need a new lock to lock data structure
     // copy out all the data between currblock and
 	CGuard bufferguard(m_BufLock);
+    // count the total data size
+    int total_data_size = 0;
+    //Block *blockBeforeCurrBlock;
+    //blockBeforeCurrBlock = m_pFirstBlock;
+    //while(blockBeforeCurrBlock != m_pFirstBlock) {
+    //    blockBeforeCurrBlock = blockBeforeCurrBlock->m_pNext;
+    //}
+    Block *blockPointer = m_pCurrBlock;
+    while(blockPointer != m_pLastBlock) {
+        total_data_size += blockPointer->m_iLength;
+        blockPointer = blockPointer->m_pNext;
+    }
+    char* tempDataBuffer = new char[total_data_size];
+    total_data_size = 0;
+    int numberOfBlocks = 0;
+    blockPointer = m_pCurrBlock;
+    while(blockPointer != m_pLastBlock) {
+	    memcpy(tempDataBuffer + total_data_size, blockPointer->m_pcData, blockPointer->m_iLength);
+        total_data_size += blockPointer->m_iLength;
+        blockPointer = blockPointer->m_pNext;
+        numberOfBlocks++;
+    }
+    m_iMSS = newSize;
+    m_pLastBlock = m_pCurrBlock;
+    m_iCount -= numberOfBlocks;
+
+    int len = total_data_size;
+	int size = len / m_iMSS;
+    int ttl= -1;
+    bool order = false;
+	if ((len % m_iMSS) != 0)
+		size ++;
+
+	// dynamically increase sender buffer
+	while (size + m_iCount >= m_iSize)
+		increase();
+
+	uint64_t time = CTimer::getTime();
+	int32_t inorder = order;
+	inorder <<= 29;
+
+	Block* s = m_pLastBlock;
+	for (int i = 0; i < size; ++ i)
+	{
+		int pktlen = len - i * m_iMSS;
+		if (pktlen > m_iMSS)
+			pktlen = m_iMSS;
+
+		memcpy(s->m_pcData, tempDataBuffer + i * m_iMSS, pktlen);
+		s->m_iLength = pktlen;
+
+		s->m_iMsgNo = m_iNextMsgNo | inorder;
+		if (i == 0)
+			s->m_iMsgNo |= 0x80000000;
+		if (i == size - 1)
+			s->m_iMsgNo |= 0x40000000;
+
+		s->m_OriginTime = time;
+		s->m_iTTL = ttl;
+
+		s = s->m_pNext;
+		m_iNextMsgNo ++;
+	}
+	m_pLastBlock = s;
+
+	m_iCount += size;
 
 }
 
@@ -211,12 +278,6 @@ int CSndBuffer::addBufferFromFile(fstream& ifs, const int& len)
 		if ((pktlen = ifs.gcount()) <= 0)
 			break;
 
-		// currently file transfer is only available in streaming mode, message is always in order, ttl = infinite
-/*		if (i == 0)
-			s->m_iMsgNo |= 0x80000000;
-		if (i == size - 1)
-			s->m_iMsgNo |= 0x40000000;*/
-
 		s->m_iLength = pktlen;
 		s->m_iTTL = -1;
 		s = s->m_pNext;
@@ -225,26 +286,7 @@ int CSndBuffer::addBufferFromFile(fstream& ifs, const int& len)
 	}
 	m_pLastBlock = s;
 
-/*cout << "check\n";
-Block* tmp = FirstBuffer->first_block;
-while (tmp != m_pLastBlock->m_pNext) {
-	cout << tmp->m_iBufferNo << endl;
-	tmp = tmp->m_pNext;
-}
-cout << "buffer\n";
-Buffer* buffer_p = FirstBuffer;
-while (buffer_p != bufferEnder) {
-	cout << buffer_p->first_block->m_iBufferNo << endl;
-	buffer_p = buffer_p->m_pNext;
-}
-cout << buffer_p->first_block->m_iBufferNo << endl;
-cout << "end check\n";*/
-
 	m_iCount += size;
-
-/*	m_iNextMsgNo ++;
-	if (m_iNextMsgNo == CMsgNo::m_iMaxMsgNo)
-		m_iNextMsgNo = 1;*/
 
 	return total;
 }
@@ -272,7 +314,6 @@ int CSndBuffer::readData(char** data, const int offset, int32_t& msgno, int& msg
 	// find the block
 	int movement = (FirstBlock+offset)/m_pBuffer->m_iSize;
 	int blockOffset = (FirstBlock+offset)%m_pBuffer->m_iSize;
-	//cerr<<FirstBlock<<" "<<movement<<" "<<blockOffset<<" "<<bufferEnder->m_iSize<<" "<<offset<<endl;
 	Buffer* buffer_p = FirstBuffer;
 	for (int i=0; i<movement; ++i)
 	{
@@ -289,40 +330,6 @@ int CSndBuffer::readData(char** data, const int offset, int32_t& msgno, int& msg
 	{
 		p = p->m_pNext;
 	}
-	//cerr<<(CTimer::getTime() - p->m_OriginTime) / 1000<<" "<<((uint64_t)p->m_iTTL)<<endl;
-
-/*	Block* test_p = m_pFirstBlock;
-	for (int i = 0; i < offset; ++ i)
-		test_p = test_p->m_pNext;
-	if (test_p == p)
-		cout << "correct read\n";
-	else cout << "ERROR READING!!!!!\n";*/
-
-	/*  Block* test_p = m_pFirstBlock;
-   for (int i = 0; i < offset; ++ i) {
-      test_p = test_p->m_pNext;
-  //    if (test_p==p)
-//	cerr<<"R "<<i+1<<endl;
-//      if (test_p==buffer_p->first_block)
-//	cerr<<"L "<<i+1<<endl;
-   }
-   Block* tmp = test_p;
-   for (int i=offset; i<offset+10;++i)
-   {
-      tmp = tmp->m_pNext;
-      if (tmp==p)
-        cerr<<"R "<<i+1<<endl;
-      if (tmp==buffer_p->first_block)
-        cerr<<"L "<<i+1<<endl;
-   }
-
-cerr<<(CTimer::getTime() - test_p->m_OriginTime) / 1000<<" "<<((uint64_t)test_p->m_iTTL)<<endl;
-
-   if (test_p!=p)
-	cerr<<"WRONG\n";
-	 */
-	//   for (int i = 0; i < offset; ++ i)
-	//      p = p->m_pNext;
 
 	if ((p->m_iTTL >= 0) && ((CTimer::getTime() - p->m_OriginTime) / 1000 > (uint64_t)p->m_iTTL))
 	{
@@ -418,7 +425,7 @@ void CSndBuffer::increase()
 	try
 	{
 		nbuf  = new Buffer;
-		nbuf->m_pcData = new char [unitsize * m_iMSS];
+		nbuf->m_pcData = new char [unitsize * m_iBlockSize];
 	}
 	catch (...)
 	{
@@ -525,7 +532,7 @@ cout << "end increase testing\n";*/
 	{
 		pb->m_pcData = pc;
 		pb = pb->m_pNext;
-		pc += m_iMSS;
+		pc += m_iBlockSize;
 	}
 
 	/*   Block* test_p = m_pFirstBlock;
