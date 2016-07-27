@@ -292,6 +292,8 @@ private:
 
    void reduce_retransmission_list(int ack);
 
+   void resizeMSS(int mss);
+
 
 private: // monitor
    int current_monitor, previous_monitor, monitor_ttl;
@@ -331,6 +333,7 @@ private: // Identification
 private: // Packet sizes
    int m_iPktSize;                              // Maximum/regular packet size, in bytes
    int m_iPayloadSize;                          // Maximum/regular payload size, in bytes
+   int m_iRcvPayloadSize;                          // Maximum/regular payload size, in bytes
 
 private: // Options
    int m_iMSS;                                  // Maximum Segment Size, in bytes

@@ -57,7 +57,7 @@ CSndBuffer::CSndBuffer(const int& size, const int& mss):
 		m_iCount(0)
 {
 	// initial physical buffer of "size"
-    m_iBlockSize = 1500;
+    m_iBlockSize = 1456;
 	m_pBuffer = new Buffer;
 	m_pBuffer->m_pcData = new char [m_iSize * m_iBlockSize];
 	m_pBuffer->m_iSize = m_iSize;

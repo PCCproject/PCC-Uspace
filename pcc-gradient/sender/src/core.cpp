@@ -499,6 +499,7 @@ void CUDT::open()
 	// Initial sequence number, loss, acknowledgement, etc.
 	m_iPktSize = m_iMSS - 28;
 	m_iPayloadSize = m_iPktSize - CPacket::m_iPktHdrSize;
+	m_iRcvPayloadSize = m_iPktSize - CPacket::m_iPktHdrSize;
 
 	m_iEXPCount = 1;
 	m_iBandwidth = 1;
@@ -764,6 +765,7 @@ int CUDT::connect(const CPacket& response) throw ()
 	m_iFlowWindowSize = m_ConnRes.m_iFlightFlagSize;
 	m_iPktSize = m_iMSS - 28;
 	m_iPayloadSize = m_iPktSize - CPacket::m_iPktHdrSize;
+	m_iRcvPayloadSize = m_iPktSize - CPacket::m_iPktHdrSize;
 	m_iPeerISN = m_ConnRes.m_iISN;
 	m_iRcvLastAck = m_ConnRes.m_iISN;
 	m_iRcvLastAckAck = m_ConnRes.m_iISN;
@@ -885,6 +887,7 @@ void CUDT::connect(const sockaddr* peer, CHandShake* hs)
 
 	m_iPktSize = m_iMSS - 28;
 	m_iPayloadSize = m_iPktSize - CPacket::m_iPktHdrSize;
+	m_iRcvPayloadSize = m_iPktSize - CPacket::m_iPktHdrSize;
 
 	// Prepare all structures
 	try
@@ -1892,9 +1895,9 @@ void CUDT::sendCtrl(const int& pkttype, void* lparam, void* rparam, const int& s
 			++ m_iSentNAK;
 			++ m_iSentNAKTotal;
 
-			int32_t* data = new int32_t[m_iPayloadSize / 4];
+			int32_t* data = new int32_t[m_iRcvPayloadSize / 4];
 			int losslen;
-			m_pRcvLossList->getLossArray(data, losslen, m_iPayloadSize / 4);
+			m_pRcvLossList->getLossArray(data, losslen, m_iRcvPayloadSize / 4);
 			//   cout<<"This is loss List"<<endl;
 			int i=0;
 
@@ -1913,9 +1916,9 @@ void CUDT::sendCtrl(const int& pkttype, void* lparam, void* rparam, const int& s
 			// this is periodically NAK report; make sure NAK cannot be sent back too often
 
 			// read loss list from the local receiver loss list
-			int32_t* data = new int32_t[m_iPayloadSize / 4];
+			int32_t* data = new int32_t[m_iRcvPayloadSize / 4];
 			int losslen;
-			m_pRcvLossList->getLossArray(data, losslen, m_iPayloadSize / 4);
+			m_pRcvLossList->getLossArray(data, losslen, m_iRcvPayloadSize / 4);
 
 			if (0 < losslen)
 			{
@@ -2335,8 +2338,8 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 			initdata.m_iReqType = (!m_bRendezvous) ? -1 : -2;
 			initdata.m_iID = m_SocketID;
 
-			char* hs = new char [m_iPayloadSize];
-			int hs_size = m_iPayloadSize;
+			char* hs = new char [m_iRcvPayloadSize];
+			int hs_size = m_iRcvPayloadSize;
 			initdata.serialize(hs, hs_size);
 			sendCtrl(0, NULL, hs, hs_size);
 			delete [] hs;
@@ -2489,6 +2492,14 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 	default:
 		break;
 	}
+}
+
+void CUDT::resizeMSS(int mss) {
+	CGuard sendguard(m_SendLock);
+    m_iMSS = mss;
+	m_iPktSize = m_iMSS - 28;
+	m_iPayloadSize = m_iPktSize - CPacket::m_iPktHdrSize;
+    m_pSndBuffer->resizeMSS(m_iPayloadSize);
 }
 
 int CUDT::packData(CPacket& packet, uint64_t& ts)
@@ -3072,7 +3083,11 @@ void CUDT::start_monitor(int length)
 
 	//ygi: hack here!
     int suggested_length = 100000;
-	m_pCC->onMonitorStart(current_monitor, suggested_length);
+    int mss = m_iMSS;
+	m_pCC->onMonitorStart(current_monitor, suggested_length, mss);
+    if(mss != m_iMSS) {
+        this->resizeMSS(mss);
+    }
 	m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
     time_interval[current_monitor] = m_pCC->m_dPktSndPeriod;
     //double rand_factor = double(rand()%10)/100.0;

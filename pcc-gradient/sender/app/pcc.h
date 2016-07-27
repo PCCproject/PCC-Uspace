@@ -102,7 +102,7 @@ public:
         state_ = HIBERNATE;
         setRate(kHibernateRate, true);
         guess_measurement_bucket.clear();
-        return true; 
+        return true;
         } else {
         guess_measurement_bucket.clear();
         state_ = SEARCH;
@@ -160,7 +160,7 @@ public:
 		}
 	}
 
-	virtual void onMonitorStart(int current_monitor, int& suggested_length) {
+	virtual void onMonitorStart(int current_monitor, int& suggested_length, int& mss) {
         ConnectionState old_state;
         cerr<<"Monitor "<<current_monitor<<" starts"<<endl;
         do {
@@ -181,6 +181,8 @@ public:
                     guess_time_ = 0;
                     break;
                 case RECORDING:
+                    m_iMSS = 1500;
+                    mss=1500;
                     if(guess_time_ != number_of_probes_) {
                         cerr<<"Monitor "<<current_monitor<<"is in recording state "<<guess_time_<<"th trial with rate of"<<guess_measurement_bucket[guess_time_].rate<<endl;
                         setRate(guess_measurement_bucket[guess_time_].rate);
@@ -197,6 +199,8 @@ public:
                     break;
                 case HIBERNATE:
                     cerr<<"Hibernating in monitor "<<current_monitor<<" , setting it to really low rate"<<endl;
+                    m_iMSS = 150;
+                    mss=150;
                     setRate(kHibernateRate, true);
                     suggested_length = 1;
                     break;
@@ -243,7 +247,7 @@ public:
                             guess_measurement_bucket.clear();
                             base_rate_ = base_rate_ / 2;
                             if(base_rate_ < kMinRateMbps/ (1-kDelta)) {
-                               base_rate_ = kMinRateMbps / (1-kDelta);  
+                               base_rate_ = kMinRateMbps / (1-kDelta);
                             }
                             setRate(base_rate_);
                             recent_end_stat.initialized = false;
