@@ -1140,7 +1140,7 @@ int CUDT::send(const char* data, const int& len)
 		m_llSndDurationCounter = CTimer::getTime();
 
 	// insert the ueser buffer into the sening list
-	cout<<"adding to buffer"<<endl;
+	//cout<<"adding to buffer"<<endl;
 	m_pSndBuffer->addBuffer(data, size);
 
 	// insert this socket to snd list if it is not on the list yet
@@ -1152,7 +1152,7 @@ int CUDT::send(const char* data, const int& len)
 		// write is not available any more
 		s_UDTUnited.m_EPoll.disable_write(m_SocketID, m_sPollID);
 	}
-        cout<<"returning"<<endl;
+     //   cout<<"returning"<<endl;
 
 	return size;
 }
