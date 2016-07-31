@@ -80,7 +80,7 @@ struct RecentEndMonitorStat {
       double rtt;
       double total;
       double rate;
-      bool initialized = false;
+      bool initialized;
 };
 
 class PCC : public CCC {
@@ -181,8 +181,8 @@ public:
                     guess_time_ = 0;
                     break;
                 case RECORDING:
-                    m_iMSS = 1500;
-                    mss=1500;
+                    m_iMSS = 1000 + current_monitor%100;
+                    mss=1000 + current_monitor%100;
                     if(guess_time_ != number_of_probes_) {
                         cerr<<"Monitor "<<current_monitor<<"is in recording state "<<guess_time_<<"th trial with rate of"<<guess_measurement_bucket[guess_time_].rate<<endl;
                         setRate(guess_measurement_bucket[guess_time_].rate);
@@ -198,10 +198,10 @@ public:
                     setRate(move_stat.next_rate);
                     break;
                 case HIBERNATE:
-                    cerr<<"Hibernating in monitor "<<current_monitor<<" , setting it to really low rate"<<endl;
-                    m_iMSS = 150;
-                    mss=150;
-                    setRate(kHibernateRate, true);
+                    cerr<<"Hibernating, setting it to really low rate"<<endl;
+                    //m_iMSS = 150;
+                    //mss=150;
+                    //setRate(kHibernateRate, true);
                     suggested_length = 1;
                     break;
             }
@@ -465,6 +465,7 @@ protected:
 		m_dCWndSize = 100000.0;
         prev_change_ = 0;
 
+        recent_end_stat.initialized = false;
 		setRTO(100000000);
                 recent_end_stat.initialized = false;
 		srand(time(NULL));

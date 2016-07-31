@@ -148,6 +148,7 @@ void CSndBuffer::resizeMSS(int newSize) {
         total_data_size += blockPointer->m_iLength;
         blockPointer = blockPointer->m_pNext;
     }
+    cout<<"total_data_size is "<<total_data_size<<endl;
     char* tempDataBuffer = new char[total_data_size];
     total_data_size = 0;
     int numberOfBlocks = 0;
@@ -200,6 +201,7 @@ void CSndBuffer::resizeMSS(int newSize) {
 		m_iNextMsgNo ++;
 	}
 	m_pLastBlock = s;
+        delete tempDataBuffer;
 
 	m_iCount += size;
 

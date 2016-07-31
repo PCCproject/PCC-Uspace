@@ -1057,8 +1057,9 @@ int CUDT::send(const char* data, const int& len)
 
 	if (len <= 0)
 		return 0;
-
+        //cout<<"before acquire lock"<<endl;
 	CGuard sendguard(m_SendLock);
+        //cout<<"after send acquire lock"<<endl;
 
 	if (m_pSndBuffer->getCurrBufSize() == 0)
 	{
@@ -1138,7 +1139,8 @@ int CUDT::send(const char* data, const int& len)
 	if (0 == m_pSndBuffer->getCurrBufSize())
 		m_llSndDurationCounter = CTimer::getTime();
 
-	// insert the user buffer into the sening list
+	// insert the ueser buffer into the sening list
+	cout<<"adding to buffer"<<endl;
 	m_pSndBuffer->addBuffer(data, size);
 
 	// insert this socket to snd list if it is not on the list yet
@@ -1150,6 +1152,7 @@ int CUDT::send(const char* data, const int& len)
 		// write is not available any more
 		s_UDTUnited.m_EPoll.disable_write(m_SocketID, m_sPollID);
 	}
+        cout<<"returning"<<endl;
 
 	return size;
 }
@@ -2495,11 +2498,14 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 }
 
 void CUDT::resizeMSS(int mss) {
-	CGuard sendguard(m_SendLock);
+    //cout<<"entering resize function"<<endl;
+	//CGuard sendguard(m_SendLock);
     m_iMSS = mss;
 	m_iPktSize = m_iMSS - 28;
 	m_iPayloadSize = m_iPktSize - CPacket::m_iPktHdrSize;
+    //cout<<"before resize"<<endl;
     m_pSndBuffer->resizeMSS(m_iPayloadSize);
+    //cout<<"after resize"<<endl;
 }
 
 int CUDT::packData(CPacket& packet, uint64_t& ts)
