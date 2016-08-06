@@ -196,7 +196,7 @@ public:
                     setRate(move_stat.next_rate);
                     break;
                 case HIBERNATE:
-                    cerr<<"Hibernating, setting it to really low rate"<<endl;
+                    cerr<<"Hibernating in monitor "<<current_monitor<<" , setting it to really low rate"<<endl;
                     setRate(kHibernateRate, true);
                     suggested_length = 1;
                     break;
@@ -213,7 +213,7 @@ public:
 		utility_sum_ += curr_utility;
 		measurement_intervals_++;
         ConnectionState old_state;
-        cerr<<"Monitor "<<endMonitor<<" ended"<<endl;
+        cerr<<"Monitor "<<endMonitor<<" ended with utility "<<curr_utility<<endl;
         // TODO we should keep track of all monitors and closely mointoring RTT
         // and utility change between monitor
         do {
@@ -589,6 +589,7 @@ public:
 		double rtt_penalty = rtt / get_min_rtt(rtt);
                 cerr<<"RTT penalty is"<<rtt_penalty<<endl;
                 cerr<<"rtt is"<<rtt<<endl;
+                cerr<<"time is "<<time<<endl;
 		//if (rtt_penalty > 2) rtt_penalty  = 2;
 		//if (rtt_penalty < -2) rtt_penalty  = -2;
 		exponent_ = 2.5;
@@ -600,6 +601,7 @@ public:
                 // This may turn out to be extremely helpful during LTE environment
 		//long double utility = ((long double)total - loss_contribution - rtt_contribution)/norm_measurement_interval/rtt;
 		long double utility = (((long double)total - loss_contribution) - rtt_contribution)/time/norm_measurement_interval;
+                cerr<<"total "<< total<<"loss contri"<<loss_contribution<<"rtt contr"<<rtt_contribution<<"time "<<time<<"norm measurement"<<norm_measurement_interval<<endl;
 
 		if (out_measurement != NULL) {
 			out_measurement->loss_panelty_ = loss_contribution / norm_measurement_interval;

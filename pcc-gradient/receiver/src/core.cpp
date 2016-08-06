@@ -2461,9 +2461,9 @@ int CUDT::processData(CUnit* unit)
       tsn_payload[counter_32767-1] = packet.m_iMsgNo;
    }
 #else
-   if (counter_32767 == 20) {
+   if (counter_32767 == 1) {
       tsn_payload[counter_32767-1] = packet.m_iMsgNo;
-      sendCtrl(32767, NULL, tsn_payload, 20*4);
+      sendCtrl(32767, NULL, tsn_payload, 1*4);
       counter_32767 = 0;
    } else {
       tsn_payload[counter_32767-1] = packet.m_iMsgNo;

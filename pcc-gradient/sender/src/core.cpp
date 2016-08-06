@@ -101,7 +101,7 @@ CUDT::CUDT()
 
 
 	// Default UDT configurations
-	m_iMSS = 1500;
+	m_iMSS = 800;
 	m_bSynSending = true;
 	m_bSynRecving = true;
 	m_iFlightFlagSize = 100000;
@@ -2402,6 +2402,7 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 	        lock_guard<mutex> lck(monitor_mutex_);
 			monitorNo = tsn_payload[i] >> 16;
 			SeqNoInMonitor = tsn_payload[i] & 0xFFFF;
+                //cout<<"mon is "<<monitorNo<<" "<<SeqNoInMonitor<<endl;
 			++ m_iRecvNAKTotal;
 			//cout<<monitorNo<<' '<<SeqNoInMonitor<<' '<<current_monitor<<' '<<left_monitor<<endl;
 			// recv pkt
@@ -2411,6 +2412,7 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 			current_time = CTimer::getTime();
             bool includeThisMonitor = false;
             if (SeqNoInMonitor == total[monitorNo] -1) {
+                //cout<<"include this mon"<<endl;
                 includeThisMonitor = true;
             }
 			//pkt_sending[monitorNo][SeqNoInMonitor] = ctrlpkt.m_iTimeStamp;
@@ -2448,9 +2450,12 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 //						cerr<<"latency info"<<" "<<double(latency_time_end[tmp]-latency_time_start[tmp])/left[tmp]/m_pCC->m_dPktSndPeriod<<endl;
 //						cerr<<"latency info"<<" "<<latency_time_end[tmp]<<" "<<latency_time_start[tmp]<<" "<<m_pCC->m_dPktSndPeriod<<" "<<latency_seq_end[tmp]<<" "<<latency_seq_start[tmp]<<endl;
 						if(rtt_count[Mon]==0){
+                                                  //cout<<"zero "<<Mon<<endl;
 							rtt_value[Mon]=0;
 							rtt_count[Mon]=1;
                         }
+                                                //c<<"before on monitor ends"<<Mon<<" "<<rtt_value[Mon]<<" "<<rtt_count[Mon]<<endl;
+                                                //cout<<"before on monitor "<<tmp<< "ends loss is"<<total[tmp] - left[tmp]<<endl;
                                                 m_iRTT = rtt_value[Mon]/double(rtt_count[Mon]);
 						last_rtt_ = m_iRTT;
 	                                        m_pCC->setRTT(m_iRTT);
@@ -2597,6 +2602,7 @@ int CUDT::packData(CPacket& packet, uint64_t& ts)
 					//left[current_monitor]++;
 					new_transmission[current_monitor]++;
 					monitor_ttl--;
+                                        //cout<<"send!"<<endl;
 					//pkt_sending[current_monitor][m_iMonitorCurrSeqNo] = CTimer::getTime();
 					if (test==1){
 						//			cout<<"this is a new transmission for seq. No. "<<packet.m_iSeqNo<<endl;
@@ -3094,11 +3100,13 @@ void CUDT::start_monitor(int length)
             length = send_period/m_pCC->m_dPktSndPeriod;
         }
 	else {
+            //cout<<"super short length because of short sent period? send period is "<< send_period<<endl;
             length=2;
         }
         if (length > 10) {
            length = 10;
         }
+        //cout<<"length of monitor is "<<length<<endl;
     if (suggested_length < length) {
         length = suggested_length;
     }
