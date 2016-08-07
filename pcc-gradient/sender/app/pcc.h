@@ -244,7 +244,7 @@ public:
                         recent_end_stat.initialized = true;
                     } else {
                         //if(recent_end_stat.rtt/ rtt > 1.2 || recent_end_stat.rtt / rtt <0.8){
-                        if(recent_end_stat.rtt/ rtt > 1.2){
+                        if(recent_end_stat.rtt/ rtt < 0.8){
                             cerr<<"RTT deviation severe, halving rate and re-probing"<<endl;
                             state_ = SEARCH;
                             guess_measurement_bucket.clear();
@@ -418,7 +418,7 @@ protected:
 	double prev_change_;
 	static constexpr double kMinRateMbps = 0.1;
 	static constexpr double kMinRateMbpsSlowStart = 0.1;
-	static constexpr double kHibernateRate = 0.001;
+	static constexpr double kHibernateRate = 0.01;
 	static constexpr double kMaxRateMbps = 1024.0;
 	static constexpr int kRobustness = 1;
 	static constexpr double kEpsilon = 0.03;
