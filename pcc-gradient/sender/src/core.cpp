@@ -101,7 +101,7 @@ CUDT::CUDT()
 
 
 	// Default UDT configurations
-	m_iMSS = 800;
+	m_iMSS = 1500;
 	m_bSynSending = true;
 	m_bSynRecving = true;
 	m_iFlightFlagSize = 100000;
@@ -3124,8 +3124,8 @@ void CUDT::start_monitor(int length)
             //cout<<"super short length because of short sent period? send period is "<< send_period<<endl;
             length=2;
         }
-        if (length > 10) {
-           length = 10;
+        if (length > 30) {
+           length = 30;
         }
         //cout<<"length of monitor is "<<length<<endl;
     if (suggested_length < length) {

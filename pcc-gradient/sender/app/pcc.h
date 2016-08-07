@@ -183,8 +183,8 @@ public:
                 case RECORDING:
                     //m_iMSS = 1000 + current_monitor%100;
                     //mss=1000 + current_monitor%100;
-                    m_iMSS = 1500;
-                    mss = 1500;
+                    m_iMSS = 500;
+                    mss = 500;
                     if(guess_time_ != number_of_probes_) {
                         cerr<<"Monitor "<<current_monitor<<"is in recording state "<<guess_time_<<"th trial with rate of"<<guess_measurement_bucket[guess_time_].rate<<endl;
                         setRate(guess_measurement_bucket[guess_time_].rate);
@@ -243,7 +243,8 @@ public:
                     if(!recent_end_stat.initialized) {
                         recent_end_stat.initialized = true;
                     } else {
-                        if(recent_end_stat.rtt/ rtt > 1.6 || recent_end_stat.rtt / rtt <0.4){
+                        //if(recent_end_stat.rtt/ rtt > 1.2 || recent_end_stat.rtt / rtt <0.8){
+                        if(recent_end_stat.rtt/ rtt > 1.2){
                             cerr<<"RTT deviation severe, halving rate and re-probing"<<endl;
                             state_ = SEARCH;
                             guess_measurement_bucket.clear();
@@ -417,7 +418,7 @@ protected:
 	double prev_change_;
 	static constexpr double kMinRateMbps = 0.1;
 	static constexpr double kMinRateMbpsSlowStart = 0.1;
-	static constexpr double kHibernateRate = 0.05;
+	static constexpr double kHibernateRate = 0.001;
 	static constexpr double kMaxRateMbps = 1024.0;
 	static constexpr int kRobustness = 1;
 	static constexpr double kEpsilon = 0.03;
