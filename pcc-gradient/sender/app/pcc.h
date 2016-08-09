@@ -97,7 +97,7 @@ public:
 	virtual void onLoss(const int32_t*, const int&) {}
 	virtual bool onTimeout(int total, int loss, double in_time, int current, int endMonitor, double rtt){
         cerr<<"Timeout happens!!"<<endl;
-        base_rate_ = base_rate_ / 2;
+        base_rate_ = base_rate_ * 0.6;
         if (base_rate_ < kMinRateMbps + 0.25) {
         state_ = HIBERNATE;
         setRate(kHibernateRate, true);
@@ -214,6 +214,11 @@ public:
 	virtual void onMonitorEnds(int total, int loss, double in_time, int current, int endMonitor, double rtt) {
 		rtt /= (1000 * 1000);
 		if (rtt == 0) rtt = 0.0001;
+        if (avg_rtt ==0)
+        {avg_rtt = 0.04;}
+        else{
+            avg_rtt = avg_rtt *0.8 + rtt*0.2;
+        }
 		long double curr_utility = utility(total, loss, in_time, rtt, NULL);
 		last_utility_ = curr_utility;
 		utility_sum_ += curr_utility;
@@ -248,7 +253,7 @@ public:
                             cerr<<"RTT deviation severe, halving rate and re-probing"<<endl;
                             state_ = SEARCH;
                             guess_measurement_bucket.clear();
-                            base_rate_ = base_rate_ / 2;
+                            base_rate_ = base_rate_ * 0.6;
                             if(base_rate_ < kMinRateMbps/ (1-kDelta)) {
                                base_rate_ = kMinRateMbps / (1-kDelta);
                             }
@@ -418,10 +423,10 @@ protected:
 	double prev_change_;
 	static constexpr double kMinRateMbps = 0.1;
 	static constexpr double kMinRateMbpsSlowStart = 0.1;
-	static constexpr double kHibernateRate = 0.01;
+	static constexpr double kHibernateRate = 0.002;
 	static constexpr double kMaxRateMbps = 1024.0;
 	static constexpr int kRobustness = 1;
-	static constexpr double kEpsilon = 0.03;
+	static constexpr double kEpsilon = 0.003;
 	static constexpr double kDelta = 0.1;
 	static constexpr int kGoToStartCount = 50000;
 
@@ -601,14 +606,19 @@ public:
 		//if (rtt_penalty > 2) rtt_penalty  = 2;
 		//if (rtt_penalty < -2) rtt_penalty  = -2;
 		exponent_ = 2.5;
+        if(rtt_penalty<1) {
+            rtt_penalty=1;
+        }
 
 		long double loss_contribution = total * (long double) (alpha_* (pow((1+((long double)((double) loss/(double) total))), exponent_)-1));
-		long double rtt_contribution = 1.8 * total*(pow(rtt_penalty,2) - 1);
+		long double rtt_contribution = 1 * total*(pow(rtt_penalty,1) -1);
                 long double rtt_factor = rtt;
                 //TODO We should also consider adding just rtt into the utility function, because it is not just change that matters
                 // This may turn out to be extremely helpful during LTE environment
 		//long double utility = ((long double)total - loss_contribution - rtt_contribution)/norm_measurement_interval/rtt;
-		long double utility = (((long double)total - loss_contribution) - rtt_contribution)/time/norm_measurement_interval;
+		//long double utility = (((long double)total - loss_contribution) - rtt_contribution)/time/norm_measurement_interval;
+        double normalized_rtt = rtt / 0.04;
+		long double utility = (((long double)total - loss_contribution) - rtt_contribution)*m_iMSS/1024/1024*8/time/normalized_rtt;
                 cerr<<"total "<< total<<"loss contri"<<loss_contribution<<"rtt contr"<<rtt_contribution<<"time "<<time<<"norm measurement"<<norm_measurement_interval<<endl;
 
 		if (out_measurement != NULL) {
@@ -622,6 +632,7 @@ public:
 	static const long kMillisecondsDigit = 10 * 1000;
 
 	int monitor_in_start_phase_;
+    double avg_rtt = 0;
 	double slow_start_factor_;
 	double alpha_;
 	double beta_;
@@ -643,7 +654,7 @@ public:
 	int current_start_monitor_;
 	long double last_utility_;
 	deque<double> rtt_history_;
-	static constexpr size_t kHistorySize = 20;
+	static constexpr size_t kHistorySize = 1;
 	int on_next_start_bind_to_end_;
 };
 

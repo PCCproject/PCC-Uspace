@@ -2453,7 +2453,9 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 						end_time[tmp] = current_time;
 						left_monitor--;
 						//cerr<<"Killed monitor"<<left[tmp]<<endl;
-//						cerr<<"latency info"<<" "<<double(latency_time_end[tmp]-latency_time_start[tmp])/left[tmp]/m_pCC->m_dPktSndPeriod<<endl;
+						//cerr<<"latency info"<<" "<<double(latency_time_end[tmp]-latency_time_start[tmp])/left[tmp]/m_pCC->m_dPktSndPeriod<<endl;
+						//cerr<<"latency info"<<" "<<double(latency_time_end[tmp]-latency_time_start[tmp])/(end_transmission_time[tmp]-start_time[tmp]);
+						cerr<<"latency info"<<" "<<double(latency_time_end[tmp]-latency_time_end[(tmp+99)%100])/(end_transmission_time[tmp]-start_time[tmp]);
 //						cerr<<"latency info"<<" "<<latency_time_end[tmp]<<" "<<latency_time_start[tmp]<<" "<<m_pCC->m_dPktSndPeriod<<" "<<latency_seq_end[tmp]<<" "<<latency_seq_start[tmp]<<endl;
 						if(rtt_count[Mon]==0){
                                                   //cout<<"zero "<<Mon<<endl;
@@ -3124,8 +3126,8 @@ void CUDT::start_monitor(int length)
             //cout<<"super short length because of short sent period? send period is "<< send_period<<endl;
             length=2;
         }
-        if (length > 30) {
-           length = 30;
+        if (length > 100) {
+           length = 100;
         }
         //cout<<"length of monitor is "<<length<<endl;
     if (suggested_length < length) {
