@@ -618,7 +618,8 @@ public:
 		//long double utility = ((long double)total - loss_contribution - rtt_contribution)/norm_measurement_interval/rtt;
 		//long double utility = (((long double)total - loss_contribution) - rtt_contribution)/time/norm_measurement_interval;
         double normalized_rtt = rtt / 0.04;
-		long double utility = (((long double)total - loss_contribution) - rtt_contribution)*m_iMSS/1024/1024*8/time/normalized_rtt;
+		//long double utility = (((long double)total - loss_contribution) - rtt_contribution)*m_iMSS/1024/1024*8/time/normalized_rtt;
+		long double utility = total *1/pow(rtt_penalty,3)*m_iMSS/1024/1024*8/time;
                 cerr<<"total "<< total<<"loss contri"<<loss_contribution<<"rtt contr"<<rtt_contribution<<"time "<<time<<"norm measurement"<<norm_measurement_interval<<endl;
 
 		if (out_measurement != NULL) {

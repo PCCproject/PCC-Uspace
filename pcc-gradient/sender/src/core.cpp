@@ -3126,8 +3126,8 @@ void CUDT::start_monitor(int length)
             //cout<<"super short length because of short sent period? send period is "<< send_period<<endl;
             length=2;
         }
-        if (length > 100) {
-           length = 100;
+        if (length > 30) {
+           length = 30;
         }
         //cout<<"length of monitor is "<<length<<endl;
     if (suggested_length < length) {
