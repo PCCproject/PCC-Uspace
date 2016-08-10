@@ -2455,7 +2455,6 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 						//cerr<<"Killed monitor"<<left[tmp]<<endl;
 						//cerr<<"latency info"<<" "<<double(latency_time_end[tmp]-latency_time_start[tmp])/left[tmp]/m_pCC->m_dPktSndPeriod<<endl;
 						//cerr<<"latency info"<<" "<<double(latency_time_end[tmp]-latency_time_start[tmp])/(end_transmission_time[tmp]-start_time[tmp]);
-						cerr<<"latency info"<<" "<<double(latency_time_end[tmp]-latency_time_end[(tmp+99)%100])/(end_transmission_time[tmp]-start_time[tmp]);
 //						cerr<<"latency info"<<" "<<latency_time_end[tmp]<<" "<<latency_time_start[tmp]<<" "<<m_pCC->m_dPktSndPeriod<<" "<<latency_seq_end[tmp]<<" "<<latency_seq_start[tmp]<<endl;
 						if(rtt_count[Mon]==0){
                                                   //cout<<"zero "<<Mon<<endl;
@@ -2467,6 +2466,9 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
                                                 m_iRTT = rtt_value[Mon]/double(rtt_count[Mon]);
 						last_rtt_ = m_iRTT;
 	                                        m_pCC->setRTT(m_iRTT);
+                        //cout<<latency_time_end[tmp] - latency_time_start[tmp]<<" "<<end_transmission_time[tmp]-start_time[tmp]<<endl;
+                        cout<<latency_time_end[tmp]*1000<<" "<<start_time[tmp] -1470838000000000<<endl;
+						cerr<<"latency info"<<" "<<double(latency_time_end[tmp]*1000-(start_time[tmp]-1470838000000000+m_iRTT/2))/(end_transmission_time[tmp]-start_time[tmp]);
 
 						m_last_rtt.push_front(last_rtt_);
 						if (m_last_rtt.size() > kRTTHistorySize) {
