@@ -2463,12 +2463,21 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
                         }
                                                 //c<<"before on monitor ends"<<Mon<<" "<<rtt_value[Mon]<<" "<<rtt_count[Mon]<<endl;
                                                 //cout<<"before on monitor "<<tmp<< "ends loss is"<<total[tmp] - left[tmp]<<endl;
+                        double latency_info1 = double(latency_time_end[tmp]*1000-(start_time[tmp]-1471053700000000+m_iRTT/2))/(end_transmission_time[tmp]-start_time[tmp]);
                                                 m_iRTT = rtt_value[Mon]/double(rtt_count[Mon]);
 						last_rtt_ = m_iRTT;
 	                                        m_pCC->setRTT(m_iRTT);
+                        double latency_info2 = double(latency_time_end[tmp]*1000-(start_time[tmp]-1471053700000000+m_iRTT/2))/(end_transmission_time[tmp]-start_time[tmp]);
+
+                        double latency_info;
+                        if (latency_info1 > latency_info2) {
+                        latency_info = latency_info1;
+                        } else {
+                            latency_info = latency_info2;
+                        }
                         //cout<<latency_time_end[tmp] - latency_time_start[tmp]<<" "<<end_transmission_time[tmp]-start_time[tmp]<<endl;
-                        cout<<latency_time_end[tmp]*1000<<" "<<start_time[tmp] -1470838000000000<<endl;
-						cerr<<"latency info"<<" "<<double(latency_time_end[tmp]*1000-(start_time[tmp]-1470838000000000+m_iRTT/2))/(end_transmission_time[tmp]-start_time[tmp]);
+                        //cout<<latency_time_end[tmp]*1000<<" "<<start_time[tmp] -1470892000000000<<endl;
+						cerr<<"latency info"<<" "<<latency_info<<endl;
 
 						m_last_rtt.push_front(last_rtt_);
 						if (m_last_rtt.size() > kRTTHistorySize) {
@@ -2479,7 +2488,7 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
                                                 //cout<<"Fill in rtt value as"<<m_last_rtt[Mon % 100]<<endl;
                                                 //cerr<<"Monitor"<<tmp<<"ends at"<<CTimer::getTime()<<endl;
 
-						m_pCC->onMonitorEnds(total[tmp],total[tmp]-left[tmp],(end_transmission_time[tmp]-start_time[tmp])/1000000,current_monitor,tmp, rtt_value[Mon]/double(rtt_count[Mon]));
+						m_pCC->onMonitorEnds(total[tmp],total[tmp]-left[tmp],(end_transmission_time[tmp]-start_time[tmp])/1000000,current_monitor,tmp, rtt_value[Mon]/double(rtt_count[Mon]), latency_info);
 						m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
 						if (!left_monitor) break;
 					}
@@ -3126,10 +3135,10 @@ void CUDT::start_monitor(int length)
         }
 	else {
             //cout<<"super short length because of short sent period? send period is "<< send_period<<endl;
-            length=2;
+            length=4;
         }
-        if (length > 30) {
-           length = 30;
+        if (length > 25) {
+           length = 25;
         }
         //cout<<"length of monitor is "<<length<<endl;
     if (suggested_length < length) {

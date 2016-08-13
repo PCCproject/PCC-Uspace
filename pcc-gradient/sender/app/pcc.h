@@ -96,12 +96,28 @@ public:
 
 	virtual void onLoss(const int32_t*, const int&) {}
 	virtual bool onTimeout(int total, int loss, double in_time, int current, int endMonitor, double rtt){
-        cerr<<"Timeout happens!!"<<endl;
-        base_rate_ = base_rate_ * 0.6;
+        cerr<<"Timeout happens to monitor "<<endMonitor<<endl;
+        if (endMonitor == timeout_immune_monitor) {
+            timeout_immune_monitor = -1;
+            return true;
+        }
+        if (endMonitor < timeout_immune_monitor) {
+            return true;
+        }
+        base_rate_ = base_rate_ * 0.5;
         if (base_rate_ < kMinRateMbps + 0.25) {
         state_ = HIBERNATE;
-        setRate(kHibernateRate, true);
+        double divider = 1;
+        if(hibernate_depth > 3) {
+            hibernate_depth = 3;
+        }
+        for(int i=0; i<hibernate_depth; i++) {
+            divider *= 2;
+        }
+        cerr<<"Diverder is "<<divider<<endl;
+        setRate(kHibernateRate/divider, true);
         guess_measurement_bucket.clear();
+        hibernate_depth++;
         return true;
         } else {
         guess_measurement_bucket.clear();
@@ -203,7 +219,14 @@ public:
                     cerr<<"Hibernating, setting it to really low rate"<<endl;
                     m_iMSS = 200;
                     mss = 200;
-                    setRate(kHibernateRate, true);
+                    double divider = 1;
+                    if(hibernate_depth > 3) {
+                        hibernate_depth = 3;
+                    }
+                    for(int i=0; i<hibernate_depth; i++) {
+                        divider *= 2;
+                    }
+                    setRate(kHibernateRate/divider, true);
                     suggested_length = 1;
                     break;
             }
@@ -211,7 +234,7 @@ public:
         } while(old_state != state_);
 	}
 
-	virtual void onMonitorEnds(int total, int loss, double in_time, int current, int endMonitor, double rtt) {
+	virtual void onMonitorEnds(int total, int loss, double in_time, int current, int endMonitor, double rtt, double latency_info) {
 		rtt /= (1000 * 1000);
 		if (rtt == 0) rtt = 0.0001;
         if (avg_rtt ==0)
@@ -219,7 +242,10 @@ public:
         else{
             avg_rtt = avg_rtt *0.8 + rtt*0.2;
         }
-		long double curr_utility = utility(total, loss, in_time, rtt, NULL);
+        if (endMonitor == timeout_immune_monitor) {
+            timeout_immune_monitor = -1;
+        }
+		long double curr_utility = utility(total, loss, in_time, rtt, NULL, latency_info);
 		last_utility_ = curr_utility;
 		utility_sum_ += curr_utility;
 		measurement_intervals_++;
@@ -227,6 +253,27 @@ public:
         cerr<<"Monitor "<<endMonitor<<" ended with utility "<<curr_utility<<endl;
         // TODO we should keep track of all monitors and closely mointoring RTT
         // and utility change between monitor
+        if(!recent_end_stat.initialized) {
+            recent_end_stat.initialized = true;
+        } else {
+            //if(recent_end_stat.rtt/ rtt > 1.2 || recent_end_stat.rtt / rtt <0.8){
+            if(recent_end_stat.rtt/ rtt < 0.8 || latency_info > 1.5){
+                cerr<<"RTT deviation severe, halving rate and re-probing"<<endl;
+                state_ = SEARCH;
+                guess_measurement_bucket.clear();
+                base_rate_ = base_rate_ * 0.5;
+                if(base_rate_ < kMinRateMbps/ (1-kDelta)) {
+                   base_rate_ = kMinRateMbps / (1-kDelta);
+                }
+                setRate(base_rate_);
+                recent_end_stat.initialized = false;
+            }
+        }
+        recent_end_stat.utility = curr_utility;
+        recent_end_stat.total = total;
+        recent_end_stat.loss = loss;
+        recent_end_stat.rtt = rtt;
+        recent_end_stat.monitor = endMonitor;
         do {
             old_state = state_;
             switch (state_) {
@@ -245,28 +292,28 @@ public:
                     // and decide where to move the rate
                     // TODO: it should enter the MOVING state here, but I will just keep it simple to make it enter
                     // search state again. To first switch the architecture
-                    if(!recent_end_stat.initialized) {
-                        recent_end_stat.initialized = true;
-                    } else {
-                        //if(recent_end_stat.rtt/ rtt > 1.2 || recent_end_stat.rtt / rtt <0.8){
-                        if(recent_end_stat.rtt/ rtt < 0.8){
-                            cerr<<"RTT deviation severe, halving rate and re-probing"<<endl;
-                            state_ = SEARCH;
-                            guess_measurement_bucket.clear();
-                            base_rate_ = base_rate_ * 0.6;
-                            if(base_rate_ < kMinRateMbps/ (1-kDelta)) {
-                               base_rate_ = kMinRateMbps / (1-kDelta);
-                            }
-                            setRate(base_rate_);
-                            recent_end_stat.initialized = false;
-                            break;
-                        }
-                    }
-                    recent_end_stat.utility = curr_utility;
-                    recent_end_stat.total = total;
-                    recent_end_stat.loss = loss;
-                    recent_end_stat.rtt = rtt;
-                    recent_end_stat.monitor = endMonitor;
+                    //if(!recent_end_stat.initialized) {
+                    //    recent_end_stat.initialized = true;
+                    //} else {
+                    //    //if(recent_end_stat.rtt/ rtt > 1.2 || recent_end_stat.rtt / rtt <0.8){
+                    //    if(recent_end_stat.rtt/ rtt < 0.8){
+                    //        cerr<<"RTT deviation severe, halving rate and re-probing"<<endl;
+                    //        state_ = SEARCH;
+                    //        guess_measurement_bucket.clear();
+                    //        base_rate_ = base_rate_ * 0.6;
+                    //        if(base_rate_ < kMinRateMbps/ (1-kDelta)) {
+                    //           base_rate_ = kMinRateMbps / (1-kDelta);
+                    //        }
+                    //        setRate(base_rate_);
+                    //        recent_end_stat.initialized = false;
+                    //        break;
+                    //    }
+                    //}
+                    //recent_end_stat.utility = curr_utility;
+                    //recent_end_stat.total = total;
+                    //recent_end_stat.loss = loss;
+                    //recent_end_stat.rtt = rtt;
+                    //recent_end_stat.monitor = endMonitor;
                     bool all_ready;
                     all_ready = true;
                     cerr<<"checking if all recording ready at monitor"<<current<<endl;
@@ -387,16 +434,23 @@ public:
                     break;
                 case HIBERNATE:
                     double base_line_rate = 2 * 1.5 / 1024 * 8/(rtt);
-                    if (base_line_rate < 0.4) {
+                    if (base_line_rate < 0.3) {
                     break;
                     }
-                    base_rate_ =kMinRateMbps / (1-kDelta) >base_line_rate?kMinRateMbps / (1-kDelta):base_line_rate;
-                    if(base_rate_ == kMinRateMbps) {
-                        base_rate_ += 0.25;
+                    //base_rate_ =kMinRateMbps / (1-kDelta) >base_line_rate?kMinRateMbps / (1-kDelta):base_line_rate;
+                    base_rate_ = kMinRateMbps;
+                    //if(base_rate_ == kMinRateMbps) {
+                    //    base_rate_ += 0.25;
+                    //}
+                    if(base_rate_ - 0.1 < kMinRateMbps) {
+                        base_rate_ += 0.1;
                     }
                     setRate(base_rate_);
+                    cerr<<"coming out of comma with base rate of"<<base_rate_<<endl;
                     guess_measurement_bucket.clear();
                     state_ = SEARCH;
+                    hibernate_depth = 0;
+                    timeout_immune_monitor = current;
             }
 
         } while(old_state != state_);
@@ -416,6 +470,7 @@ protected:
 	static bool kPolyUtility;
 
     long double search_monitor_utility[2];
+    int timeout_immune_monitor;
     int search_monitor_number[2];
     bool start_measurement_;
 	double base_rate_;
@@ -423,11 +478,11 @@ protected:
 	double prev_change_;
 	static constexpr double kMinRateMbps = 0.1;
 	static constexpr double kMinRateMbpsSlowStart = 0.1;
-	static constexpr double kHibernateRate = 0.002;
+	static constexpr double kHibernateRate = 0.02;
 	static constexpr double kMaxRateMbps = 1024.0;
 	static constexpr int kRobustness = 1;
 	static constexpr double kEpsilon = 0.003;
-	static constexpr double kDelta = 0.1;
+	static constexpr double kDelta = 0.05;
 	static constexpr int kGoToStartCount = 50000;
 
 	enum ConnectionState {
@@ -472,6 +527,8 @@ protected:
 		m_dPktSndPeriod = 10000;
 		m_dCWndSize = 100000.0;
         prev_change_ = 0;
+        hibernate_depth = 0;
+        timeout_immune_monitor = -1;
 
         recent_end_stat.initialized = false;
 		setRTO(100000000);
@@ -587,7 +644,7 @@ public:
 		return true;
 	}
 
-	virtual long double utility(unsigned long total, unsigned long loss, double time, double rtt, Measurement* out_measurement) {
+	virtual long double utility(unsigned long total, unsigned long loss, double time, double rtt, Measurement* out_measurement, double latency_info) {
 		static long double last_measurement_interval = 1;
 
 		long double norm_measurement_interval = last_measurement_interval;
@@ -611,15 +668,15 @@ public:
         }
 
 		long double loss_contribution = total * (long double) (alpha_* (pow((1+((long double)((double) loss/(double) total))), exponent_)-1));
-		long double rtt_contribution = 1 * total*(pow(rtt_penalty,1) -1);
+		//long double rtt_contribution = 1 * total*(pow(rtt_penalty,1) -1);
+		long double rtt_contribution = 1 * total*(pow(latency_info,2) -1);
                 long double rtt_factor = rtt;
                 //TODO We should also consider adding just rtt into the utility function, because it is not just change that matters
                 // This may turn out to be extremely helpful during LTE environment
 		//long double utility = ((long double)total - loss_contribution - rtt_contribution)/norm_measurement_interval/rtt;
 		//long double utility = (((long double)total - loss_contribution) - rtt_contribution)/time/norm_measurement_interval;
         double normalized_rtt = rtt / 0.04;
-		//long double utility = (((long double)total - loss_contribution) - rtt_contribution)*m_iMSS/1024/1024*8/time/normalized_rtt;
-		long double utility = total *1/pow(rtt_penalty,3)*m_iMSS/1024/1024*8/time;
+		long double utility = (((long double)total - loss_contribution) - rtt_contribution)*m_iMSS/1024/1024*8/time/latency_info;
                 cerr<<"total "<< total<<"loss contri"<<loss_contribution<<"rtt contr"<<rtt_contribution<<"time "<<time<<"norm measurement"<<norm_measurement_interval<<endl;
 
 		if (out_measurement != NULL) {
@@ -657,6 +714,7 @@ public:
 	deque<double> rtt_history_;
 	static constexpr size_t kHistorySize = 1;
 	int on_next_start_bind_to_end_;
+    int hibernate_depth;
 };
 
 #endif
