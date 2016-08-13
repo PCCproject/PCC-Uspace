@@ -2463,11 +2463,11 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
                         }
                                                 //c<<"before on monitor ends"<<Mon<<" "<<rtt_value[Mon]<<" "<<rtt_count[Mon]<<endl;
                                                 //cout<<"before on monitor "<<tmp<< "ends loss is"<<total[tmp] - left[tmp]<<endl;
-                        double latency_info1 = double(latency_time_end[tmp]*1000-(start_time[tmp]-1471053700000000+m_iRTT/2))/(end_transmission_time[tmp]-start_time[tmp]);
+                        double latency_info1 = double(latency_time_end[tmp]*1000-(start_time[tmp]-1471107400000000+m_iRTT/2))/(end_transmission_time[tmp]-start_time[tmp]);
                                                 m_iRTT = rtt_value[Mon]/double(rtt_count[Mon]);
 						last_rtt_ = m_iRTT;
 	                                        m_pCC->setRTT(m_iRTT);
-                        double latency_info2 = double(latency_time_end[tmp]*1000-(start_time[tmp]-1471053700000000+m_iRTT/2))/(end_transmission_time[tmp]-start_time[tmp]);
+                        double latency_info2 = double(latency_time_end[tmp]*1000-(start_time[tmp]-1471107400000000+m_iRTT/2))/(end_transmission_time[tmp]-start_time[tmp]);
 
                         double latency_info;
                         if (latency_info1 > latency_info2) {
@@ -3137,8 +3137,8 @@ void CUDT::start_monitor(int length)
             //cout<<"super short length because of short sent period? send period is "<< send_period<<endl;
             length=4;
         }
-        if (length > 25) {
-           length = 25;
+        if (length > 30) {
+           length = 30;
         }
         //cout<<"length of monitor is "<<length<<endl;
     if (suggested_length < length) {
