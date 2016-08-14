@@ -27,7 +27,7 @@ protected:
                 cerr<<"search down rate is "<<g.rate<<endl;
             }
             g.ready = false;
-            g.monitor = (current_monitor+i) % 100;
+            g.monitor = (current_monitor+i) % MAX_MONITOR;
             guess_measurement_bucket.push_back(g);
         }
 	}
@@ -55,14 +55,14 @@ protected:
 		prev_gradiants_[curr_] = gradient;
 
 		/*
-		if (gradient * prev_gradiants_[(curr_ + 99) % 100] > 0) {
+		if (gradient * prev_gradiants_[(curr_ + MAX_MONITOR-1) % MAX_MONITOR] > 0) {
 			trend_count_++;
 		} else {
 			trend_count_ = 0;
 		}
 		*/
 		trend_count_++;
-		curr_ = (curr_ + 1) % 100;
+		curr_ = (curr_ + 1) % MAX_MONITOR;
 		//if ((trend_count_ < kRobustness) && (!force_change)) {
 		//	return;
 		//}
@@ -99,9 +99,9 @@ private:
 		int base = curr_;
 		double sum = 0;
 		for (int i = 0; i < kRobustness; i++) {
-			base += 99;
-			sum += prev_gradiants_[base % 100];
-			//cout << "gradient " << prev_gradiants_[base % 100] << " ";
+			base += MAX_MONITOR-1;
+			sum += prev_gradiants_[base % MAX_MONITOR];
+			//cout << "gradient " << prev_gradiants_[base % MAX_MONITOR] << " ";
 		}
 		return sum / kRobustness;
 	}
@@ -129,7 +129,7 @@ private:
 	int trend_count_;
 	int decision_count_;
 	int curr_;
-	double prev_gradiants_[100];
+	double prev_gradiants_[MAX_MONITOR];
 
 	double next_delta;
 };

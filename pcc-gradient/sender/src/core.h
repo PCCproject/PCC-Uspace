@@ -42,6 +42,7 @@ written by
 #define __UDT_CORE_H__
 
 #define MAX_LOSS_RECORD 200
+#define MAX_MONITOR 500
 
 #include "udt.h"
 #include "common.h"
@@ -297,22 +298,22 @@ private:
 
 private: // monitor
    int current_monitor, previous_monitor, monitor_ttl;
-//   int start_seq[100], start_retransmission[100], end_seq[100], end_retransmission[100];
-   double start_time[100], end_time[100], end_transmission_time[100];
+//   int start_seq[MAX_MONITOR], start_retransmission[MAX_MONITOR], end_seq[MAX_MONITOR], end_retransmission[MAX_MONITOR];
+   double start_time[MAX_MONITOR], end_time[MAX_MONITOR], end_transmission_time[MAX_MONITOR];
    // for state, 1=sending, 2= waiting, 3=finished
-   int lost[100], retransmission[100], total[100], new_transmission[100], left[100], state[100], left_monitor;//, end_pkt[100];
-   int32_t pkt_sending[100][8000];
-   int32_t latency[100];
+   int lost[MAX_MONITOR], retransmission[MAX_MONITOR], total[MAX_MONITOR], new_transmission[MAX_MONITOR], left[MAX_MONITOR], state[MAX_MONITOR], left_monitor;//, end_pkt[MAX_MONITOR];
+   int32_t pkt_sending[MAX_MONITOR][8000];
+   int32_t latency[MAX_MONITOR];
    vector<int32_t> loss_record1, loss_record2;
    vector<int32_t>::iterator itr_loss_record1, itr_loss_record2;
-   int32_t latency_seq_start[100], latency_seq_end[100];
-   int32_t latency_time_start[100], latency_time_end[100];
-   int32_t time_interval[100];
+   int32_t latency_seq_start[MAX_MONITOR], latency_seq_end[MAX_MONITOR];
+   int32_t latency_time_start[MAX_MONITOR], latency_time_end[MAX_MONITOR];
+   int32_t time_interval[MAX_MONITOR];
    int lossptr;
-   bool recv_ack[100][30000];
-   uint64_t send_timestamp[100][30000];
-   int rtt_count[100];
-   uint64_t rtt_value[100];
+   bool recv_ack[MAX_MONITOR][30000];
+   uint64_t send_timestamp[MAX_MONITOR][30000];
+   int rtt_count[MAX_MONITOR];
+   uint64_t rtt_value[MAX_MONITOR];
    bool monitor;
    int test;
 //   int retransmission_list[60000], max_retransmission_list, min_retransmission_list_seqNo;
@@ -374,7 +375,7 @@ private: // Status
    int last_rtt_;
    deque<double> m_last_rtt;
    static const size_t kRTTHistorySize = 1;
-   //double m_last_rtt[100];
+   //double m_last_rtt[MAX_MONITOR];
    int m_monitor_count;
    int m_iRTTVar;                               // RTT variance
    int m_iDeliveryRate;				// Packet arrival rate at the receiver side
@@ -453,8 +454,8 @@ private: // Generation and processing of packets
    void add_to_loss_record(int32_t loss1, int32_t loss2);
    bool timeout_monitors();
    double estimate_rtt_for_timedout_monitors(int monitor);
-   uint64_t deadlines[100];
-   uint64_t allocated_times_[100];
+   uint64_t deadlines[MAX_MONITOR];
+   uint64_t allocated_times_[MAX_MONITOR];
 
    static const uint64_t kMinTimeoutMillis = 10;
 private: // Trace

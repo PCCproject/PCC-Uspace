@@ -136,7 +136,7 @@ CUDT::CUDT()
 	m_ullLingerExpiration = 0;
 	start_ = time(NULL);
 	remove( "/home/yossi/timeout_times.txt" );
-	for (int i = 0; i < 100; i++) state[i] = 0;
+	for (int i = 0; i < MAX_MONITOR; i++) state[i] = 0;
 }
 
 CUDT::CUDT(const CUDT& ancestor)
@@ -192,7 +192,7 @@ CUDT::CUDT(const CUDT& ancestor)
 	m_ullLingerExpiration = 0;
 	start_ = time(NULL);
 	remove( "/home/yossi/timeout_times.txt" );
-	for (int i = 0; i < 100; i++) state[i] = 0;
+	for (int i = 0; i < MAX_MONITOR; i++) state[i] = 0;
 }
 
 CUDT::~CUDT()
@@ -530,7 +530,7 @@ void CUDT::open()
 
 	m_iRTT = 10 * m_iSYNInterval;
 	last_rtt_ = 10 * m_iSYNInterval;
-	//for (int i = 0; i < 100; i++) m_last_rtt[i] = 5 * m_iSYNInterval;
+	//for (int i = 0; i < MAX_MONITOR; i++) m_last_rtt[i] = 5 * m_iSYNInterval;
 	m_monitor_count = 0;
 	m_iRTTVar = m_iRTT >> 1;
 	m_ullCPUFrequency = CTimer::getCPUFrequency();
@@ -2432,7 +2432,7 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
                 if(includeThisMonitor) {
                     tmp = monitorNo;
                 } else {
-                    tmp = (monitorNo+99)%100;
+                    tmp = (monitorNo+MAX_MONITOR-1)%MAX_MONITOR;
                 }
 				int count=0;
 				//.....................
@@ -2486,15 +2486,15 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 							m_last_rtt.pop_back();
 						}
 
-						//m_last_rtt[Mon % 100] = rtt_value[Mon]/((double) rtt_count[Mon]);
-                                                //cout<<"Fill in rtt value as"<<m_last_rtt[Mon % 100]<<endl;
+						//m_last_rtt[Mon % MAX_MONITOR] = rtt_value[Mon]/((double) rtt_count[Mon]);
+                                                //cout<<"Fill in rtt value as"<<m_last_rtt[Mon % MAX_MONITOR]<<endl;
                                                 //cerr<<"Monitor"<<tmp<<"ends at"<<CTimer::getTime()<<endl;
 
 						m_pCC->onMonitorEnds(total[tmp],total[tmp]-left[tmp],(end_transmission_time[tmp]-start_time[tmp])/1000000,current_monitor,tmp, rtt_value[Mon]/double(rtt_count[Mon]), latency_info);
 						m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
 						if (!left_monitor) break;
 					}
-					tmp = (tmp+99)%100;
+					tmp = (tmp+MAX_MONITOR-1)%MAX_MONITOR;
 				}
 			}
 		}
@@ -3097,9 +3097,9 @@ void CUDT::start_monitor(int length)
 	//cout << "start monitor!" << endl;
 	m_iMonitorCurrSeqNo=0;
 	previous_monitor = current_monitor;
-	current_monitor = (current_monitor+1)%100;
+	current_monitor = (current_monitor+1)%MAX_MONITOR;
 
-	//int tmp = (current_monitor + 96) % 100;
+	//int tmp = (current_monitor + 96) % MAX_MONITOR;
 	//int count = 0;
 
 	//ygi: hack here!
@@ -3189,7 +3189,7 @@ void CUDT::init_state() {
 	current_monitor = 0;
 	loss_record1.clear();
 	loss_record2.clear();
-	for (unsigned int mon_index = 0; mon_index < 100; mon_index++) {
+	for (unsigned int mon_index = 0; mon_index < MAX_MONITOR; mon_index++) {
 		state[mon_index] = 3;
 		total[mon_index] = 0;
 		lost[mon_index] = 0;
@@ -3227,7 +3227,7 @@ void CUDT::init_state() {
 bool CUDT::timeout_monitors() {
 	lock_guard<mutex> lck(monitor_mutex_);
 	uint64_t current_time = CTimer::getTime();
-	int tmp = (current_monitor + 1) % 100;
+	int tmp = (current_monitor + 1) % MAX_MONITOR;
 	while (tmp != current_monitor) {
 		if ((state[tmp]==1) || (state[tmp]==2)) {
 			if((deadlines[tmp] < current_time) && (allocated_times_[tmp] > 0)) {
@@ -3249,7 +3249,7 @@ bool CUDT::timeout_monitors() {
 				m_iRTT = allocated_times_[tmp];
 	            loss_record1.clear();
 	            loss_record2.clear();
-	            for (unsigned int mon_index = 0; mon_index < 100; mon_index++) {
+	            for (unsigned int mon_index = 0; mon_index < MAX_MONITOR; mon_index++) {
 	            	state[mon_index] = 3;
 	            	total[mon_index] = 0;
 	            	lost[mon_index] = 0;
@@ -3273,7 +3273,7 @@ bool CUDT::timeout_monitors() {
                 return true;
 			}
 		}
-    tmp = (tmp + 1) % 100;
+    tmp = (tmp + 1) % MAX_MONITOR;
 	}
     return false;
 }

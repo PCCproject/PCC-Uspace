@@ -16,7 +16,7 @@
 #include <thread>
 #include <stdlib.h>
 //#define DEBUG_PRINT
-
+#define MAX_MONITOR 500
 using namespace std;
 
 bool kInTimeout = false;
@@ -197,8 +197,8 @@ public:
                     guess_time_ = 0;
                     break;
                 case RECORDING:
-                    //m_iMSS = 1000 + current_monitor%100;
-                    //mss=1000 + current_monitor%100;
+                    //m_iMSS = 1000 + current_monitor%MAX_MONITOR;
+                    //mss=1000 + current_monitor%MAX_MONITOR;
                     m_iMSS = 500;
                     mss = 500;
                     if(guess_time_ != number_of_probes_) {
@@ -358,7 +358,7 @@ public:
                         setRate(base_rate_);
                         state_ = SEARCH;
                         move_stat.bootstrapping = true;
-                        move_stat.target_monitor = (current +1) % 100;
+                        move_stat.target_monitor = (current +1) % MAX_MONITOR;
                         move_stat.next_rate = base_rate_;
                         move_stat.rate = base_rate_;
                         move_stat.change = change;
@@ -378,8 +378,8 @@ public:
                             move_stat.bootstrapping = false;
                             move_stat.utility = curr_utility;
                             // change stay the same
-                            move_stat.target_monitor = (current + 1) % 100;
-                            cerr<<"target monitor is "<<(current + 1) % 100;
+                            move_stat.target_monitor = (current + 1) % MAX_MONITOR;
+                            cerr<<"target monitor is "<<(current + 1) % MAX_MONITOR;
                             move_stat.next_rate = move_stat.next_rate + move_stat.change;
                             base_rate_ = move_stat.next_rate;
 
@@ -410,7 +410,7 @@ public:
                                 guess_measurement_bucket.clear();
                             } else {
                                 cerr<<"direction same, keep moving with change of "<<change<<endl;
-                                move_stat.target_monitor = (current + 1) % 100;
+                                move_stat.target_monitor = (current + 1) % MAX_MONITOR;
                                 move_stat.utility = curr_utility;
                                 move_stat.next_rate = move_stat.change + move_stat.next_rate;
                                 base_rate_ = move_stat.next_rate;
