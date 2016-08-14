@@ -2475,6 +2475,8 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
                         } else {
                             latency_info = latency_info2;
                         }
+                        latency_info = double(latency_time_end[tmp]*1000-(end_transmission_time[tmp]-1471147600000000))/(latency_time_start[tmp]*1000 - (start_time[tmp]-1471147600000000));
+
                         //cout<<latency_time_end[tmp] - latency_time_start[tmp]<<" "<<end_transmission_time[tmp]-start_time[tmp]<<endl;
                         //cout<<latency_time_end[tmp]*1000<<" "<<start_time[tmp] -1470892000000000<<endl;
 						cerr<<"latency info"<<" "<<latency_info<<endl;

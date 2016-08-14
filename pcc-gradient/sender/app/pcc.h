@@ -676,7 +676,8 @@ public:
 		//long double utility = ((long double)total - loss_contribution - rtt_contribution)/norm_measurement_interval/rtt;
 		//long double utility = (((long double)total - loss_contribution) - rtt_contribution)/time/norm_measurement_interval;
         double normalized_rtt = rtt / 0.04;
-		long double utility = (((long double)total - loss_contribution) - rtt_contribution)*m_iMSS/1024/1024*8/time/latency_info;
+		//long double utility = (((long double)total - loss_contribution) - rtt_contribution)*m_iMSS/1024/1024*8/time/latency_info;
+		long double utility = ((2 * (long double)total - loss_contribution) - rtt_contribution)*m_iMSS/1024/1024*8/time;
                 cerr<<"total "<< total<<"loss contri"<<loss_contribution<<"rtt contr"<<rtt_contribution<<"time "<<time<<"norm measurement"<<norm_measurement_interval<<endl;
 
 		if (out_measurement != NULL) {
