@@ -2475,7 +2475,7 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
                         } else {
                             latency_info = latency_info2;
                         }
-                        latency_info = double(latency_time_end[tmp]*1000-(end_transmission_time[tmp]-1471147600000000))/(latency_time_start[tmp]*1000 - (start_time[tmp]-1471147600000000));
+                        latency_info = double(latency_time_end[tmp]*1000-(end_transmission_time[tmp]-1471216100000000))/(latency_time_start[tmp]*1000 - (start_time[tmp]-1471216100000000));
 
                         //cout<<latency_time_end[tmp] - latency_time_start[tmp]<<" "<<end_transmission_time[tmp]-start_time[tmp]<<endl;
                         //cout<<latency_time_end[tmp]*1000<<" "<<start_time[tmp] -1470892000000000<<endl;
@@ -3114,7 +3114,7 @@ void CUDT::start_monitor(int length)
     //double rand_factor = double(rand()%10)/100.0;
 	//if(m_iRTT*(1.2)/m_pCC->m_dPktSndPeriod>10) length = m_iRTT*(0.5 + rand_factor)/m_pCC->m_dPktSndPeriod;
 		//cout << "min RTT is " << get_min_rtt() << endl;
-		allocated_times_[current_monitor] = 2.0 * get_min_rtt();//last_rtt_;//m_iRTT;//get_min_rtt();
+		allocated_times_[current_monitor] = 1.8 * get_min_rtt();//last_rtt_;//m_iRTT;//get_min_rtt();
                 if(allocated_times_[current_monitor]> 1000000) {
                     allocated_times_[current_monitor] = 1000000;
                 }

@@ -257,7 +257,7 @@ public:
             recent_end_stat.initialized = true;
         } else {
             //if(recent_end_stat.rtt/ rtt > 1.2 || recent_end_stat.rtt / rtt <0.8){
-            if(recent_end_stat.rtt/ rtt < 0.8 || latency_info > 1.4){
+            if(recent_end_stat.rtt/ rtt < 0.6 || latency_info > 1.4){
                 cerr<<"RTT deviation severe, halving rate and re-probing"<<endl;
                 state_ = SEARCH;
                 guess_measurement_bucket.clear();
@@ -677,7 +677,7 @@ public:
 		//long double utility = (((long double)total - loss_contribution) - rtt_contribution)/time/norm_measurement_interval;
         double normalized_rtt = rtt / 0.04;
 		//long double utility = (((long double)total - loss_contribution) - rtt_contribution)*m_iMSS/1024/1024*8/time/latency_info;
-		long double utility = ((2 * (long double)total - loss_contribution) - rtt_contribution)*m_iMSS/1024/1024*8/time;
+		long double utility = ((3 * (long double)total - loss_contribution) - rtt_contribution)*m_iMSS/1024/1024*8/time;
                 cerr<<"total "<< total<<"loss contri"<<loss_contribution<<"rtt contr"<<rtt_contribution<<"time "<<time<<"norm measurement"<<norm_measurement_interval<<endl;
 
 		if (out_measurement != NULL) {
