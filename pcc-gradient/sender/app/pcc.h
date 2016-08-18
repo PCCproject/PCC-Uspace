@@ -97,6 +97,9 @@ public:
 	virtual void onLoss(const int32_t*, const int&) {}
 	virtual bool onTimeout(int total, int loss, double in_time, int current, int endMonitor, double rtt){
         cerr<<"Timeout happens to monitor "<<endMonitor<<endl;
+        //if(!(deviation_immune_monitor != -1 && deviation_immune_monitor != endMonitor)) {
+            deviation_immune_monitor = -1;
+        //}
         if (endMonitor == timeout_immune_monitor) {
             timeout_immune_monitor = -1;
             return true;
@@ -104,6 +107,7 @@ public:
         if (endMonitor < timeout_immune_monitor) {
             return true;
         }
+        recent_end_stat.initialized = false;
         base_rate_ = base_rate_ * 0.5;
         if (base_rate_ < kMinRateMbps + 0.25) {
         state_ = HIBERNATE;
@@ -242,7 +246,7 @@ public:
         else{
             avg_rtt = avg_rtt *0.8 + rtt*0.2;
         }
-        if (endMonitor == timeout_immune_monitor) {
+        if (endMonitor >= timeout_immune_monitor) {
             timeout_immune_monitor = -1;
         }
 		long double curr_utility = utility(total, loss, in_time, rtt, NULL, latency_info);
@@ -253,11 +257,15 @@ public:
         cerr<<"Monitor "<<endMonitor<<" ended with utility "<<curr_utility<<endl;
         // TODO we should keep track of all monitors and closely mointoring RTT
         // and utility change between monitor
+        if (state_ != HIBERNATE && total != 1) {
+        if(!(deviation_immune_monitor != -1 && deviation_immune_monitor != endMonitor)) {
+            deviation_immune_monitor = -1;
         if(!recent_end_stat.initialized) {
             recent_end_stat.initialized = true;
         } else {
             //if(recent_end_stat.rtt/ rtt > 1.2 || recent_end_stat.rtt / rtt <0.8){
-            if(recent_end_stat.rtt/ rtt < 0.5 || latency_info > 1.4){
+            if(recent_end_stat.rtt/ rtt < 0.8 || latency_info > 0.5){
+            //if(recent_end_stat.rtt/ rtt < 0.7){
                 cerr<<"RTT deviation severe, halving rate and re-probing"<<endl;
                 state_ = SEARCH;
                 guess_measurement_bucket.clear();
@@ -267,6 +275,7 @@ public:
                 }
                 setRate(base_rate_);
                 recent_end_stat.initialized = false;
+                //deviation_immune_monitor = current;
             }
         }
         recent_end_stat.utility = curr_utility;
@@ -274,6 +283,10 @@ public:
         recent_end_stat.loss = loss;
         recent_end_stat.rtt = rtt;
         recent_end_stat.monitor = endMonitor;
+        } else {
+            cout<<"deviation immuned until "<<deviation_immune_monitor<<"currently end"<<endMonitor<<endl;
+        }
+        }
         do {
             old_state = state_;
             switch (state_) {
@@ -471,6 +484,7 @@ protected:
 
     long double search_monitor_utility[2];
     int timeout_immune_monitor;
+    int deviation_immune_monitor;
     int search_monitor_number[2];
     bool start_measurement_;
 	double base_rate_;
@@ -529,6 +543,7 @@ protected:
         prev_change_ = 0;
         hibernate_depth = 0;
         timeout_immune_monitor = -1;
+        deviation_immune_monitor = -1;
 
         recent_end_stat.initialized = false;
 		setRTO(100000000);
@@ -669,7 +684,8 @@ public:
 
 		long double loss_contribution = total * (long double) (alpha_* (pow((1+((long double)((double) loss/(double) total))), exponent_)-1));
 		//long double rtt_contribution = 1 * total*(pow(rtt_penalty,1) -1);
-		long double rtt_contribution = 1 * total*(pow(latency_info,2) -1);
+		//long double rtt_contribution = 1 * total*(pow(latency_info,2) -1);
+		long double rtt_contribution = 1 * total*(pow(latency_info,1));
                 long double rtt_factor = rtt;
                 //TODO We should also consider adding just rtt into the utility function, because it is not just change that matters
                 // This may turn out to be extremely helpful during LTE environment

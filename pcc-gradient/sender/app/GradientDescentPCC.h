@@ -69,7 +69,15 @@ protected:
 		trend_count_ = 0;
 
 		//double change = 2 * rate()/1000 * kEpsilon * avg_gradient();
-		double change = rate() * avg_gradient() * 0.01;
+        double factor;
+        if(rate()<3) {
+            factor = 0.03;
+        } else if(rate()>=3 && rate() <= 5) {
+            factor = 0.02;
+        }else {
+            factor = 0.01;
+        }
+		double change = rate() * avg_gradient() * factor;
 
 		if (force_change) {
 			cout << "avg. gradient = " << avg_gradient() << endl;

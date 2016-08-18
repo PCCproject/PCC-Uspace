@@ -2463,7 +2463,7 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
                         }
                                                 //c<<"before on monitor ends"<<Mon<<" "<<rtt_value[Mon]<<" "<<rtt_count[Mon]<<endl;
                                                 //cout<<"before on monitor "<<tmp<< "ends loss is"<<total[tmp] - left[tmp]<<endl;
-                        double latency_info1 = double(latency_time_end[tmp]*1000-(start_time[tmp]-1471107400000000+m_iRTT/2))/(end_transmission_time[tmp]-start_time[tmp]);
+                        double latency_info1 = double(latency_time_end[tmp]*1000-(start_time[tmp]-1471107640000000+m_iRTT/2))/(end_transmission_time[tmp]-start_time[tmp]);
                                                 m_iRTT = rtt_value[Mon]/double(rtt_count[Mon]);
 						last_rtt_ = m_iRTT;
 	                                        m_pCC->setRTT(m_iRTT);
@@ -2475,7 +2475,8 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
                         } else {
                             latency_info = latency_info2;
                         }
-                        latency_info = double(latency_time_end[tmp]*1000-(end_transmission_time[tmp]-1471499300000000))/(latency_time_start[tmp]*1000 - (start_time[tmp]-1471499300000000));
+                        latency_info = double(latency_time_end[tmp]*1000-(end_transmission_time[tmp]-1471555100000000))/(latency_time_start[tmp]*1000 - (start_time[tmp]-1471555100000000));
+                        latency_info = (double(latency_time_end[tmp]*1000-(end_transmission_time[tmp]-1471557600000000))-(latency_time_start[tmp]*1000 - (start_time[tmp]-1471557600000000)))/(end_transmission_time[tmp]- start_time[tmp]);
 
                         //cout<<latency_time_end[tmp] - latency_time_start[tmp]<<" "<<end_transmission_time[tmp]-start_time[tmp]<<endl;
                         //cout<<latency_time_end[tmp]*1000<<" "<<start_time[tmp] -1470892000000000<<endl;
