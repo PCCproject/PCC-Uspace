@@ -118,12 +118,12 @@ public:
         setRate(kHibernateRate/divider, true);
         guess_measurement_bucket.clear();
         hibernate_depth++;
-        return true;
+        return false;
         } else {
         guess_measurement_bucket.clear();
         state_ = SEARCH;
         setRate(base_rate_);
-        return true;
+        return false;
         }
         //ConnectionState old_state;
         //do {
@@ -217,8 +217,8 @@ public:
                     break;
                 case HIBERNATE:
                     cerr<<"Hibernating, setting it to really low rate"<<endl;
-                    m_iMSS = 200;
-                    mss = 200;
+                    m_iMSS = 100;
+                    mss = 100;
                     double divider = 1;
                     if(hibernate_depth > 3) {
                         hibernate_depth = 3;
@@ -257,7 +257,7 @@ public:
             recent_end_stat.initialized = true;
         } else {
             //if(recent_end_stat.rtt/ rtt > 1.2 || recent_end_stat.rtt / rtt <0.8){
-            if(recent_end_stat.rtt/ rtt < 0.6 || latency_info > 1.4){
+            if(recent_end_stat.rtt/ rtt < 0.5 || latency_info > 1.4){
                 cerr<<"RTT deviation severe, halving rate and re-probing"<<endl;
                 state_ = SEARCH;
                 guess_measurement_bucket.clear();
