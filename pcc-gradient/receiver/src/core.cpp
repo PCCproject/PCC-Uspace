@@ -1969,7 +1969,7 @@ void CUDT::sendCtrl(int pkttype, void* lparam, void* rparam, int size)
    case 32767: //0x7FFF - Resevered for future use
       if (NULL != rparam)
       {
-         ctrlpkt.m_iTimeStamp = int((CTimer::getTime() -1472781900000000)/1000);
+         ctrlpkt.m_iTimeStamp = int((CTimer::getTime() -1472792800000000)/1000);
          ctrlpkt.pack(pkttype, NULL, rparam, size);
          ctrlpkt.m_iID = m_PeerID;
          m_pSndQueue->sendto(m_pPeerAddr, ctrlpkt);

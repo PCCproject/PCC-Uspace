@@ -203,8 +203,8 @@ public:
                 case RECORDING:
                     //m_iMSS = 1000 + current_monitor%MAX_MONITOR;
                     //mss=1000 + current_monitor%MAX_MONITOR;
-                    m_iMSS = 500;
-                    mss = 500;
+                    m_iMSS = 200;
+                    mss = 200;
                     if(guess_time_ != number_of_probes_) {
                         cerr<<"Monitor "<<current_monitor<<"is in recording state "<<guess_time_<<"th trial with rate of"<<guess_measurement_bucket[guess_time_].rate<<endl;
                         setRate(guess_measurement_bucket[guess_time_].rate);

@@ -2479,7 +2479,7 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
                             latency_info = latency_info2;
                         }
                         latency_info = double(latency_time_end[tmp]*1000-(end_transmission_time[tmp]-1471555100000000))/(latency_time_start[tmp]*1000 - (start_time[tmp]-1471555100000000));
-                        latency_info = (double(latency_time_end[tmp]*1000-(end_transmission_time[tmp]-1472781900000000))-(latency_time_start[tmp]*1000 - (start_time[tmp]-1472781900000000)))/(end_transmission_time[tmp]- start_time[tmp]);
+                        latency_info = (double(latency_time_end[tmp]*1000-(end_transmission_time[tmp]-1472792800000000))-(latency_time_start[tmp]*1000 - (start_time[tmp]-1472792800000000)))/(end_transmission_time[tmp]- start_time[tmp]);
 
                         //cout<<latency_time_end[tmp] - latency_time_start[tmp]<<" "<<end_transmission_time[tmp]-start_time[tmp]<<endl;
                         //cout<<latency_time_end[tmp]*1000<<" "<<start_time[tmp] -1470892000000000<<endl;
@@ -3239,8 +3239,8 @@ bool CUDT::timeout_monitors() {
 	int tmp = (current_monitor + 1) % MAX_MONITOR;
 	while (tmp != current_monitor) {
 		if ((state[tmp]==1) || (state[tmp]==2)) {
-            if(start_time[tmp] + latest_received_seq[tmp] * time_interval[tmp] + allocated_times_[tmp] < current_time){
-			//if((deadlines[tmp] < current_time) && (allocated_times_[tmp] > 0)) {
+            //if(start_time[tmp] + (latest_received_seq[tmp]+1) * time_interval[tmp] + allocated_times_[tmp] < current_time){
+			if((deadlines[tmp] < current_time) && (allocated_times_[tmp] > 0)) {
 				int count=0;
 				//cout<<"killing "<<tmp<<" at "<<current_time<<endl;
 				cout << "waited more than " << allocated_times_[tmp] <<endl;

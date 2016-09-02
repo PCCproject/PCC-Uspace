@@ -73,9 +73,9 @@ protected:
         if(rate()<3) {
             factor = 0.03;
         } else if(rate()>=3 && rate() <= 5) {
-            factor = 0.02;
-        }else {
             factor = 0.01;
+        }else {
+            factor = 0.005;
         }
 		double change = rate() * avg_gradient() * factor;
 
