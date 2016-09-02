@@ -2413,6 +2413,9 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 			//cout<<monitorNo<<' '<<SeqNoInMonitor<<' '<<current_monitor<<' '<<left_monitor<<endl;
 			// recv pkt
 			left[monitorNo]++;
+            if(SeqNoInMonitor > latest_received_seq[monitorNo]) {
+                latest_received_seq[monitorNo] = SeqNoInMonitor;
+            }
 			//cout<<monitorNo<<' '<<SeqNoInMonitor<<endl;
 			recv_ack[monitorNo][SeqNoInMonitor] = true;
 			current_time = CTimer::getTime();
@@ -2476,7 +2479,7 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
                             latency_info = latency_info2;
                         }
                         latency_info = double(latency_time_end[tmp]*1000-(end_transmission_time[tmp]-1471555100000000))/(latency_time_start[tmp]*1000 - (start_time[tmp]-1471555100000000));
-                        latency_info = (double(latency_time_end[tmp]*1000-(end_transmission_time[tmp]-1471557600000000))-(latency_time_start[tmp]*1000 - (start_time[tmp]-1471557600000000)))/(end_transmission_time[tmp]- start_time[tmp]);
+                        latency_info = (double(latency_time_end[tmp]*1000-(end_transmission_time[tmp]-1472781900000000))-(latency_time_start[tmp]*1000 - (start_time[tmp]-1472781900000000)))/(end_transmission_time[tmp]- start_time[tmp]);
 
                         //cout<<latency_time_end[tmp] - latency_time_start[tmp]<<" "<<end_transmission_time[tmp]-start_time[tmp]<<endl;
                         //cout<<latency_time_end[tmp]*1000<<" "<<start_time[tmp] -1470892000000000<<endl;
@@ -3166,7 +3169,11 @@ void CUDT::start_monitor(int length)
 	left[current_monitor]=0;
     rtt_count[current_monitor]=0;
     rtt_value[current_monitor]=0;
-	//cout <<"length = " << length << endl;
+	latest_received_seq[current_monitor] = -1;
+
+    //cout <<"length = " << length << endl;
+
+
 
 	for (int i=0;i<length;++i)
     {
@@ -3201,6 +3208,7 @@ void CUDT::init_state() {
 		latency_time_start[mon_index] = 0;
 		latency_time_end[mon_index] = 0;
 		time_interval[mon_index] = 0;
+        latest_received_seq[mon_index] = -1;
 		rtt_count[mon_index] = 0;
 		rtt_value[mon_index] = 0;
 		deadlines[mon_index] = 0;
@@ -3231,7 +3239,8 @@ bool CUDT::timeout_monitors() {
 	int tmp = (current_monitor + 1) % MAX_MONITOR;
 	while (tmp != current_monitor) {
 		if ((state[tmp]==1) || (state[tmp]==2)) {
-			if((deadlines[tmp] < current_time) && (allocated_times_[tmp] > 0)) {
+            if(start_time[tmp] + latest_received_seq[tmp] * time_interval[tmp] + allocated_times_[tmp] < current_time){
+			//if((deadlines[tmp] < current_time) && (allocated_times_[tmp] > 0)) {
 				int count=0;
 				//cout<<"killing "<<tmp<<" at "<<current_time<<endl;
 				cout << "waited more than " << allocated_times_[tmp] <<endl;
@@ -3264,6 +3273,7 @@ bool CUDT::timeout_monitors() {
 	            	latency_time_start[mon_index] = 0;
 	            	latency_time_end[mon_index] = 0;
 	            	time_interval[mon_index] = 0;
+                    latest_received_seq[mon_index] = -1;
 	            	rtt_count[mon_index] = 0;
 	            	rtt_value[mon_index] = 0;
 	            	deadlines[mon_index] = 0;

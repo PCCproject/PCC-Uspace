@@ -311,6 +311,8 @@ private: // monitor
    int32_t time_interval[MAX_MONITOR];
    int lossptr;
    bool recv_ack[MAX_MONITOR][30000];
+   int64_t latest_received_seq[MAX_MONITOR];
+   uint64_t packet_space[MAX_MONITOR];
    uint64_t send_timestamp[MAX_MONITOR][30000];
    int rtt_count[MAX_MONITOR];
    uint64_t rtt_value[MAX_MONITOR];
@@ -457,7 +459,7 @@ private: // Generation and processing of packets
    uint64_t deadlines[MAX_MONITOR];
    uint64_t allocated_times_[MAX_MONITOR];
 
-   static const uint64_t kMinTimeoutMillis = 10;
+   static const uint64_t kMinTimeoutMillis = 80000;
 private: // Trace
    uint64_t m_StartTime;                        // timestamp when the UDT entity is started
    int64_t m_llSentTotal;                       // total number of sent data packets, including retransmissions
