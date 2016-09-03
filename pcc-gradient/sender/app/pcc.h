@@ -107,8 +107,10 @@ public:
         if (endMonitor < timeout_immune_monitor) {
             return true;
         }
+        double factor = double(total-loss)/total;
+        factor = 0.5;
         recent_end_stat.initialized = false;
-        base_rate_ = base_rate_ * 0.5;
+        base_rate_ = base_rate_ * factor;
         if (base_rate_ < kMinRateMbps + 0.25) {
         state_ = HIBERNATE;
         double divider = 1;
@@ -693,7 +695,7 @@ public:
 		//long double utility = (((long double)total - loss_contribution) - rtt_contribution)/time/norm_measurement_interval;
         double normalized_rtt = rtt / 0.04;
 		//long double utility = (((long double)total - loss_contribution) - rtt_contribution)*m_iMSS/1024/1024*8/time/latency_info;
-		long double utility = ((3 * (long double)total - loss_contribution) - rtt_contribution)*m_iMSS/1024/1024*8/time;
+		long double utility = ((3 * (long double)total - loss_contribution) -1 * rtt_contribution)*m_iMSS/1024/1024*8/time;
                 cerr<<"total "<< total<<"loss contri"<<loss_contribution<<"rtt contr"<<rtt_contribution<<"time "<<time<<"norm measurement"<<norm_measurement_interval<<endl;
 
 		if (out_measurement != NULL) {
