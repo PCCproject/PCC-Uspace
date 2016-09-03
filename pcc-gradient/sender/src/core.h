@@ -376,7 +376,7 @@ private: // Status
    int m_iRTT;                                  // RTT, in microseconds
    int last_rtt_;
    deque<double> m_last_rtt;
-   static const size_t kRTTHistorySize = 1;
+   static const size_t kRTTHistorySize = 100;
    //double m_last_rtt[MAX_MONITOR];
    int m_monitor_count;
    int m_iRTTVar;                               // RTT variance
@@ -459,7 +459,7 @@ private: // Generation and processing of packets
    uint64_t deadlines[MAX_MONITOR];
    uint64_t allocated_times_[MAX_MONITOR];
 
-   static const uint64_t kMinTimeoutMillis = 80000;
+   static const uint64_t kMinTimeoutMillis = 50000;
 private: // Trace
    uint64_t m_StartTime;                        // timestamp when the UDT entity is started
    int64_t m_llSentTotal;                       // total number of sent data packets, including retransmissions

@@ -264,7 +264,7 @@ public:
             recent_end_stat.initialized = true;
         } else {
             //if(recent_end_stat.rtt/ rtt > 1.2 || recent_end_stat.rtt / rtt <0.8){
-            if(recent_end_stat.rtt/ rtt < 0.8 || latency_info > 0.5){
+            if(recent_end_stat.rtt/ rtt < 0.6){
             //if(recent_end_stat.rtt/ rtt < 0.7){
                 cerr<<"RTT deviation severe, halving rate and re-probing"<<endl;
                 state_ = SEARCH;
