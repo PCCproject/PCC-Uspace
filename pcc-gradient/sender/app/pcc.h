@@ -191,7 +191,8 @@ public:
 			        	return;
 			        }
 			        monitor_in_start_phase_ = current_monitor;
-			        setRate(rate() * slow_start_factor_);
+                    base_rate_ = rate()* slow_start_factor_;
+			        setRate(base_rate_);
                     cerr<<"slow starting of monitor"<<current_monitor<<endl;
                     break;
                 case SEARCH:
@@ -203,8 +204,8 @@ public:
                 case RECORDING:
                     //m_iMSS = 1000 + current_monitor%MAX_MONITOR;
                     //mss=1000 + current_monitor%MAX_MONITOR;
-                    m_iMSS = 500;
-                    mss = 500;
+                    m_iMSS = 1500;
+                    mss = 1500;
                     if(guess_time_ != number_of_probes_) {
                         cerr<<"Monitor "<<current_monitor<<"is in recording state "<<guess_time_<<"th trial with rate of"<<guess_measurement_bucket[guess_time_].rate<<endl;
                         setRate(guess_measurement_bucket[guess_time_].rate);
@@ -250,7 +251,6 @@ public:
             timeout_immune_monitor = -1;
         }
 		long double curr_utility = utility(total, loss, in_time, rtt, NULL, latency_info);
-		last_utility_ = curr_utility;
 		utility_sum_ += curr_utility;
 		measurement_intervals_++;
         ConnectionState old_state;
@@ -293,7 +293,18 @@ public:
                 case START:
                     // TODO to aid debuggin as we change code architecture, we will not
                     // have slow start here, we will immediately transit to SEARCH state
+                    //state_ = SEARCH;
+                    if(endMonitor == monitor_in_start_phase_) {
+                    if(last_utility_> curr_utility) {
+                    base_rate_ /= slow_start_factor_;
                     state_ = SEARCH;
+                    cout<<"exit "<<curr_utility<<" "<<last_utility_<<endl;
+                    
+                    } else {
+                    monitor_in_start_phase_ = -1;
+                    }
+		    last_utility_ = curr_utility;
+                    }
                     break;
                 case SEARCH:
                     // When doing search (calculating the results and stuff), onmonitorends should do nothing
@@ -514,7 +525,7 @@ protected:
 	virtual void clear_state() {
 		continue_slow_start_ = true;
 		start_measurement_ = true;
-		slow_start_factor_ = 1.1;
+		slow_start_factor_ = 2;
 		start_measurment_map_.clear();
 		end_measurment_map_.clear();
 		state_ = SEARCH;
@@ -526,7 +537,7 @@ protected:
 	virtual void restart() {
 		continue_slow_start_ = true;
 		start_measurement_ = true;
-		slow_start_factor_ = 1.2;
+		slow_start_factor_ = 2;
 		start_measurment_map_.clear();
 		end_measurment_map_.clear();
 		monitor_in_start_phase_ = -1;
@@ -541,6 +552,7 @@ protected:
 		m_dPktSndPeriod = 10000;
 		m_dCWndSize = 100000.0;
         prev_change_ = 0;
+avg_rtt = 0;
         hibernate_depth = 0;
         timeout_immune_monitor = -1;
         deviation_immune_monitor = -1;
@@ -668,6 +680,7 @@ public:
 			norm_measurement_interval = time / rtt;
 			last_measurement_interval = norm_measurement_interval;
 		}
+                long double loss_rate = (long double)((double) loss/(double) total);
 
 
 		// convert to milliseconds
@@ -677,15 +690,17 @@ public:
                 cerr<<"time is "<<time<<endl;
 		//if (rtt_penalty > 2) rtt_penalty  = 2;
 		//if (rtt_penalty < -2) rtt_penalty  = -2;
-		exponent_ = 2.5;
-        if(rtt_penalty<1) {
-            rtt_penalty=1;
-        }
+		exponent_ = 3;
+        //if(rtt_penalty<1) {
+        //    rtt_penalty=1;
+        //}
 
-		long double loss_contribution = total * (long double) (alpha_* (pow((1+((long double)((double) loss/(double) total))), exponent_)-1));
+		//long double loss_contribution = total * (long double) (alpha_* (pow((1+((long double)((double) loss/(double) total))), exponent_)-1));
+		long double loss_contribution = alpha_ * (total * (pow((1+loss_rate), exponent_)-1) - 2 * loss);
 		//long double rtt_contribution = 1 * total*(pow(rtt_penalty,1) -1);
 		//long double rtt_contribution = 1 * total*(pow(latency_info,2) -1);
-		long double rtt_contribution = 1 * total*(pow(latency_info,1));
+		//long double rtt_contribution = 1 * total*(pow(latency_info,1));
+		long double rtt_contribution = 10 * total*(pow(rtt_penalty,2) - 1);
                 long double rtt_factor = rtt;
                 //TODO We should also consider adding just rtt into the utility function, because it is not just change that matters
                 // This may turn out to be extremely helpful during LTE environment
@@ -693,7 +708,7 @@ public:
 		//long double utility = (((long double)total - loss_contribution) - rtt_contribution)/time/norm_measurement_interval;
         double normalized_rtt = rtt / 0.04;
 		//long double utility = (((long double)total - loss_contribution) - rtt_contribution)*m_iMSS/1024/1024*8/time/latency_info;
-		long double utility = ((3 * (long double)total - loss_contribution) - rtt_contribution)*m_iMSS/1024/1024*8/time;
+		long double utility = ((1 * (long double)total - loss_contribution) - rtt_contribution)*m_iMSS/1024/1024*8/time;
                 cerr<<"total "<< total<<"loss contri"<<loss_contribution<<"rtt contr"<<rtt_contribution<<"time "<<time<<"norm measurement"<<norm_measurement_interval<<endl;
 
 		if (out_measurement != NULL) {
@@ -707,7 +722,7 @@ public:
 	static const long kMillisecondsDigit = 10 * 1000;
 
 	int monitor_in_start_phase_;
-    double avg_rtt = 0;
+    double avg_rtt;
 	double slow_start_factor_;
 	double alpha_;
 	double beta_;
