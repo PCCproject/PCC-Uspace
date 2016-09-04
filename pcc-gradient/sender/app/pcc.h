@@ -115,8 +115,10 @@ public:
         if (endMonitor < timeout_immune_monitor) {
             return true;
         }
+        double factor = double(total-loss)/total;
+        factor = 0.5;
         recent_end_stat.initialized = false;
-        base_rate_ = base_rate_ * 0.5;
+        base_rate_ = base_rate_ * factor;
         if (base_rate_ < kMinRateMbps + 0.25) {
         state_ = HIBERNATE;
         double divider = 1;
@@ -498,7 +500,7 @@ public:
 		kExponent = exponent;
 		kPolyUtility = polyUtility;
 	}
-  
+
 
 protected:
 
