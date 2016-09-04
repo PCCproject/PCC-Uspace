@@ -88,8 +88,8 @@ public:
 	virtual ~PCC() {}
         double getkDelta(){
             if(base_rate_ < 2) return 0.3;
-            if(base_rate_ < 5) return 0.2;
-            if(base_rate_ < 30) return 0.3;
+            if(base_rate_ < 5) return 0.25;
+            if(base_rate_ < 30) return 0.2;
             if(base_rate_ < 50) return 0.1;
             if(base_rate_ < 100) return 0.02;
             return 0.01;
