@@ -87,9 +87,10 @@ class PCC : public CCC {
 public:
 	virtual ~PCC() {}
         double getkDelta(){
-            if(base_rate_ < 2) return 0.2;
+            if(base_rate_ < 2) return 0.3;
             if(base_rate_ < 5) return 0.2;
-            if(base_rate_ < 50) return 0.05;
+            if(base_rate_ < 30) return 0.3;
+            if(base_rate_ < 50) return 0.1;
             if(base_rate_ < 100) return 0.02;
             return 0.01;
         }
@@ -436,6 +437,7 @@ public:
                                 } else {
                                     base_rate_ = move_stat.next_rate - move_stat.change;
                                 }
+                                base_rate_ = move_stat.next_rate - move_stat.change;
                                 setRate(base_rate_);
                                 state_ = SEARCH;
                                 guess_measurement_bucket.clear();
@@ -443,6 +445,7 @@ public:
                                 cerr<<"direction same, keep moving with change of "<<change<<endl;
                                 move_stat.target_monitor = (current + 1) % MAX_MONITOR;
                                 move_stat.utility = curr_utility;
+                                move_stat.change = change;
                                 move_stat.next_rate = move_stat.change + move_stat.next_rate;
                                 base_rate_ = move_stat.next_rate;
 
@@ -708,7 +711,7 @@ public:
 		//long double rtt_contribution = 1 * total*(pow(rtt_penalty,1) -1);
 		//long double rtt_contribution = 1 * total*(pow(latency_info,2) -1);
 		//long double rtt_contribution = 1 * total*(pow(latency_info,1));
-		long double rtt_contribution = 10 * total*(pow(rtt_penalty,2) - 1);
+		long double rtt_contribution = 0 * total*(pow(rtt_penalty,2) - 1);
                 long double rtt_factor = rtt;
                 //TODO We should also consider adding just rtt into the utility function, because it is not just change that matters
                 // This may turn out to be extremely helpful during LTE environment

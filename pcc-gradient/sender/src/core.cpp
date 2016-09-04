@@ -3143,8 +3143,8 @@ void CUDT::start_monitor(int length)
             //cout<<"super short length because of short sent period? send period is "<< send_period<<endl;
             length=4;
         }
-        if (length > 300) {
-           length = 300;
+        if (length > 3000) {
+           length = 3000;
         }
         //cout<<"length of monitor is "<<length<<endl;
     if (suggested_length < length) {
@@ -3234,6 +3234,7 @@ void CUDT::init_state() {
 }
 
 bool CUDT::timeout_monitors() {
+        return false;
 	lock_guard<mutex> lck(monitor_mutex_);
 	uint64_t current_time = CTimer::getTime();
 	int tmp = (current_monitor + 1) % MAX_MONITOR;

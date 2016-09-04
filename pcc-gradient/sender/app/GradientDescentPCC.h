@@ -75,7 +75,7 @@ protected:
         } else if(rate()>=3 && rate() <= 5) {
             factor = 0.03;
         }else if (rate()>5 && rate() <= 50) {
-            factor = 0.02;
+            factor = 0.03;
         } else if (rate()>50) {
             factor = 0.01;
         }
