@@ -378,6 +378,7 @@ public:
                         // but watch out for huge jump is needed
                         // maybe this will work, if this does not, need to revisit sanity check
                         double change = decide(utility_down/factor, utility_up/factor, rate_down, rate_up, false);
+                        //if(abs(change)/base_rate_ > 0.5 && change <0) {change = change/abs(change)*0.5*base_rate_;}
                         cerr<<"all record is acquired and ready to change by "<<change<<endl;
 		                base_rate_ += change;
                         if (base_rate_ < kMinRateMbps) {
