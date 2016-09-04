@@ -86,6 +86,13 @@ struct RecentEndMonitorStat {
 class PCC : public CCC {
 public:
 	virtual ~PCC() {}
+        double getkDelta(){
+            if(base_rate_ < 2) return 0.2;
+            if(base_rate_ < 5) return 0.2;
+            if(base_rate_ < 50) return 0.05;
+            if(base_rate_ < 100) return 0.02;
+            return 0.01;
+        }
 
 	long double avg_utility() {
 		if (measurement_intervals_ > 0) {
@@ -270,8 +277,8 @@ public:
                 state_ = SEARCH;
                 guess_measurement_bucket.clear();
                 base_rate_ = base_rate_ * 0.5;
-                if(base_rate_ < kMinRateMbps/ (1-kDelta)) {
-                   base_rate_ = kMinRateMbps / (1-kDelta);
+                if(base_rate_ < kMinRateMbps/ (1-getkDelta())) {
+                   base_rate_ = kMinRateMbps / (1-getkDelta());
                 }
                 setRate(base_rate_);
                 recent_end_stat.initialized = false;
@@ -299,7 +306,7 @@ public:
                     base_rate_ /= slow_start_factor_;
                     state_ = SEARCH;
                     cout<<"exit "<<curr_utility<<" "<<last_utility_<<endl;
-                    
+                    monitor_in_start_phase_ = -1;
                     } else {
                     monitor_in_start_phase_ = -1;
                     }
@@ -374,8 +381,8 @@ public:
 		                base_rate_ += change;
                         if (base_rate_ < kMinRateMbps) {
                             cerr<<"trying to set rate below min rate in moving phase just decided, enter guessing"<<endl;
-                            base_rate_ = kMinRateMbps/ (1 - kDelta);
-                            state_ = SEARCH;
+                            base_rate_ = kMinRateMbps/ (1 - getkDelta());
+                            state_ = START;
                             guess_measurement_bucket.clear();
                             break;
                         }
@@ -409,7 +416,7 @@ public:
 
                             if (base_rate_ < kMinRateMbps) {
                                 cerr<<"trying to set rate below min rate in moving phase bootstrapping, enter guessing"<<endl;
-                                base_rate_ = kMinRateMbps/ (1 - kDelta);
+                                base_rate_ = kMinRateMbps/ (1 - getkDelta());
                                 state_ = SEARCH;
                                 guess_measurement_bucket.clear();
                                 break;
@@ -441,7 +448,7 @@ public:
 
                                 if (base_rate_ < kMinRateMbps) {
                                     cerr<<"trying to set rate below min rate in moving phase keep moving, enter guessing"<<endl;
-                                    base_rate_ = kMinRateMbps/ (1 - kDelta);
+                                    base_rate_ = kMinRateMbps/ (1 - getkDelta());
                                     state_ = SEARCH;
                                     guess_measurement_bucket.clear();
                                     break;
@@ -487,6 +494,7 @@ public:
 		kExponent = exponent;
 		kPolyUtility = polyUtility;
 	}
+  
 
 protected:
 

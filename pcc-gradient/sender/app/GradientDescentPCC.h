@@ -12,16 +12,16 @@ protected:
         for(int i=0; i<number_of_probes_; i++) {
             GuessStat g = GuessStat();
             if (i%2 == 0) {
-                if((kDelta) * base_rate_ > 0.1) {
-                g.rate = (1 + kDelta) * base_rate_;
+                if((getkDelta()) * base_rate_ > 0.1) {
+                g.rate = (1 + getkDelta()) * base_rate_;
                 } else {
                 g.rate = base_rate_ + 0.1;
                 }
                 cerr<<"search up rate is "<<g.rate<<endl;
                 g.isup = true;
             } else{
-                if((kDelta) * base_rate_ > 0.1) {
-                g.rate = (1 - kDelta) * base_rate_;
+                if((getkDelta()) * base_rate_ > 0.1) {
+                g.rate = (1 - getkDelta()) * base_rate_;
                 } else {g.rate = base_rate_ - 0.1;}
                 g.isup = false;
                 cerr<<"search down rate is "<<g.rate<<endl;
@@ -88,8 +88,8 @@ protected:
 
 		//if ((change >= 0) && (change < getMinChange())) change = getMinChange();
 
-                if (change>0 && change < base_rate_*kDelta) { change = base_rate_ * kDelta;}
-                if (change <0 && change > base_rate_*kDelta * (-1)) {change = base_rate_ *kDelta * (-1);}
+                if (change>0 && change < base_rate_*getkDelta()) { change = base_rate_ * getkDelta();}
+                if (change <0 && change > base_rate_*getkDelta() * (-1)) {change = base_rate_ *getkDelta() * (-1);}
 
                 if (change>0 && change < 0.25) { change = 0.25;}
                 if (change <0 && change > -0.25) {change = -0.25;}
