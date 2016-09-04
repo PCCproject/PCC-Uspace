@@ -71,11 +71,13 @@ protected:
 		//double change = 2 * rate()/1000 * kEpsilon * avg_gradient();
         double factor;
         if(rate()<3) {
-            factor = 0.03;
+            factor = 0.04;
         } else if(rate()>=3 && rate() <= 5) {
+            factor = 0.03;
+        }else if (rate()>5 && rate() <= 50) {
+            factor = 0.02;
+        } else if (rate()>50) {
             factor = 0.01;
-        }else {
-            factor = 0.005;
         }
 		double change = rate() * avg_gradient() * factor;
 
@@ -88,8 +90,8 @@ protected:
 
 		//if ((change >= 0) && (change < getMinChange())) change = getMinChange();
 
-                if (change>0 && change < base_rate_*getkDelta()) { change = base_rate_ * getkDelta();}
-                if (change <0 && change > base_rate_*getkDelta() * (-1)) {change = base_rate_ *getkDelta() * (-1);}
+                //if (change>0 && change < base_rate_*getkDelta()) { change = base_rate_ * getkDelta();}
+                //if (change <0 && change > base_rate_*getkDelta() * (-1)) {change = base_rate_ *getkDelta() * (-1);}
 
                 if (change>0 && change < 0.25) { change = 0.25;}
                 if (change <0 && change > -0.25) {change = -0.25;}
