@@ -198,12 +198,10 @@ DWORD WINAPI monitor(LPVOID s)
          cout << "perfmon: " << UDT::getlasterror().getErrorMessage() << endl;
          break;
       }
-    cout<<"t"<<i<<"\t" << perf.mbpsSendRate << "\t"
+    cout<<""<<i<<"\t" << perf.mbpsSendRate << "\t"
            << perf.msRTT << "\t"
            <<  perf.pktSentTotal << "\t"
-           << perf.pktSndLossTotal << "\t\t\t"
-           << perf.pktRecvACKTotal << "\t"
-           << perf.pktRecvNAKTotal << endl;
+           << perf.pktSndLossTotal <<endl; 
 	if (perf.pktSentTotal == 0) {
 		avg_loss_rate = 0;
 	} else {

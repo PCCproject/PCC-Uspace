@@ -15,7 +15,7 @@
 #include <mutex>
 #include <thread>
 #include <stdlib.h>
-//#define DEBUG_PRINT
+//#define DEBUG
 #define MAX_MONITOR 500
 using namespace std;
 
@@ -87,11 +87,13 @@ class PCC : public CCC {
 public:
 	virtual ~PCC() {}
         double getkDelta(){
+            return 0.05 * (1);
+            return 0.05 * (1+ probe_amplifier * (20/ base_rate_>20?20:20/base_rate_));
             if(base_rate_ < 2) return 0.3;
             if(base_rate_ < 5) return 0.25;
-            if(base_rate_ < 30) return 0.2;
+            if(base_rate_ < 40) return 0.2;
             if(base_rate_ < 50) return 0.1;
-            if(base_rate_ < 100) return 0.02;
+            if(base_rate_ < 100) return 0.05;
             return 0.01;
         }
 
@@ -104,7 +106,9 @@ public:
 
 	virtual void onLoss(const int32_t*, const int&) {}
 	virtual bool onTimeout(int total, int loss, double in_time, int current, int endMonitor, double rtt){
+#ifdef DEBUG
         cerr<<"Timeout happens to monitor "<<endMonitor<<endl;
+#endif
         //if(!(deviation_immune_monitor != -1 && deviation_immune_monitor != endMonitor)) {
             deviation_immune_monitor = -1;
         //}
@@ -128,7 +132,9 @@ public:
         for(int i=0; i<hibernate_depth; i++) {
             divider *= 2;
         }
+#ifdef DEBUG
         cerr<<"Diverder is "<<divider<<endl;
+#endif
         setRate(kHibernateRate/divider, true);
         guess_measurement_bucket.clear();
         hibernate_depth++;
@@ -190,9 +196,12 @@ public:
 		}
 	}
 
-	virtual void onMonitorStart(int current_monitor, int& suggested_length, int& mss) {
+	virtual void onMonitorStart(int current_monitor, int& suggested_length, int& mss, int& length_amplifier) {
         ConnectionState old_state;
+#ifdef DEBUG
         cerr<<"Monitor "<<current_monitor<<" starts"<<endl;
+#endif
+        //length_amplifier = probe_amplifier;
         do {
             old_state = state_;
             switch (state_) {
@@ -203,12 +212,16 @@ public:
 			        monitor_in_start_phase_ = current_monitor;
                     base_rate_ = rate()* slow_start_factor_;
 			        setRate(base_rate_);
+#ifdef DEBUG
                     cerr<<"slow starting of monitor"<<current_monitor<<endl;
+#endif
                     break;
                 case SEARCH:
+#ifdef DEBUG
                     cerr<<"Monitor "<<current_monitor<<"is in search state"<<endl;
+#endif
                     state_ = RECORDING;
-			        search(current_monitor);
+		    search(current_monitor);
                     guess_time_ = 0;
                     break;
                 case RECORDING:
@@ -217,21 +230,29 @@ public:
                     m_iMSS = 1500;
                     mss = 1500;
                     if(guess_time_ != number_of_probes_) {
+#ifdef DEBUG
                         cerr<<"Monitor "<<current_monitor<<"is in recording state "<<guess_time_<<"th trial with rate of"<<guess_measurement_bucket[guess_time_].rate<<endl;
+#endif
                         setRate(guess_measurement_bucket[guess_time_].rate);
                         guess_time_ ++;
                     } else {
+#ifdef DEBUG
                         cerr<<"Monitor "<<current_monitor<<"is in recording state, waiting result for recording to come back"<<endl;
+#endif
                         setRate(base_rate_);
                     }
                     break;
                 case MOVING:
                     // TODO: should handle how we move and how we record utility as well
+#ifdef DEBUG
                     cerr<<"monitor "<<current_monitor<<"is in moving state setting rate to"<<move_stat.next_rate<<endl;
+#endif
                     setRate(move_stat.next_rate);
                     break;
                 case HIBERNATE:
+#ifdef DEBUG
                     cerr<<"Hibernating, setting it to really low rate"<<endl;
+#endif
                     m_iMSS = 100;
                     mss = 100;
                     double divider = 1;
@@ -264,30 +285,32 @@ public:
 		utility_sum_ += curr_utility;
 		measurement_intervals_++;
         ConnectionState old_state;
+#ifdef DEBUG
         cerr<<"Monitor "<<endMonitor<<" ended with utility "<<curr_utility<<endl;
+#endif
         // TODO we should keep track of all monitors and closely mointoring RTT
         // and utility change between monitor
         if (state_ != HIBERNATE && total != 1) {
         if(!(deviation_immune_monitor != -1 && deviation_immune_monitor != endMonitor)) {
             deviation_immune_monitor = -1;
-        if(!recent_end_stat.initialized) {
-            recent_end_stat.initialized = true;
-        } else {
-            //if(recent_end_stat.rtt/ rtt > 1.2 || recent_end_stat.rtt / rtt <0.8){
-            if(recent_end_stat.rtt/ rtt < 0.6){
-            //if(recent_end_stat.rtt/ rtt < 0.7){
-                cerr<<"RTT deviation severe, halving rate and re-probing"<<endl;
-                state_ = SEARCH;
-                guess_measurement_bucket.clear();
-                base_rate_ = base_rate_ * 0.5;
-                if(base_rate_ < kMinRateMbps/ (1-getkDelta())) {
-                   base_rate_ = kMinRateMbps / (1-getkDelta());
-                }
-                setRate(base_rate_);
-                recent_end_stat.initialized = false;
-                //deviation_immune_monitor = current;
-            }
-        }
+        //if(!recent_end_stat.initialized) {
+        //    recent_end_stat.initialized = true;
+        //} else {
+        //    //if(recent_end_stat.rtt/ rtt > 1.2 || recent_end_stat.rtt / rtt <0.8){
+        //    if(recent_end_stat.rtt/ rtt < 0.6){
+        //    //if(recent_end_stat.rtt/ rtt < 0.7){
+        //        cerr<<"RTT deviation severe, halving rate and re-probing"<<endl;
+        //        state_ = SEARCH;
+        //        guess_measurement_bucket.clear();
+        //        base_rate_ = base_rate_ * 0.5;
+        //        if(base_rate_ < kMinRateMbps/ (1-getkDelta())) {
+        //           base_rate_ = kMinRateMbps / (1-getkDelta());
+        //        }
+        //        setRate(base_rate_);
+        //        recent_end_stat.initialized = false;
+        //        //deviation_immune_monitor = current;
+        //    }
+        //}
         recent_end_stat.utility = curr_utility;
         recent_end_stat.total = total;
         recent_end_stat.loss = loss;
@@ -308,7 +331,6 @@ public:
                     if(last_utility_> curr_utility) {
                     base_rate_ /= slow_start_factor_;
                     state_ = SEARCH;
-                    cout<<"exit "<<curr_utility<<" "<<last_utility_<<endl;
                     monitor_in_start_phase_ = -1;
                     } else {
                     monitor_in_start_phase_ = -1;
@@ -319,7 +341,9 @@ public:
                 case SEARCH:
                     // When doing search (calculating the results and stuff), onmonitorends should do nothing
                     // and ignore the monitor that ended
+#ifdef DEBUG
                     cerr<<"monitor"<<endMonitor<< "ends in search state, this should not happen often"<<endl;
+#endif
                     break;
                 case RECORDING:
                     // onMoniitorEnd will check if all search results have come back
@@ -350,10 +374,15 @@ public:
                     //recent_end_stat.monitor = endMonitor;
                     bool all_ready;
                     all_ready = true;
+
+#ifdef DEBUG
                     cerr<<"checking if all recording ready at monitor"<<current<<endl;
+#endif
                     for (int i=0; i<number_of_probes_; i++) {
                         if (guess_measurement_bucket[i].monitor == endMonitor) {
+#ifdef DEBUG
                             cerr<<"found matching monitor"<<endMonitor<<endl;
+#endif
                             guess_measurement_bucket[i].utility = curr_utility;
                             guess_measurement_bucket[i].ready = true;
                         }
@@ -366,25 +395,55 @@ public:
                     if (all_ready) {
                         double utility_down=0, utility_up=0;
                         double rate_up = 0, rate_down = 0;
-                        for (int i=0; i<number_of_probes_; i++) {
-                            if(guess_measurement_bucket[i].isup) {
-                                utility_up += guess_measurement_bucket[i].utility;
-                                rate_up = guess_measurement_bucket[i].rate;
-                            } else {
-                                utility_down += guess_measurement_bucket[i].utility;
-                                rate_down = guess_measurement_bucket[i].rate;
+                        double change = 0; 
+                        int decision = 0;
+                        for(int i=0; i < number_of_probes_/2; i++) {
+                            if(guess_measurement_bucket[i*2].utility < guess_measurement_bucket[i*2+1].utility) {
+                               if(guess_measurement_bucket[i*2 + 1].isup) {
+                                  decision ++;
+                               } else {
+                                  decision --;  
+                               }
+                            }
+
+                            if(guess_measurement_bucket[i*2].utility > guess_measurement_bucket[i*2+1].utility) {
+                               if(guess_measurement_bucket[i*2].isup) {
+                                  decision ++;
+                               } else {
+                                  decision --;  
+                               }
                             }
                         }
-                        int factor = number_of_probes_/2;
-                        // Sanity check maybe needed here, but not sure
-                        // but watch out for huge jump is needed
-                        // maybe this will work, if this does not, need to revisit sanity check
-                        double change = decide(utility_down/factor, utility_up/factor, rate_down, rate_up, false);
-                        //if(abs(change)/base_rate_ > 0.5 && change <0) {change = change/abs(change)*0.5*base_rate_;}
-                        cerr<<"all record is acquired and ready to change by "<<change<<endl;
-		                base_rate_ += change;
+                        if(decision != 0){
+                            for (int i=0; i<number_of_probes_; i++) {
+                                if(guess_measurement_bucket[i].isup) {
+                                    utility_up += guess_measurement_bucket[i].utility;
+                                    rate_up = guess_measurement_bucket[i].rate;
+                                } else {
+                                    utility_down += guess_measurement_bucket[i].utility;
+                                    rate_down = guess_measurement_bucket[i].rate;
+                                }
+                            }
+                            int factor = number_of_probes_/2;
+                            // Sanity check maybe needed here, but not sure
+                            // but watch out for huge jump is needed
+                            // maybe this will work, if this does not, need to revisit sanity check
+                            change = decide(utility_down/factor, utility_up/factor, rate_down, rate_up, false);
+                            //cout<<"decide "<<change<<endl;
+                            //if(abs(change)/base_rate_ > 0.5 && change <0) {change = change/abs(change)*0.5*base_rate_;}
+#ifdef DEBUG
+                            cerr<<"all record is acquired and ready to change by "<<change<<endl;
+#endif
+		            base_rate_ += change;
+                            if(probe_amplifier > 0)
+                               probe_amplifier --;
+                        } else {
+                              probe_amplifier ++;
+                        }
                         if (base_rate_ < kMinRateMbps) {
+#ifdef DEBUG
                             cerr<<"trying to set rate below min rate in moving phase just decided, enter guessing"<<endl;
+#endif
                             base_rate_ = kMinRateMbps/ (1 - getkDelta());
                             state_ = START;
                             guess_measurement_bucket.clear();
@@ -404,10 +463,15 @@ public:
                     if (endMonitor > move_stat.target_monitor) {
                         // should handle the fact that when endMonitor is larger than the target monitor
                         // somethign really bad should have happened
+
+#ifdef DEBUG
                         cerr<<"end monitor:"<<endMonitor<<"is larger than the target monitor: "<<move_stat.target_monitor<<endl;
+#endif
                     }
                     if(endMonitor == move_stat.target_monitor) {
+#ifdef DEBUG
                         cerr<<"find the right monitor"<<endMonitor<<endl;
+#endif
                         if(move_stat.bootstrapping) {
                             cerr<<"bootstrapping move operations"<<endl;
                             move_stat.bootstrapping = false;
@@ -483,7 +547,9 @@ public:
                         base_rate_ += 0.1;
                     }
                     setRate(base_rate_);
+#ifdef DEBUG
                     cerr<<"coming out of comma with base rate of"<<base_rate_<<endl;
+#endif
                     guess_measurement_bucket.clear();
                     state_ = SEARCH;
                     hibernate_depth = 0;
@@ -494,7 +560,7 @@ public:
 
 	}
 
-	static void set_utility_params(double alpha = 4, double beta = 54, double exponent = 1.5, bool polyUtility = true) {
+	static void set_utility_params(double alpha = 0.2, double beta = 54, double exponent = 1.5, bool polyUtility = true) {
 		kAlpha = alpha;
 		kBeta = beta;
 		kExponent = exponent;
@@ -515,7 +581,7 @@ protected:
 	double base_rate_;
 	bool kPrint;
 	double prev_change_;
-	static constexpr double kMinRateMbps = 0.1;
+	static constexpr double kMinRateMbps = 0.8;
 	static constexpr double kMinRateMbpsSlowStart = 0.1;
 	static constexpr double kHibernateRate = 0.04;
 	static constexpr double kMaxRateMbps = 1024.0;
@@ -561,8 +627,11 @@ protected:
 		prev_utility_ = -10000000;
 	}
 
-	PCC() : start_measurement_(true), base_rate_(0.6), kPrint(false), state_(START), monitor_in_start_phase_(-1), slow_start_factor_(2), number_of_probes_(2), guess_time_(0),
-			alpha_(kAlpha), beta_(kBeta), exponent_(kExponent), poly_utlity_(kPolyUtility), rate_(0.5), monitor_in_prog_(-1), utility_sum_(0), measurement_intervals_(0), prev_utility_(-10000000), continue_slow_start_(true), last_utility_(0) {
+	PCC() : start_measurement_(true), base_rate_(0.6), kPrint(false), state_(START), monitor_in_start_phase_(-1), slow_start_factor_(2), number_of_probes_(4), guess_time_(0),
+			alpha_(kAlpha), beta_(kBeta), exponent_(kExponent), poly_utlity_(kPolyUtility), rate_(0.8), monitor_in_prog_(-1), utility_sum_(0), measurement_intervals_(0), prev_utility_(-10000000), continue_slow_start_(true), last_utility_(0) {
+                amplifier = 0;
+                boundary_amplifier = 0;
+                probe_amplifier = 0;
 		m_dPktSndPeriod = 10000;
 		m_dCWndSize = 100000.0;
         prev_change_ = 0;
@@ -601,20 +670,29 @@ avg_rtt = 0;
 		m_dPktSndPeriod = (m_iMSS * 8.0) / mbps;
         return;
         }
+
+#ifdef DEBUG
 		cerr << "set rate: " << rate_ << " --> " << mbps << endl;
+#endif
 		if (state_ == START) {
 			if (mbps < kMinRateMbpsSlowStart){
+#ifdef DEBUG
 					cerr << "rate is mimimal at slow start, changing to " << kMinRateMbpsSlowStart << " instead" << endl;
+#endif
 				mbps = kMinRateMbpsSlowStart;
 			}
 		} else if (mbps < kMinRateMbps){
+#ifdef DEBUG
 				cerr << "rate is mimimal, changing to " << kMinRateMbps << " instead" << endl;
+#endif
 			mbps = kMinRateMbps;
 		}
 
 		if (mbps > kMaxRateMbps) {
 			mbps = kMaxRateMbps;
+#ifdef DEBUG
 			cerr << "rate is maximal, changing to " << kMaxRateMbps << " instead" << endl;
+#endif
 		}
 		rate_ = mbps;
 		m_dPktSndPeriod = (m_iMSS * 8.0) / mbps;
@@ -698,23 +776,25 @@ public:
 
 
 		// convert to milliseconds
-		double rtt_penalty = rtt / get_min_rtt(rtt);
-                cerr<<"RTT penalty is"<<rtt_penalty<<endl;
-                cerr<<"rtt is"<<rtt<<endl;
-                cerr<<"time is "<<time<<endl;
+		double rtt_penalty = (rtt - get_min_rtt(rtt))/time;
+                //rtt_penalty = (pow(rtt_penalty+1, 2) -1) * rtt/0.03;
+                //cout<<"RTT penalty is"<<rtt_penalty<<endl;
+                rtt_penalty = int(int(latency_info * 100) / 100.0 * 100) / 2  * 2/ 100.0;
+                //cerr<<"new rtt penalty is "<<rtt_penalty<<endl;
 		//if (rtt_penalty > 2) rtt_penalty  = 2;
 		//if (rtt_penalty < -2) rtt_penalty  = -2;
-		exponent_ = 3;
+		exponent_ = 1;
         //if(rtt_penalty<1) {
         //    rtt_penalty=1;
         //}
 
 		//long double loss_contribution = total * (long double) (alpha_* (pow((1+((long double)((double) loss/(double) total))), exponent_)-1));
-		long double loss_contribution = alpha_ * (total * (pow((1+loss_rate), exponent_)-1) - 2 * loss);
+		//long double loss_contribution = total* (20 * (pow((1+loss_rate), exponent_)-1));
+		long double loss_contribution = total* (10.8 * (1/(1-loss_rate)-1));
 		//long double rtt_contribution = 1 * total*(pow(rtt_penalty,1) -1);
 		//long double rtt_contribution = 1 * total*(pow(latency_info,2) -1);
 		//long double rtt_contribution = 1 * total*(pow(latency_info,1));
-		long double rtt_contribution = 0 * total*(pow(rtt_penalty,2) - 1);
+		long double rtt_contribution =  1 * 11330 * total*(pow(rtt_penalty,1));
                 long double rtt_factor = rtt;
                 //TODO We should also consider adding just rtt into the utility function, because it is not just change that matters
                 // This may turn out to be extremely helpful during LTE environment
@@ -722,8 +802,10 @@ public:
 		//long double utility = (((long double)total - loss_contribution) - rtt_contribution)/time/norm_measurement_interval;
         double normalized_rtt = rtt / 0.04;
 		//long double utility = (((long double)total - loss_contribution) - rtt_contribution)*m_iMSS/1024/1024*8/time/latency_info;
-		long double utility = ((1 * (long double)total - loss_contribution) - rtt_contribution)*m_iMSS/1024/1024*8/time;
+		long double utility = 1 * pow((long double)(total) *m_iMSS/1024/1024*8/time, 0.9) - (1*loss_contribution + rtt_contribution)*m_iMSS/1024/1024*8/time;
+#ifdef DEBUG
                 cerr<<"total "<< total<<"loss contri"<<loss_contribution<<"rtt contr"<<rtt_contribution<<"time "<<time<<"norm measurement"<<norm_measurement_interval<<endl;
+#endif
 
 		if (out_measurement != NULL) {
 			out_measurement->loss_panelty_ = loss_contribution / norm_measurement_interval;
@@ -746,6 +828,9 @@ public:
 	int monitor_in_prog_;
 	long double utility_sum_;
 	size_t measurement_intervals_;
+        int amplifier;
+        int probe_amplifier;
+        double boundary_amplifier;
 	long double prev_utility_;
 	bool continue_slow_start_;
 	map<int, shared_ptr<Measurement> > start_measurment_map_;

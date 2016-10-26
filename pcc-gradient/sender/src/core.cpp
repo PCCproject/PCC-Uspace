@@ -45,6 +45,10 @@ written by
 #include <cerrno>
 #include <cstring>
 #include <cstdlib>
+#include <algorithm>
+#include <iostream>
+#include <numeric>
+#include <vector>
 #else
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -2397,6 +2401,7 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 		int Mon = tsn_payload[last_position]>>16;
 		rtt_count[Mon]++;
 		rtt_value[Mon]+= int(CTimer::getTime() - m_StartTime) - send_timestamp[Mon][tsn_payload[last_position]&0xFFFF];
+		rtt_trace[Mon][tsn_payload[last_position]&0xFFFF] = int(CTimer::getTime() - m_StartTime) - send_timestamp[Mon][tsn_payload[last_position]&0xFFFF];
 		if(latency_time_start[Mon] == 0){
 			latency_time_start[Mon]=ctrlpkt.m_iTimeStamp;
 			latency_seq_start[Mon] = tsn_payload[last_position] & 0xFFFF;
@@ -2483,13 +2488,33 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 
                         //cout<<latency_time_end[tmp] - latency_time_start[tmp]<<" "<<end_transmission_time[tmp]-start_time[tmp]<<endl;
                         //cout<<latency_time_end[tmp]*1000<<" "<<start_time[tmp] -1470892000000000<<endl;
-						cerr<<"latency info"<<" "<<latency_info<<endl;
 
 						m_last_rtt.push_front(last_rtt_);
 						if (m_last_rtt.size() > kRTTHistorySize) {
 							m_last_rtt.pop_back();
 						}
+vector<double> x, y;
 
+for(int i=0; i< total[tmp]; i++) {
+    if(rtt_trace[tmp][i] != 0) {
+        x.push_back(send_timestamp[tmp][i]);
+        y.push_back(rtt_trace[tmp][i]);
+    }
+}
+    double n = x.size();
+
+    double avgX = accumulate(x.begin(), x.end(), 0.0) / n;
+    double avgY = accumulate(y.begin(), y.end(), 0.0) / n;
+
+    double numerator = 0.0;
+    double denominator = 0.0;
+
+    for(int i=0; i<n; ++i){
+        numerator += (x[i] - avgX) * (y[i] - avgY);
+        denominator += (x[i] - avgX) * (x[i] - avgX);
+    }
+
+    latency_info = numerator / denominator;
 						//m_last_rtt[Mon % MAX_MONITOR] = rtt_value[Mon]/((double) rtt_count[Mon]);
                                                 //cout<<"Fill in rtt value as"<<m_last_rtt[Mon % MAX_MONITOR]<<endl;
                                                 //cerr<<"Monitor"<<tmp<<"ends at"<<CTimer::getTime()<<endl;
@@ -3109,7 +3134,8 @@ void CUDT::start_monitor(int length)
 	//ygi: hack here!
     int suggested_length = 100000;
     int mss = m_iMSS;
-	m_pCC->onMonitorStart(current_monitor, suggested_length, mss);
+    int amplifier = 0;
+	m_pCC->onMonitorStart(current_monitor, suggested_length, mss, amplifier);
     if(mss != m_iMSS) {
         this->resizeMSS(mss);
     }
@@ -3146,6 +3172,11 @@ void CUDT::start_monitor(int length)
         if (length > 3000) {
            length = 3000;
         }
+        length += (amplifier * 10);
+        //if(length < 100) {
+        //   length = 100;
+        //}
+        
         //cout<<"length of monitor is "<<length<<endl;
     if (suggested_length < length) {
         length = suggested_length;
@@ -3179,6 +3210,7 @@ void CUDT::start_monitor(int length)
     {
         recv_ack[current_monitor][i] = false;
         send_timestamp[current_monitor][i] = 0;
+        rtt_trace[current_monitor][i] = 0;
     }
 	lost[current_monitor] = 0;
         latency_time_start[current_monitor] = 0;

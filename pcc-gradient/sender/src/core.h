@@ -314,6 +314,7 @@ private: // monitor
    int64_t latest_received_seq[MAX_MONITOR];
    uint64_t packet_space[MAX_MONITOR];
    uint64_t send_timestamp[MAX_MONITOR][30000];
+   uint64_t rtt_trace[MAX_MONITOR][30000];
    int rtt_count[MAX_MONITOR];
    uint64_t rtt_value[MAX_MONITOR];
    bool monitor;

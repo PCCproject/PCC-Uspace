@@ -9,26 +9,21 @@ public:
 
 protected:
 	virtual void search(int current_monitor) {
-        for(int i=0; i<number_of_probes_; i++) {
+        for(int i=0; i<number_of_probes_/2; i++) {
             GuessStat g = GuessStat();
-            if (i%2 == 0) {
+            int dir = rand()%2*2-1;
+            for(int j=0;j<2;j++) {
                 if((getkDelta()) * base_rate_ > 0.1) {
-                g.rate = (1 + getkDelta()) * base_rate_;
+                    g.rate = (1 + dir * getkDelta()) * base_rate_;
                 } else {
-                g.rate = base_rate_ + 0.1;
+                    g.rate = base_rate_ + dir * 0.1;
                 }
-                cerr<<"search up rate is "<<g.rate<<endl;
-                g.isup = true;
-            } else{
-                if((getkDelta()) * base_rate_ > 0.1) {
-                g.rate = (1 - getkDelta()) * base_rate_;
-                } else {g.rate = base_rate_ - 0.1;}
-                g.isup = false;
-                cerr<<"search down rate is "<<g.rate<<endl;
+                g.isup = (dir>0);
+                g.ready = false;
+                g.monitor = (current_monitor + i*2 + j) % MAX_MONITOR;
+                guess_measurement_bucket.push_back(g);
+                dir *= -1;
             }
-            g.ready = false;
-            g.monitor = (current_monitor+i) % MAX_MONITOR;
-            guess_measurement_bucket.push_back(g);
         }
 	}
 
@@ -51,7 +46,7 @@ protected:
 	}
 	virtual double decide(long double start_utility, long double end_utility, double old_rate, double new_rate, bool force_change) {
 		double gradient = (end_utility - start_utility) / (new_rate - old_rate);
-                cerr<<"gradient is "<<gradient<<endl;
+                //cout<<"gradient is "<<gradient<<" "<<end_utility<<" "<<start_utility<<" "<<new_rate<<" "<<old_rate<<endl;
 		prev_gradiants_[curr_] = gradient;
 
 		/*
@@ -81,14 +76,37 @@ protected:
         } else if (rate()>50) {
             factor = 0.01;
         }
-		double change = rate() * avg_gradient() * factor;
+        factor = 2; 
+		double change = avg_gradient() * factor;
+                if(change * prev_change_ <= 0) {
+                     amplifier = 0;
+                     boundary_amplifier = 0;
+                } else {
+                     amplifier ++;
+                }
+                change *= (amplifier+1);
+                //cout<<boundary_amplifier<<endl;
+                //cout<<change<<endl;
+
+
+                if((abs(change)/rate())>0.1*(1+boundary_amplifier)) {
+                    change = abs(change)/change*rate()*0.1*(1+boundary_amplifier);
+                    boundary_amplifier+=1;
+                } else {
+                    if(boundary_amplifier >= 1)
+                       boundary_amplifier-=1;
+                    //cout<<"not forcing"<<endl;
+                }
+  
 
 		if (force_change) {
 			cout << "avg. gradient = " << avg_gradient() << endl;
 			cout << "rate = " << rate() << endl;
 			cout << "computed change: " << change << endl;
 		}
+#ifdef DEBUG
                 cerr<<"change before force to min change is "<< change<<endl;
+#endif
 
 		//if ((change >= 0) && (change < getMinChange())) change = getMinChange();
 
@@ -101,7 +119,9 @@ protected:
 		prev_change_ = change;
 
 		if (change == 0) cout << "Change is zero!" << endl;
+#ifdef DEBUG
                 cerr<<"change is "<<change<<endl;
+#endif
         return change;
 
 	}
