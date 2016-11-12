@@ -87,6 +87,7 @@ class PCC : public CCC {
 public:
 	virtual ~PCC() {}
         double getkDelta(){
+            return kStep;
             return 0.05 * (1);
             return 0.05 * (1+ probe_amplifier * (20/ base_rate_>20?20:20/base_rate_));
             if(base_rate_ < 2) return 0.3;
@@ -395,14 +396,14 @@ public:
                     if (all_ready) {
                         double utility_down=0, utility_up=0;
                         double rate_up = 0, rate_down = 0;
-                        double change = 0; 
+                        double change = 0;
                         int decision = 0;
                         for(int i=0; i < number_of_probes_/2; i++) {
                             if(guess_measurement_bucket[i*2].utility < guess_measurement_bucket[i*2+1].utility) {
                                if(guess_measurement_bucket[i*2 + 1].isup) {
                                   decision ++;
                                } else {
-                                  decision --;  
+                                  decision --;
                                }
                             }
 
@@ -410,7 +411,7 @@ public:
                                if(guess_measurement_bucket[i*2].isup) {
                                   decision ++;
                                } else {
-                                  decision --;  
+                                  decision --;
                                }
                             }
                         }
@@ -560,11 +561,13 @@ public:
 
 	}
 
-	static void set_utility_params(double alpha = 0.2, double beta = 54, double exponent = 1.5, bool polyUtility = true) {
+	static void set_utility_params(double alpha = 0.2, double beta = 54, double exponent = 1.5, bool polyUtility = true, double factor = 2.0, double step = 0.05, double latencyCoefficient = 1) {
 		kAlpha = alpha;
 		kBeta = beta;
 		kExponent = exponent;
-		kPolyUtility = polyUtility;
+		kFactor = factor;
+		kLatencyCoefficient = latencyCoefficient;
+		kStep = step;
 	}
 
 
@@ -572,6 +575,8 @@ protected:
 
 	static double kAlpha, kBeta, kExponent;
 	static bool kPolyUtility;
+	static double kFactor, kStep;
+	static double kLatencyCoefficient;
 
     long double search_monitor_utility[2];
     int timeout_immune_monitor;
@@ -628,7 +633,7 @@ protected:
 	}
 
 	PCC() : start_measurement_(true), base_rate_(0.6), kPrint(false), state_(START), monitor_in_start_phase_(-1), slow_start_factor_(2), number_of_probes_(4), guess_time_(0),
-			alpha_(kAlpha), beta_(kBeta), exponent_(kExponent), poly_utlity_(kPolyUtility), rate_(0.8), monitor_in_prog_(-1), utility_sum_(0), measurement_intervals_(0), prev_utility_(-10000000), continue_slow_start_(true), last_utility_(0) {
+			alpha_(kAlpha), beta_(kBeta), exponent_(kExponent), poly_utlity_(kPolyUtility), factor_(kFactor), step_(kStep), rate_(0.8), monitor_in_prog_(-1), utility_sum_(0), measurement_intervals_(0), prev_utility_(-10000000), continue_slow_start_(true), last_utility_(0) {
                 amplifier = 0;
                 boundary_amplifier = 0;
                 probe_amplifier = 0;
@@ -645,7 +650,7 @@ avg_rtt = 0;
                 recent_end_stat.initialized = false;
 		srand(time(NULL));
 		cerr << "new Code!!!" << endl;
-		cerr << "configuration: alpha = " << alpha_ << ", beta = " << beta_   << ", exponent = " << exponent_ << " poly utility = " << poly_utlity_ << endl;
+		cerr << "configuration: alpha = " << alpha_ << ", beta = " << beta_   << ", exponent = " << exponent_ << " poly utility = " << poly_utlity_ << ", factor = " << factor_ << ", step = " << step_ << endl;
 
 		/*
 		if (!latency_mode) {
@@ -790,11 +795,11 @@ public:
 
 		//long double loss_contribution = total * (long double) (alpha_* (pow((1+((long double)((double) loss/(double) total))), exponent_)-1));
 		//long double loss_contribution = total* (20 * (pow((1+loss_rate), exponent_)-1));
-		long double loss_contribution = total* (10.8 * (1/(1-loss_rate)-1));
+		long double loss_contribution = total* (kBeta * (1/(1-loss_rate)-1));
 		//long double rtt_contribution = 1 * total*(pow(rtt_penalty,1) -1);
 		//long double rtt_contribution = 1 * total*(pow(latency_info,2) -1);
 		//long double rtt_contribution = 1 * total*(pow(latency_info,1));
-		long double rtt_contribution =  1 * 11330 * total*(pow(rtt_penalty,1));
+		long double rtt_contribution =  kLatencyCoefficient * 11330 * total*(pow(rtt_penalty,1));
                 long double rtt_factor = rtt;
                 //TODO We should also consider adding just rtt into the utility function, because it is not just change that matters
                 // This may turn out to be extremely helpful during LTE environment
@@ -802,7 +807,7 @@ public:
 		//long double utility = (((long double)total - loss_contribution) - rtt_contribution)/time/norm_measurement_interval;
         double normalized_rtt = rtt / 0.04;
 		//long double utility = (((long double)total - loss_contribution) - rtt_contribution)*m_iMSS/1024/1024*8/time/latency_info;
-		long double utility = 1 * pow((long double)(total) *m_iMSS/1024/1024*8/time, 0.9) - (1*loss_contribution + rtt_contribution)*m_iMSS/1024/1024*8/time;
+		long double utility = kAlpha * pow((long double)(total) *m_iMSS/1024/1024*8/time, kExponent) - (1*loss_contribution + rtt_contribution)*m_iMSS/1024/1024*8/time;
 #ifdef DEBUG
                 cerr<<"total "<< total<<"loss contri"<<loss_contribution<<"rtt contr"<<rtt_contribution<<"time "<<time<<"norm measurement"<<norm_measurement_interval<<endl;
 #endif
@@ -824,6 +829,8 @@ public:
 	double beta_;
 	double exponent_;
 	bool poly_utlity_;
+	double factor_;
+	double step_;
 	double rate_;
 	int monitor_in_prog_;
 	long double utility_sum_;

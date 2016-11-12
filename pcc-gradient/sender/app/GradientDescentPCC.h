@@ -64,20 +64,7 @@ protected:
 		trend_count_ = 0;
 
 		//double change = 2 * rate()/1000 * kEpsilon * avg_gradient();
-        double factor;
-        if(rate()<3) {
-            factor = 0.2;
-        } else if(rate()>=3 && rate() <= 5) {
-            factor = 0.2;
-        }else if (rate()>5 && rate() <= 20) {
-            factor = 0.1;
-        } else if (rate()>=20 && rate()<=50) {
-            factor = 0.05;
-        } else if (rate()>50) {
-            factor = 0.01;
-        }
-        factor = 2; 
-		double change = avg_gradient() * factor;
+		double change = avg_gradient() * kFactor;
                 if(change * prev_change_ <= 0) {
                      amplifier = 0;
                      boundary_amplifier = 0;

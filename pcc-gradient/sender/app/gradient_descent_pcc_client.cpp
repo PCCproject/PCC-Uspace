@@ -32,9 +32,12 @@ unsigned int iteration_count = 0;
 GradientDescentPCC* cchandle = NULL;
 
 double PCC::kAlpha(1);
-double PCC::kBeta(1);
-double PCC::kExponent(1);
+double PCC::kBeta(10.8);
+double PCC::kExponent(0.9);
 bool PCC::kPolyUtility(false);
+double PCC::kFactor(2.0);
+double PCC::kStep(0.05);
+double PCC::kLatencyCoefficient(1);
 
 void intHandler(int dummy) {
 	if (iteration_count  > 0) {
@@ -52,21 +55,27 @@ int main(int argc, char* argv[])
 {
    if ((argc < 3) || (0 == atoi(argv[2])))
    {
-      cout << "usage: " << argv[0] << " server_ip server_port [alpha = 4] [beta = 1] [exponent = 2.5] [poly_utility = 1]" << endl;
+      cout << "usage: " << argv[0] << " server_ip server_port [factor] [step] [alpha = 4] [beta = 1] [exponent = 2.5] [poly_utility = 1]" << endl;
       return 0;
    }
 	signal(SIGINT, intHandler);
 
-	double alpha = 10;
-	double beta = 1;
-	double exponent = 2.5;
+	double alpha = 1;
+	double beta = 10.8;
+	double exponent = 0.9;
 	bool use_poly = true;
+        double factor = 2.0;
+        double step = 0.05;
+        double latency = 1;
 
-	if (argc > 3) alpha = atof(argv[3]);
-	if (argc > 4) beta = atof(argv[4]);
-	if (argc > 5) exponent = atof(argv[5]);
-	if (argc > 6) use_poly = (0 == strcmp("1", argv[6])); 
-	GradientDescentPCC::set_utility_params(alpha, beta, exponent, use_poly);
+	if (argc > 3) latency = atof(argv[3]);
+	if (argc > 4) factor = atof(argv[4]);
+	if (argc > 5) step = atof(argv[5]);
+	if (argc > 6) alpha = atof(argv[6]);
+	if (argc > 7) beta = atof(argv[7]);
+	if (argc > 8) exponent = atof(argv[8]);
+	if (argc > 9) use_poly = (0 == strcmp("1", argv[9]));
+	GradientDescentPCC::set_utility_params(alpha, beta, exponent, use_poly, factor, step, latency);
 //sleep(1500);
    // use this function to initialize the UDT library
    UDT::startup();
@@ -191,7 +200,7 @@ DWORD WINAPI monitor(LPVOID s)
     i++;
     if(i>10000)
         {
-        exit(1); 
+        exit(1);
         }
       if (UDT::ERROR == UDT::perfmon(u, &perf))
       {
@@ -201,20 +210,20 @@ DWORD WINAPI monitor(LPVOID s)
     cout<<""<<i<<"\t" << perf.mbpsSendRate << "\t"
            << perf.msRTT << "\t"
            <<  perf.pktSentTotal << "\t"
-           << perf.pktSndLossTotal <<endl; 
+           << perf.pktSndLossTotal <<endl;
 	if (perf.pktSentTotal == 0) {
 		avg_loss_rate = 0;
 	} else {
 		avg_loss_rate = (1.0 * perf.pktSndLossTotal - base_loss) / (1.0 * perf.pktSentTotal - base_sent);
 	}
-	
+
 	if (i == 10) {
 		base_loss = 1.0 * perf.pktSndLossTotal;
 		base_sent = 1.0 * perf.pktSentTotal;
 	} else if (i > 10) {
 		rate_sum += perf.mbpsSendRate;
 		rtt_sum += perf.msRTT;
-		iteration_count++;		
+		iteration_count++;
 	}
    }
 
