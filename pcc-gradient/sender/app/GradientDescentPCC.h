@@ -64,15 +64,16 @@ protected:
 		trend_count_ = 0;
 
 		//double change = 2 * rate()/1000 * kEpsilon * avg_gradient();
-		double change = avg_gradient() * rate();
-		//double change = avg_gradient() * kFactor;
+		//double change = avg_gradient() * rate();
+		double change = avg_gradient() * kFactor;
                 if(change * prev_change_ <= 0) {
                      amplifier = 0;
                      boundary_amplifier = 0;
                 } else {
                      amplifier ++;
                 }
-                change *= (amplifier*0.05+ kFactor);
+                //change *= (amplifier*0.05+ kFactor);
+                change *= (amplifier + 1);
                 //cout<<boundary_amplifier<<endl;
                 //cout<<change<<endl;
 
