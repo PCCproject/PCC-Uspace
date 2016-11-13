@@ -64,25 +64,31 @@ protected:
 		trend_count_ = 0;
 
 		//double change = 2 * rate()/1000 * kEpsilon * avg_gradient();
-		double change = avg_gradient() * kFactor;
+		double change = avg_gradient() * rate();
+		//double change = avg_gradient() * kFactor;
                 if(change * prev_change_ <= 0) {
                      amplifier = 0;
                      boundary_amplifier = 0;
                 } else {
                      amplifier ++;
                 }
-                change *= (amplifier+1);
+                change *= (amplifier*0.05+ kFactor);
                 //cout<<boundary_amplifier<<endl;
                 //cout<<change<<endl;
 
 
-                if((abs(change)/rate())>0.1*(1+boundary_amplifier)) {
-                    change = abs(change)/change*rate()*0.1*(1+boundary_amplifier);
+                if((abs(change)/rate())>(kBoundaryIncrement*boundary_amplifier + kInitialBoundary)) {
+                    change = abs(change)/change*rate()*(kBoundaryIncrement*boundary_amplifier + kInitialBoundary);
                     boundary_amplifier+=1;
                 } else {
                     if(boundary_amplifier >= 1)
                        boundary_amplifier-=1;
                     //cout<<"not forcing"<<endl;
+                }
+
+
+                if(abs(change)/rate() > 0.5) {
+                    //change = abs(change)/change*rate()*(0.5);
                 }
   
 

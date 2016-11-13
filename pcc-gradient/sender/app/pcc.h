@@ -15,7 +15,7 @@
 #include <mutex>
 #include <thread>
 #include <stdlib.h>
-//#define DEBUG
+#define DEBUG
 #define MAX_MONITOR 500
 using namespace std;
 
@@ -446,6 +446,9 @@ public:
                             cerr<<"trying to set rate below min rate in moving phase just decided, enter guessing"<<endl;
 #endif
                             base_rate_ = kMinRateMbps/ (1 - getkDelta());
+                            setRate(base_rate_);
+                            amplifier = 0;
+                            boundary_amplifier = 0;
                             state_ = START;
                             guess_measurement_bucket.clear();
                             break;
@@ -561,12 +564,15 @@ public:
 
 	}
 
-	static void set_utility_params(double alpha = 0.2, double beta = 54, double exponent = 1.5, bool polyUtility = true, double factor = 2.0, double step = 0.05, double latencyCoefficient = 1) {
+	static void set_utility_params(double alpha = 0.2, double beta = 54, double exponent = 1.5, bool polyUtility = true, double factor = 2.0, double step = 0.05, double latencyCoefficient = 1, 
+                                       double initialBoundary = 0.1, double boundaryIncrement = 0.07) {
 		kAlpha = alpha;
 		kBeta = beta;
 		kExponent = exponent;
 		kFactor = factor;
 		kLatencyCoefficient = latencyCoefficient;
+                kInitialBoundary = initialBoundary;
+                kBoundaryIncrement = boundaryIncrement;
 		kStep = step;
 	}
 
@@ -576,7 +582,7 @@ protected:
 	static double kAlpha, kBeta, kExponent;
 	static bool kPolyUtility;
 	static double kFactor, kStep;
-	static double kLatencyCoefficient;
+	static double kLatencyCoefficient, kInitialBoundary, kBoundaryIncrement;
 
     long double search_monitor_utility[2];
     int timeout_immune_monitor;
@@ -785,6 +791,7 @@ public:
                 //rtt_penalty = (pow(rtt_penalty+1, 2) -1) * rtt/0.03;
                 //cout<<"RTT penalty is"<<rtt_penalty<<endl;
                 rtt_penalty = int(int(latency_info * 100) / 100.0 * 100) / 2  * 2/ 100.0;
+                //rtt_penalty = int(latency_info * 100) / 100.0;
                 //cerr<<"new rtt penalty is "<<rtt_penalty<<endl;
 		//if (rtt_penalty > 2) rtt_penalty  = 2;
 		//if (rtt_penalty < -2) rtt_penalty  = -2;

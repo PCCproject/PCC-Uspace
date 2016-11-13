@@ -35,9 +35,11 @@ double PCC::kAlpha(1);
 double PCC::kBeta(10.8);
 double PCC::kExponent(0.9);
 bool PCC::kPolyUtility(false);
-double PCC::kFactor(2.0);
+double PCC::kFactor(0.1);
 double PCC::kStep(0.05);
-double PCC::kLatencyCoefficient(1);
+double PCC::kLatencyCoefficient(0);
+double PCC::kInitialBoundary(0);
+double PCC::kBoundaryIncrement(0);
 
 void intHandler(int dummy) {
 	if (iteration_count  > 0) {
@@ -64,18 +66,22 @@ int main(int argc, char* argv[])
 	double beta = 10.8;
 	double exponent = 0.9;
 	bool use_poly = true;
-        double factor = 2.0;
+        double factor = 0.03;
         double step = 0.05;
         double latency = 1;
+        double initial_boundary = 0.1;
+        double boundary_increment = 0.07;
+
 
 	if (argc > 3) latency = atof(argv[3]);
 	if (argc > 4) factor = atof(argv[4]);
 	if (argc > 5) step = atof(argv[5]);
-	if (argc > 6) alpha = atof(argv[6]);
-	if (argc > 7) beta = atof(argv[7]);
-	if (argc > 8) exponent = atof(argv[8]);
-	if (argc > 9) use_poly = (0 == strcmp("1", argv[9]));
-	GradientDescentPCC::set_utility_params(alpha, beta, exponent, use_poly, factor, step, latency);
+	if (argc > 6) initial_boundary = atof(argv[6]);
+	if (argc > 7) boundary_increment = atof(argv[7]);
+	if (argc > 8) alpha = atof(argv[8]);
+	if (argc > 9) beta = atof(argv[9]);
+	if (argc > 10) exponent = atof(argv[8]);
+	GradientDescentPCC::set_utility_params(alpha, beta, exponent, use_poly, factor, step, latency, initial_boundary, boundary_increment);
 //sleep(1500);
    // use this function to initialize the UDT library
    UDT::startup();
