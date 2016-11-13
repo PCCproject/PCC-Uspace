@@ -15,7 +15,7 @@
 #include <mutex>
 #include <thread>
 #include <stdlib.h>
-#define DEBUG
+//#define DEBUG
 #define MAX_MONITOR 500
 using namespace std;
 
@@ -860,6 +860,7 @@ public:
 	static constexpr size_t kHistorySize = 1;
 	int on_next_start_bind_to_end_;
     int hibernate_depth;
+        int trend_count_;
 };
 
 #endif

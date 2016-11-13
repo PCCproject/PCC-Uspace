@@ -5,10 +5,16 @@
 
 class GradientDescentPCC: public PCC {
 public:
-	GradientDescentPCC() : first_(true), up_utility_(0), down_utility_(0), seq_large_incs_(0), consecutive_big_changes_(0), trend_count_(0), decision_count_(0), curr_(0), next_delta(0) {}
+	GradientDescentPCC() : first_(true), up_utility_(0), down_utility_(0), seq_large_incs_(0), consecutive_big_changes_(0), decision_count_(0), curr_(0), next_delta(0) {trend_count_ =0;}
 
 protected:
 	virtual void search(int current_monitor) {
+        if(trend_count_ > 2) {
+            number_of_probes_ = 2;
+        } else {
+            number_of_probes_ = 4;
+        }
+
         for(int i=0; i<number_of_probes_/2; i++) {
             GuessStat g = GuessStat();
             int dir = rand()%2*2-1;
@@ -49,31 +55,22 @@ protected:
                 //cout<<"gradient is "<<gradient<<" "<<end_utility<<" "<<start_utility<<" "<<new_rate<<" "<<old_rate<<endl;
 		prev_gradiants_[curr_] = gradient;
 
-		/*
-		if (gradient * prev_gradiants_[(curr_ + MAX_MONITOR-1) % MAX_MONITOR] > 0) {
-			trend_count_++;
-		} else {
-			trend_count_ = 0;
-		}
-		*/
-		trend_count_++;
 		curr_ = (curr_ + 1) % MAX_MONITOR;
-		//if ((trend_count_ < kRobustness) && (!force_change)) {
-		//	return;
-		//}
-		trend_count_ = 0;
 
 		//double change = 2 * rate()/1000 * kEpsilon * avg_gradient();
 		//double change = avg_gradient() * rate();
 		double change = avg_gradient() * kFactor;
                 if(change * prev_change_ <= 0) {
+                     trend_count_ =0;
                      amplifier = 0;
                      boundary_amplifier = 0;
                 } else {
+                     trend_count_ ++;
                      amplifier ++;
                 }
                 //change *= (amplifier*0.05+ kFactor);
-                change *= (amplifier + 1);
+                //cout<<pow(amplifier, 2)<<endl;
+                change *= (pow(amplifier, 1.5) * 0.5 + 1);
                 //cout<<boundary_amplifier<<endl;
                 //cout<<change<<endl;
 
@@ -152,7 +149,6 @@ private:
 	double down_utility_;
 	int seq_large_incs_;
 	size_t consecutive_big_changes_;
-	int trend_count_;
 	int decision_count_;
 	int curr_;
 	double prev_gradiants_[MAX_MONITOR];
