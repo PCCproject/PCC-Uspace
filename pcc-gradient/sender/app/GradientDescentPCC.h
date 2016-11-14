@@ -9,7 +9,7 @@ public:
 
 protected:
 	virtual void search(int current_monitor) {
-        if(trend_count_ >= 3) {
+        if(trend_count_ >= 10) {
             //cout<<"turn to fast moving mode"<<endl;
             number_of_probes_ = 2;
         } else {
@@ -64,13 +64,15 @@ protected:
 		double change = avg_gradient() * kFactor;
                 if(change * prev_change_ <= 0) {
                    amplifier = 0;
+                   swing_buffer ++;
                 }
-                if(amplifier<100) {
+                //cout<<"amplifier"<<amplifier<<endl;
+                if(amplifier<6) {
                     change *= (pow(amplifier, 1) * 1  + 1);
                 } else if (amplifier < 10) {
-                    change *= (pow(amplifier, 1) * 2  - 5 + 1);
+                    change *= (pow(amplifier, 1) * 4  - 18 + 1);
                 } else {
-                    change *= (pow(amplifier, 1) * 6 - 41 + 1);
+                    change *= (pow(amplifier, 1) * 8 - 58 + 1);
                 }
                 if(change * prev_change_ <= 0) {
                      trend_count_ =0;
@@ -78,7 +80,12 @@ protected:
                      boundary_amplifier = 0;
                 } else {
                      trend_count_ ++;
-                     amplifier ++;
+                     if(swing_buffer <= 2)
+                        {amplifier ++;
+                     }
+                     if (swing_buffer > 0) {
+                        swing_buffer --;
+                     }
                 }
                 //change *= (amplifier*0.05+ kFactor);
                 //cout<<pow(amplifier, 2)<<endl;
@@ -153,6 +160,7 @@ private:
 		seq_large_incs_ = 0;
 		consecutive_big_changes_ = 0;
 		decision_count_ = 0;
+                swing_buffer = 0;
 	}
 
 	bool first_;
@@ -163,6 +171,7 @@ private:
 	int decision_count_;
 	int curr_;
 	double prev_gradiants_[MAX_MONITOR];
+        double swing_buffer;
 
 	double next_delta;
 };

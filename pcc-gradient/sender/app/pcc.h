@@ -15,7 +15,7 @@
 #include <mutex>
 #include <thread>
 #include <stdlib.h>
-//#define DEBUG
+#define DEBUG
 #define MAX_MONITOR 500
 using namespace std;
 
@@ -791,6 +791,10 @@ public:
                 //rtt_penalty = (pow(rtt_penalty+1, 2) -1) * rtt/0.03;
                 //cout<<"RTT penalty is"<<rtt_penalty<<endl;
                 rtt_penalty = int(int(latency_info * 100) / 100.0 * 100) / 2  * 2/ 100.0;
+                if(rtt_penalty < -0.2) { 
+                    //cout<<"rtt penalty"<<rtt_penalty<<endl;
+                    rtt_penalty = -0.2;
+                 }
                 //rtt_penalty = int(latency_info * 100) / 100.0;
                 //cerr<<"new rtt penalty is "<<rtt_penalty<<endl;
 		//if (rtt_penalty > 2) rtt_penalty  = 2;
@@ -817,6 +821,7 @@ public:
 		long double utility = kAlpha * pow((long double)(total) *m_iMSS/1024/1024*8/time, kExponent) - (1*loss_contribution + rtt_contribution)*m_iMSS/1024/1024*8/time;
 #ifdef DEBUG
                 cerr<<"total "<< total<<"loss contri"<<loss_contribution<<"rtt contr"<<rtt_contribution<<"time "<<time<<"norm measurement"<<norm_measurement_interval<<endl;
+                cerr<<"rtt is "<<rtt<<endl;
 #endif
 
 		if (out_measurement != NULL) {

@@ -66,10 +66,10 @@ int main(int argc, char* argv[])
 	double beta = 10.8;
 	double exponent = 0.9;
 	bool use_poly = true;
-        double factor = 0.5;
+        double factor = 0.7;
         double step = 0.05;
         double latency = 1;
-        double initial_boundary = 0.1;
+        double initial_boundary = 0.05;
         double boundary_increment = 0.1;
 
 
