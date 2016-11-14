@@ -439,7 +439,6 @@ public:
                             if(probe_amplifier > 0)
                                probe_amplifier --;
                         } else {
-                              cout<<"decision failed !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"<<endl;
                               probe_amplifier ++;
                         }
                         if (base_rate_ < kMinRateMbps) {

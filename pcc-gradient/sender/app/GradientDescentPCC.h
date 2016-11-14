@@ -9,7 +9,7 @@ public:
 
 protected:
 	virtual void search(int current_monitor) {
-        if(trend_count_ >= 2) {
+        if(trend_count_ >= 3) {
             //cout<<"turn to fast moving mode"<<endl;
             number_of_probes_ = 2;
         } else {
@@ -63,14 +63,14 @@ protected:
 		//double change = avg_gradient() * rate();
 		double change = avg_gradient() * kFactor;
                 if(change * prev_change_ <= 0) {
-                    amplifier ++;
+                   amplifier = 0;
                 }
-                if(amplifier<6) {
-                    change *= (pow(amplifier, 1) * 1 + 1);
+                if(amplifier<100) {
+                    change *= (pow(amplifier, 1) * 1  + 1);
                 } else if (amplifier < 10) {
-                    change *= (pow(amplifier, 1) * 2 - 6 + 1);
+                    change *= (pow(amplifier, 1) * 2  - 5 + 1);
                 } else {
-                    change *= (pow(amplifier, 1) * 6 - 44 + 1);
+                    change *= (pow(amplifier, 1) * 6 - 41 + 1);
                 }
                 if(change * prev_change_ <= 0) {
                      trend_count_ =0;
@@ -80,7 +80,6 @@ protected:
                      trend_count_ ++;
                      amplifier ++;
                 }
-                //cout<<"amplifier is"<<amplifier<<endl;
                 //change *= (amplifier*0.05+ kFactor);
                 //cout<<pow(amplifier, 2)<<endl;
                 //cout<<boundary_amplifier<<endl;
