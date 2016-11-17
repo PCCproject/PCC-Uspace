@@ -793,7 +793,7 @@ public:
                 rtt_penalty = int(int(latency_info * 100) / 100.0 * 100) / 2  * 2/ 100.0;
                 if(rtt_penalty < -0.2) { 
                     //cout<<"rtt penalty"<<rtt_penalty<<endl;
-                    rtt_penalty = -0.2;
+                    //rtt_penalty = -0.2;
                  }
                 //rtt_penalty = int(latency_info * 100) / 100.0;
                 //cerr<<"new rtt penalty is "<<rtt_penalty<<endl;
