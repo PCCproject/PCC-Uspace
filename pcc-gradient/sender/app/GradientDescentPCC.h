@@ -9,7 +9,7 @@ public:
 
 protected:
 	virtual void search(int current_monitor) {
-        if(trend_count_ >= 10) {
+        if(trend_count_ >= 4) {
             //cout<<"turn to fast moving mode"<<endl;
             number_of_probes_ = 2;
         } else {
@@ -67,20 +67,30 @@ protected:
                    swing_buffer ++;
                 }
                 //cout<<"amplifier"<<amplifier<<endl;
-                if(amplifier<6) {
+                if(amplifier<3) {
                     change *= (pow(amplifier, 1) * 1  + 1);
-                } else if (amplifier < 10) {
-                    change *= (pow(amplifier, 1) * 4  - 18 + 1);
+                } else if (amplifier < 6) {
+                    change *= (pow(amplifier, 1) * 2  - 3 + 1);
+                } else if (amplifier < 9){
+                    change *= (pow(amplifier, 1) * 4 - 15 + 1);
                 } else {
-                    change *= (pow(amplifier, 1) * 8 - 58 + 1);
+                    change *= (pow(amplifier, 1) * 8 - 51 + 1);
                 }
+
+                //if(amplifier<6) {
+                //    change *= (pow(amplifier, 1) * 1  + 1);
+                //} else if (amplifier < 10) {
+                //    change *= (pow(amplifier, 1) * 4  - 18 + 1);
+                //} else {
+                //    change *= (pow(amplifier, 1) * 8 - 58 + 1);
+                //}
                 if(change * prev_change_ <= 0) {
                      trend_count_ =0;
                      amplifier = 0;
                      boundary_amplifier = 0;
                 } else {
                      trend_count_ ++;
-                     if(swing_buffer <= 2)
+                     if(swing_buffer <= 4)
                         {amplifier ++;
                      }
                      if (swing_buffer > 0) {

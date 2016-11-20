@@ -15,7 +15,7 @@
 #include <mutex>
 #include <thread>
 #include <stdlib.h>
-#define DEBUG
+//#define DEBUG
 #define MAX_MONITOR 500
 using namespace std;
 
