@@ -805,8 +805,8 @@ public:
         //}
 
 		//long double loss_contribution = total * (long double) (alpha_* (pow((1+((long double)((double) loss/(double) total))), exponent_)-1));
-		//long double loss_contribution = total* (20 * (pow((1+loss_rate), exponent_)-1));
-		long double loss_contribution = total* (kBeta * (1/(1-loss_rate)-1));
+		long double loss_contribution = total* (11.35 * (pow((1+loss_rate), exponent_)-1));
+		//long double loss_contribution = total* (kBeta * (1/(1-loss_rate)-1));
 		//long double rtt_contribution = 1 * total*(pow(rtt_penalty,1) -1);
 		//long double rtt_contribution = 1 * total*(pow(latency_info,2) -1);
 		//long double rtt_contribution = 1 * total*(pow(latency_info,1));
