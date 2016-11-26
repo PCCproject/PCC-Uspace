@@ -3162,12 +3162,12 @@ void CUDT::start_monitor(int length)
                send_period = 300000;
             }
 
-	if(send_period/m_pCC->m_dPktSndPeriod>2) {
+	if(send_period/m_pCC->m_dPktSndPeriod>10) {
             length = send_period/m_pCC->m_dPktSndPeriod;
         }
 	else {
             //cout<<"super short length because of short sent period? send period is "<< send_period<<endl;
-            length=4;
+            length=10;
         }
         if (length > 3000) {
            length = 3000;
