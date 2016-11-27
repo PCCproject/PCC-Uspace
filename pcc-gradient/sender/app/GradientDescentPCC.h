@@ -64,7 +64,9 @@ protected:
 		double change = avg_gradient() * kFactor;
                 if(change * prev_change_ <= 0) {
                    amplifier = 0;
-                   //swing_buffer ++;
+                   if(swing_buffer < 2)
+                       swing_buffer ++;
+                   
                 }
                 //cout<<"amplifier"<<amplifier<<endl;
                 if(amplifier<3) {
@@ -90,11 +92,14 @@ protected:
                      boundary_amplifier = 0;
                 } else {
                      trend_count_ ++;
-                     if(swing_buffer <= 4)
+                     if(swing_buffer == 0)
                         {amplifier ++;
                      }
                      if (swing_buffer > 0) {
                         swing_buffer --;
+                     }
+                     if(trend_count_ > 1) {
+                        swing_buffer = 0;
                      }
                 }
                 //change *= (amplifier*0.05+ kFactor);
