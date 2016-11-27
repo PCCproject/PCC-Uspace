@@ -70,7 +70,7 @@ int main(int argc, char* argv[])
         double step = 0.05;
         double latency = 1;
         double initial_boundary = 0.1;
-        double boundary_increment = 0.2;
+        double boundary_increment = 0.1;
 
 
 	if (argc > 3) latency = atof(argv[3]);
