@@ -64,11 +64,11 @@ protected:
 		double change = avg_gradient() * kFactor;
                 if(change * prev_change_ <= 0) {
                    amplifier = 0;
-                   if(swing_buffer < 2)
+                   if(swing_buffer < 4)
                        swing_buffer ++;
                    
                 }
-                //cout<<"amplifier"<<amplifier<<endl;
+                cout<<"amplifier"<<amplifier<<endl;
                 if(amplifier<3) {
                     change *= (pow(amplifier, 1) * 1  + 1);
                 } else if (amplifier < 6) {
