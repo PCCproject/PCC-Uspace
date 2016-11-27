@@ -291,6 +291,15 @@ public:
 #endif
         // TODO we should keep track of all monitors and closely mointoring RTT
         // and utility change between monitor
+        if(double(loss)/total >0.8) {
+                state_ = SEARCH;
+                guess_measurement_bucket.clear();
+                base_rate_ = base_rate_ * 0.5;
+                if(base_rate_ < kMinRateMbps/ (1-getkDelta())) {
+                   base_rate_ = kMinRateMbps / (1-getkDelta());
+                }
+                setRate(base_rate_);
+        }
         if (state_ != HIBERNATE && total != 1) {
         if(!(deviation_immune_monitor != -1 && deviation_immune_monitor != endMonitor)) {
             deviation_immune_monitor = -1;

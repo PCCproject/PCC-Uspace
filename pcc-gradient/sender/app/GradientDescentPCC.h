@@ -64,7 +64,7 @@ protected:
 		double change = avg_gradient() * kFactor;
                 if(change * prev_change_ <= 0) {
                    amplifier = 0;
-                   if(swing_buffer < 3)
+                   if(swing_buffer < 2)
                        swing_buffer ++;
                    
                 }
@@ -109,12 +109,12 @@ protected:
 #endif
 
                 double ratio = kBoundaryIncrement*boundary_amplifier + kInitialBoundary; 
-                if(ratio>0.8 && change<0) {
-                   ratio = 0.8;
-                }
-                if(ratio>2 && change>0) {
-                   ratio = 2;
-                }
+                //if(ratio>0.8 && change<0) {
+                //   ratio = 0.8;
+                //}
+                //if(ratio>2 && change>0) {
+                //   ratio = 2;
+                //}
                 if((abs(change)/base_rate_)>ratio) {
                     change = abs(change)/change*base_rate_*ratio;
                     boundary_amplifier+=1;
