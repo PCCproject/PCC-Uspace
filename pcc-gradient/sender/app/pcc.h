@@ -648,7 +648,7 @@ protected:
 	}
 
 	PCC() : start_measurement_(true), base_rate_(0.6), kPrint(false), state_(START), monitor_in_start_phase_(-1), slow_start_factor_(2), number_of_probes_(4), guess_time_(0),
-			alpha_(kAlpha), beta_(kBeta), exponent_(kExponent), poly_utlity_(kPolyUtility), factor_(kFactor), step_(kStep), rate_(0.8), monitor_in_prog_(-1), utility_sum_(0), measurement_intervals_(0), prev_utility_(-10000000), continue_slow_start_(true), last_utility_(0) {
+			alpha_(kAlpha), beta_(kBeta), exponent_(kExponent), poly_utlity_(kPolyUtility), factor_(kFactor), step_(kStep), rate_(0.8), monitor_in_prog_(-1), utility_sum_(0), measurement_intervals_(0), prev_utility_(-10000000), continue_slow_start_(true), last_utility_(-100000) {
                 amplifier = 0;
                 boundary_amplifier = 0;
                 probe_amplifier = 0;
@@ -814,7 +814,8 @@ public:
         //}
 
 		//long double loss_contribution = total * (long double) (alpha_* (pow((1+((long double)((double) loss/(double) total))), exponent_)-1));
-		long double loss_contribution = total* (11.35 * (pow((1+loss_rate), exponent_)-1));
+	        long double loss_contribution = total* (12.65 * (pow((1+loss_rate), exponent_)-1));
+		//long double loss_contribution = total* (11.35 * (pow((1+loss_rate), exponent_)-1));
 		//long double loss_contribution = total* (kBeta * (1/(1-loss_rate)-1));
 		//long double rtt_contribution = 1 * total*(pow(rtt_penalty,1) -1);
 		//long double rtt_contribution = 1 * total*(pow(latency_info,2) -1);
