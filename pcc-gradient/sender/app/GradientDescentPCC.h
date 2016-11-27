@@ -111,17 +111,24 @@ protected:
                 cerr<<"change before force to boundary "<< change<<endl;
 #endif
 
-                if((abs(change)/rate())>(kBoundaryIncrement*boundary_amplifier + kInitialBoundary)) {
-                    change = abs(change)/change*rate()*(kBoundaryIncrement*boundary_amplifier + kInitialBoundary);
+                double ratio = kBoundaryIncrement*boundary_amplifier + kInitialBoundary; 
+                if(ratio>0.8 && change<0) {
+                   ratio = 0.8;
+                }
+                if(ratio>2 && change>0) {
+                   ratio = 2;
+                }
+                if((abs(change)/base_rate_)>ratio) {
+                    change = abs(change)/change*base_rate_*ratio;
                     boundary_amplifier+=1;
                 } else {
-                    if(boundary_amplifier >= 1)
-                       boundary_amplifier-=1;
+                    //if(boundary_amplifier >= 1)
+                    //   boundary_amplifier-=1;
                     //cout<<"not forcing"<<endl;
                 }
 
 
-                if(abs(change)/rate() > 0.5) {
+                if(abs(change)/base_rate_ > 0.5) {
                     //change = abs(change)/change*rate()*(0.5);
                 }
   
