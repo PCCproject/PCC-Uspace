@@ -119,8 +119,8 @@ protected:
                     change = abs(change)/change*base_rate_*ratio;
                     boundary_amplifier+=1;
                 } else {
-                    //if(boundary_amplifier >= 1)
-                    //   boundary_amplifier-=1;
+                    if(boundary_amplifier >= 1)
+                       boundary_amplifier-=1;
                     //cout<<"not forcing"<<endl;
                 }
 
