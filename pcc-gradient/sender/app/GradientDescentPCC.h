@@ -9,7 +9,7 @@ public:
 
 protected:
 	virtual void search(int current_monitor) {
-        if(trend_count_ >= 4) {
+        if(trend_count_ >= 3) {
             //cout<<"turn to fast moving mode"<<endl;
             number_of_probes_ = 2;
         } else {
@@ -64,7 +64,7 @@ protected:
 		double change = avg_gradient() * kFactor;
                 if(change * prev_change_ <= 0) {
                    amplifier = 0;
-                   swing_buffer ++;
+                   //swing_buffer ++;
                 }
                 //cout<<"amplifier"<<amplifier<<endl;
                 if(amplifier<3) {
@@ -102,6 +102,9 @@ protected:
                 //cout<<boundary_amplifier<<endl;
                 //cout<<change<<endl;
 
+#ifdef DEBUG
+                cerr<<"change before force to boundary "<< change<<endl;
+#endif
 
                 if((abs(change)/rate())>(kBoundaryIncrement*boundary_amplifier + kInitialBoundary)) {
                     change = abs(change)/change*rate()*(kBoundaryIncrement*boundary_amplifier + kInitialBoundary);
@@ -125,6 +128,8 @@ protected:
 		}
 #ifdef DEBUG
                 cerr<<"change before force to min change is "<< change<<endl;
+                cerr<<"gradient is "<< avg_gradient()<<endl;
+                cerr<<"amplifier"<<amplifier<<endl;
 #endif
 
 		//if ((change >= 0) && (change < getMinChange())) change = getMinChange();
