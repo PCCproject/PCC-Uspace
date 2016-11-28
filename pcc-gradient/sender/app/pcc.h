@@ -88,7 +88,7 @@ public:
 	virtual ~PCC() {}
         double getkDelta(){
             return kStep;
-            return 0.05 * (1);
+            return 0.05 * (1 + probe_amplifier);
             return 0.05 * (1+ probe_amplifier * (20/ base_rate_>20?20:20/base_rate_));
             if(base_rate_ < 2) return 0.3;
             if(base_rate_ < 5) return 0.25;
@@ -448,6 +448,7 @@ public:
                             if(probe_amplifier > 0)
                                probe_amplifier --;
                         } else {
+                            //if(probe_amplifier < 5)
                               probe_amplifier ++;
                         }
                         if (base_rate_ < kMinRateMbps) {
@@ -814,7 +815,8 @@ public:
         //}
 
 		//long double loss_contribution = total * (long double) (alpha_* (pow((1+((long double)((double) loss/(double) total))), exponent_)-1));
-	        long double loss_contribution = total* (12.65 * (pow((1+loss_rate), exponent_)-1));
+	        //long double loss_contribution = total* (12.65 * (pow((1+loss_rate), exponent_)-1));
+	        long double loss_contribution = total* (10.3* (pow((1+loss_rate), exponent_)-1));
 		//long double loss_contribution = total* (11.35 * (pow((1+loss_rate), exponent_)-1));
 		//long double loss_contribution = total* (kBeta * (1/(1-loss_rate)-1));
 		//long double rtt_contribution = 1 * total*(pow(rtt_penalty,1) -1);

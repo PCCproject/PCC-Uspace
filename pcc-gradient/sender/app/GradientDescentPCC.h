@@ -128,7 +128,13 @@ protected:
                 if(abs(change)/base_rate_ > 0.5) {
                     //change = abs(change)/change*rate()*(0.5);
                 }
-  
+                if(abs(change)/base_rate_ < 0.05) {
+                   //if(0.5 > base_rate_ * 0.05)
+                   //change = abs(change)/change*base_rate_*(0.05);
+                   //else
+                   //change = 0.5 * abs(change)/change;
+                 }
+ 
 
 		if (force_change) {
 			cout << "avg. gradient = " << avg_gradient() << endl;
