@@ -817,7 +817,7 @@ public:
 
 		//long double loss_contribution = total * (long double) (alpha_* (pow((1+((long double)((double) loss/(double) total))), exponent_)-1));
 	        long double loss_contribution = total* (11.35 * (pow((1+loss_rate), exponent_)-1));
-                if(loss_rate < 0.03)
+                if(loss_rate < 0.04)
 	           loss_contribution = total* (1* (pow((1+loss_rate), exponent_)-1));
                 
                 //avg_loss = avg_loss*0.9 + loss_rate*0.1;
