@@ -68,7 +68,7 @@ protected:
                        swing_buffer ++;
                    
                 }
-                cout<<"amplifier"<<amplifier<<endl;
+                //cout<<"amplifier"<<amplifier<<endl;
                 if(amplifier<3) {
                     change *= (pow(amplifier, 1) * 1  + 1);
                 } else if (amplifier < 6) {

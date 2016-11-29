@@ -15,7 +15,7 @@
 #include <mutex>
 #include <thread>
 #include <stdlib.h>
-#define DEBUG
+//#define DEBUG
 #define MAX_MONITOR 500
 using namespace std;
 
@@ -665,6 +665,7 @@ avg_rtt = 0;
 		setRTO(100000000);
                 recent_end_stat.initialized = false;
 		srand(time(NULL));
+                avg_loss = 0;
 		cerr << "new Code!!!" << endl;
 		cerr << "configuration: alpha = " << alpha_ << ", beta = " << beta_   << ", exponent = " << exponent_ << " poly utility = " << poly_utlity_ << ", factor = " << factor_ << ", step = " << step_ << endl;
 
@@ -815,8 +816,12 @@ public:
         //}
 
 		//long double loss_contribution = total * (long double) (alpha_* (pow((1+((long double)((double) loss/(double) total))), exponent_)-1));
-	        //long double loss_contribution = total* (12.65 * (pow((1+loss_rate), exponent_)-1));
-	        long double loss_contribution = total* (10.3* (pow((1+loss_rate), exponent_)-1));
+	        long double loss_contribution = total* (11.35 * (pow((1+loss_rate), exponent_)-1));
+                if(loss_rate < 0.03)
+	           loss_contribution = total* (1* (pow((1+loss_rate), exponent_)-1));
+                
+                //avg_loss = avg_loss*0.9 + loss_rate*0.1;
+                //cout<<"loss rate"<<loss_rate<<endl;
 		//long double loss_contribution = total* (11.35 * (pow((1+loss_rate), exponent_)-1));
 		//long double loss_contribution = total* (kBeta * (1/(1-loss_rate)-1));
 		//long double rtt_contribution = 1 * total*(pow(rtt_penalty,1) -1);
@@ -878,6 +883,7 @@ public:
 	int on_next_start_bind_to_end_;
     int hibernate_depth;
         int trend_count_;
+        double avg_loss;
 };
 
 #endif
