@@ -12,7 +12,7 @@
 #include <udt.h>
 #include <signal.h>
 
-#include "GradientDescentPCC.h"
+#include "pcc.h"
 
 using namespace std;
 
@@ -29,7 +29,7 @@ double base_loss = 0;
 double base_sent = 0;
 unsigned int iteration_count = 0;
 
-GradientDescentPCC* cchandle = NULL;
+PCC* cchandle = NULL;
 
 double PCC::kAlpha(1);
 double PCC::kBeta(10.8);
@@ -81,7 +81,7 @@ int main(int argc, char* argv[])
 	if (argc > 8) alpha = atof(argv[8]);
 	if (argc > 9) beta = atof(argv[9]);
 	if (argc > 10) exponent = atof(argv[8]);
-	GradientDescentPCC::set_utility_params(alpha, beta, exponent, use_poly, factor, step, latency, initial_boundary, boundary_increment);
+	PCC::set_utility_params(alpha, beta, exponent, use_poly, factor, step, latency, initial_boundary, boundary_increment);
 //sleep(1500);
    // use this function to initialize the UDT library
    UDT::startup();
@@ -104,7 +104,7 @@ int main(int argc, char* argv[])
    UDTSOCKET client = UDT::socket(local->ai_family, local->ai_socktype, local->ai_protocol);
 
    // UDT Options
-   UDT::setsockopt(client, 0, UDT_CC, new CCCFactory<GradientDescentPCC>, sizeof(CCCFactory<GradientDescentPCC>));
+   UDT::setsockopt(client, 0, UDT_CC, new CCCFactory<PCC>, sizeof(CCCFactory<PCC>));
    //UDT::setsockopt(client, 0, UDT_MSS, new int(9000), sizeof(int));
    //UDT::setsockopt(client, 0, UDT_SNDBUF, new int(10000000), sizeof(int));
    //UDT::setsockopt(client, 0, UDP_SNDBUF, new int(10000000), sizeof(int));
