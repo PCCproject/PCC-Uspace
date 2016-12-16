@@ -638,7 +638,6 @@ class PCC : public CCC {
             amplifier = 0;
             boundary_amplifier = 0;
         }
-}
 
         if(abs(change)/base_rate_ > 0.5) {
             //change = abs(change)/change*rate()*(0.5);
