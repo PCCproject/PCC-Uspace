@@ -576,7 +576,6 @@ class PCC : public CCC {
         //double change = avg_gradient() * rate();
         double change = avg_gradient() * kFactor;
         if(change * prev_change_ <= 0) {
-            amplifier = 0;
             if(swing_buffer < 2)
                 swing_buffer ++;
 
@@ -601,8 +600,6 @@ class PCC : public CCC {
         //}
         if(change * prev_change_ <= 0) {
             trend_count_ =0;
-            amplifier = 0;
-            boundary_amplifier = 0;
         } else {
             trend_count_ ++;
             if(swing_buffer == 0) {
@@ -637,6 +634,11 @@ class PCC : public CCC {
             //cout<<"not forcing"<<endl;
         }
 
+        if(change * prev_change_ <= 0) {
+            amplifier = 0;
+            boundary_amplifier = 0;
+        }
+}
 
         if(abs(change)/base_rate_ > 0.5) {
             //change = abs(change)/change*rate()*(0.5);
