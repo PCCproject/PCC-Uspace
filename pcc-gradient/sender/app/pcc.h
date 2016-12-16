@@ -520,11 +520,8 @@ class PCC : public CCC {
     static double kFactor, kStep;
     static double kLatencyCoefficient, kInitialBoundary, kBoundaryIncrement;
 
-    long double search_monitor_utility[2];
     int timeout_immune_monitor;
     int deviation_immune_monitor;
-    int search_monitor_number[2];
-    bool start_measurement_;
     double base_rate_;
     bool kPrint;
     double prev_change_;
@@ -551,8 +548,6 @@ class PCC : public CCC {
                           double old_rate, double new_rate,  bool force_change) = 0;
 
     virtual void clear_state() {
-        continue_slow_start_ = true;
-        start_measurement_ = true;
         slow_start_factor_ = 2;
         state_ = SEARCH;
         monitor_in_start_phase_ = -1;
@@ -561,8 +556,6 @@ class PCC : public CCC {
     }
 
     virtual void restart() {
-        continue_slow_start_ = true;
-        start_measurement_ = true;
         slow_start_factor_ = 2;
         monitor_in_start_phase_ = -1;
         setRate(base_rate_);
@@ -571,13 +564,13 @@ class PCC : public CCC {
         prev_utility_ = -10000000;
     }
 
-    PCC() : start_measurement_(true), base_rate_(0.6), kPrint(false), state_(START),
+    PCC() : base_rate_(0.6), kPrint(false), state_(START),
         monitor_in_start_phase_(-1), slow_start_factor_(2), number_of_probes_(4),
         guess_time_(0),
-        alpha_(kAlpha), beta_(kBeta), exponent_(kExponent), poly_utlity_(kPolyUtility),
-        factor_(kFactor), step_(kStep), rate_(0.8), monitor_in_prog_(-1),
+        alpha_(kAlpha), beta_(kBeta), exponent_(kExponent),
+        factor_(kFactor), step_(kStep), rate_(0.8),
         utility_sum_(0), measurement_intervals_(0), prev_utility_(-10000000),
-        continue_slow_start_(true), last_utility_(-100000) {
+        last_utility_(-100000) {
         amplifier = 0;
         boundary_amplifier = 0;
         probe_amplifier = 0;
@@ -596,7 +589,7 @@ class PCC : public CCC {
         avg_loss = 0;
         cerr << "new Code!!!" << endl;
         cerr << "configuration: alpha = " << alpha_ << ", beta = " << beta_   <<
-             ", exponent = " << exponent_ << " poly utility = " << poly_utlity_ <<
+             ", exponent = " << exponent_ <<
              ", factor = " << factor_ << ", step = " << step_ << endl;
 
         /*
@@ -753,18 +746,15 @@ class PCC : public CCC {
     double alpha_;
     double beta_;
     double exponent_;
-    bool poly_utlity_;
     double factor_;
     double step_;
     double rate_;
-    int monitor_in_prog_;
     long double utility_sum_;
     size_t measurement_intervals_;
     int amplifier;
     int probe_amplifier;
     double boundary_amplifier;
     long double prev_utility_;
-    bool continue_slow_start_;
     int number_of_probes_;
     vector<GuessStat> guess_measurement_bucket;
     MoveStat move_stat;
@@ -774,7 +764,6 @@ class PCC : public CCC {
     long double last_utility_;
     deque<double> rtt_history_;
     static constexpr size_t kHistorySize = 1;
-    int on_next_start_bind_to_end_;
     int hibernate_depth;
     int trend_count_;
     double avg_loss;
