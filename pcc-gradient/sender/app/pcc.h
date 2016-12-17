@@ -36,10 +36,10 @@ struct MoveStat {
     double change;
     long double reference_utility;
     long double target_utility;
-    int reference_monitor = -1;
-    int target_monitor = -1;
-    bool reference_ready = false;
-    bool target_ready = false;
+    int reference_monitor;
+    int target_monitor;
+    bool reference_ready;
+    bool target_ready;
 };
 
 struct RecentEndMonitorStat {
@@ -82,6 +82,10 @@ class PCC : public CCC {
         recent_end_stat.initialized = false;
         srand(time(NULL));
         avg_loss = 0;
+        move_stat.reference_monitor = -1;
+        move_stat.target_monitor = -1;
+        move_stat.reference_ready = false;
+        move_stat.target_ready = false;
         cerr << "new Code!!!" << endl;
         cerr << "configuration: alpha = " << alpha_ << ", beta = " << beta_   <<
              ", exponent = " << exponent_ <<
