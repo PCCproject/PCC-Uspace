@@ -31,13 +31,15 @@ struct GuessStat {
 
 
 struct MoveStat {
-    double rate;
-    double next_rate;
+    double reference_rate;
+    double target_rate;
     double change;
-    long double utility;
-    int target_monitor;
-    bool bootstrapping;
-    bool isup;
+    long double reference_utility;
+    long double target_utility;
+    int reference_monitor = -1;
+    int target_monitor = -1;
+    bool reference_ready = false;
+    bool target_ready = false;
 };
 
 struct RecentEndMonitorStat {
@@ -57,7 +59,7 @@ class PCC : public CCC {
         guess_time_(0),
         alpha_(kAlpha), beta_(kBeta), exponent_(kExponent),
         factor_(kFactor), step_(kStep), rate_(0.8),
-        utility_sum_(0), measurement_intervals_(0), prev_utility_(-10000000),
+        utility_sum_(0), measurement_intervals_(0),
         last_utility_(-100000) {
         amplifier = 0;
         boundary_amplifier = 0;
@@ -73,7 +75,7 @@ class PCC : public CCC {
         deviation_immune_monitor = -1;
         trend_count_ = 0;
         curr_ = 0;
-	loss_control_amplifier = 1; 
+	loss_control_amplifier = 1;
         swing_buffer = 0;
         recent_end_stat.initialized = false;
         setRTO(100000000);
@@ -199,6 +201,8 @@ class PCC : public CCC {
                     cerr<<"Monitor "<<current_monitor<<"is in recording state, waiting result for recording to come back"<<endl;
 #endif
                     setRate(base_rate_);
+                    move_stat.reference_monitor = current_monitor;
+                    move_stat.reference_rate = base_rate_;
                 }
                 break;
             case MOVING:
@@ -206,7 +210,21 @@ class PCC : public CCC {
 #ifdef DEBUG
                 cerr<<"monitor "<<current_monitor<<"is in moving state setting rate to"<<move_stat.next_rate<<endl;
 #endif
-                setRate(move_stat.next_rate);
+                setRate(move_stat.target_rate);
+                base_rate_ = move_stat.target_rate;
+                if (base_rate_ < kMinRateMbps) {
+#ifdef DEBUG
+                    cerr<<"trying to set rate below min rate in moving phase just decided, enter guessing"<<endl;
+#endif
+                    base_rate_ = kMinRateMbps/ (1 - getkDelta());
+                    setRate(base_rate_);
+                    amplifier = 0;
+                    boundary_amplifier = 0;
+                    state_ = START;
+                    guess_measurement_bucket.clear();
+                    break;
+                }
+
                 break;
             case HIBERNATE:
 #ifdef DEBUG
@@ -243,6 +261,11 @@ class PCC : public CCC {
         }
         long double curr_utility = utility(total, loss, in_time, rtt,
                                            latency_info);
+        if(endMonitor == move_stat.reference_monitor) {
+            move_stat.reference_utility = curr_utility;
+            move_stat.reference_ready = true;
+        }
+
         utility_sum_ += curr_utility;
         measurement_intervals_++;
         ConnectionState old_state;
@@ -407,40 +430,28 @@ class PCC : public CCC {
                         // maybe this will work, if this does not, need to revisit sanity check
                         change = decide(utility_down/factor, utility_up/factor, rate_down, rate_up,
                                         false);
-                        if(avg_loss > 0.05 && change >0) {
-                           change = 0;
-                        }
+                        //TODO: take care of this special case where change =0
+                        //if(avg_loss > 0.05 && change >0) {
+                        //   change = 0;
+                        //}
                         //cout<<"decide "<<change<<endl;
                         //if(abs(change)/base_rate_ > 0.5 && change <0) {change = change/abs(change)*0.5*base_rate_;}
 #ifdef DEBUG
                         cerr<<"all record is acquired and ready to change by "<<change<<endl;
 #endif
-                        base_rate_ += change;
+                        state_ = MOVING;
+                        move_stat.target_rate = move_stat.reference_rate + change;
+                        move_stat.change = change;
                         if(probe_amplifier > 0)
                             probe_amplifier --;
                     } else {
                         //if(probe_amplifier < 5)
+                        state_ = SEARCH;
+                        move_stat.reference_ready = false;
                         probe_amplifier ++;
-                    }
-                    if (base_rate_ < kMinRateMbps) {
-#ifdef DEBUG
-                        cerr<<"trying to set rate below min rate in moving phase just decided, enter guessing"<<endl;
-#endif
-                        base_rate_ = kMinRateMbps/ (1 - getkDelta());
-                        setRate(base_rate_);
-                        amplifier = 0;
-                        boundary_amplifier = 0;
-                        state_ = START;
-                        guess_measurement_bucket.clear();
-                        break;
                     }
                     setRate(base_rate_);
                     state_ = SEARCH;
-                    move_stat.bootstrapping = true;
-                    move_stat.target_monitor = (current +1) % MAX_MONITOR;
-                    move_stat.next_rate = base_rate_;
-                    move_stat.rate = base_rate_;
-                    move_stat.change = change;
                     guess_measurement_bucket.clear();
                 }
                 break;
@@ -456,68 +467,35 @@ class PCC : public CCC {
                 if(endMonitor == move_stat.target_monitor) {
 #ifdef DEBUG
                     cerr<<"find the right monitor"<<endMonitor<<endl;
+                    move_stat.target_utility = curr_utility;
+                    move_stat.target_ready = true;
 #endif
-                    if(move_stat.bootstrapping) {
-                        cerr<<"bootstrapping move operations"<<endl;
-                        move_stat.bootstrapping = false;
-                        move_stat.utility = curr_utility;
-                        // change stay the same
-                        move_stat.target_monitor = (current + 1) % MAX_MONITOR;
-                        cerr<<"target monitor is "<<(current + 1) % MAX_MONITOR;
-                        move_stat.next_rate = move_stat.next_rate + move_stat.change;
-                        base_rate_ = move_stat.next_rate;
+                }
 
-                        if (base_rate_ < kMinRateMbps) {
-                            cerr<<"trying to set rate below min rate in moving phase bootstrapping, enter guessing"<<endl;
-                            base_rate_ = kMinRateMbps/ (1 - getkDelta());
-                            state_ = SEARCH;
-                            guess_measurement_bucket.clear();
-                            break;
-                        }
-
-                        setRate(base_rate_);
-                    } else {
+                if (move_stat.reference_ready && move_stat.target_ready){
                         // see if the change direction is wrong and is reversed
-                        double change = decide(move_stat.utility, curr_utility,
-                                               move_stat.next_rate - move_stat.change, move_stat.next_rate, false);
+                        double change = decide(move_stat.reference_utility, move_stat.target_utility,
+                                               move_stat.reference_rate, move_stat.target_rate, false);
                         cerr<<"change for move is "<<change<<endl;
                         if (change * move_stat.change < 0) {
                             cerr<<"direction changed"<<endl;
                             cerr<<"change is "<<change<<" old change is "<<move_stat.change<<endl;
                             // the direction is different, need to move to old rate start to re-guess
-                            if (abs(change) > abs(move_stat.change)) {
-                                base_rate_ = move_stat.next_rate + change;
-                            } else {
-                                base_rate_ = move_stat.next_rate - move_stat.change;
-                            }
-                            base_rate_ = move_stat.next_rate - move_stat.change;
+                            base_rate_ = move_stat.reference_rate;
                             setRate(base_rate_);
                             state_ = SEARCH;
                             guess_measurement_bucket.clear();
                         } else {
                             cerr<<"direction same, keep moving with change of "<<change<<endl;
+                            move_stat.reference_monitor = current;
                             move_stat.target_monitor = (current + 1) % MAX_MONITOR;
-                            move_stat.utility = curr_utility;
+                            move_stat.reference_ready = false;
+                            move_stat.target_ready = false;
                             move_stat.change = change;
-                            move_stat.next_rate = move_stat.change + move_stat.next_rate;
-                            base_rate_ = move_stat.next_rate;
-
-                            if (base_rate_ < kMinRateMbps) {
-                                cerr<<"trying to set rate below min rate in moving phase keep moving, enter guessing"<<endl;
-                                base_rate_ = kMinRateMbps/ (1 - getkDelta());
-                                state_ = SEARCH;
-                                guess_measurement_bucket.clear();
-                                break;
-                            }
-
-                            setRate(base_rate_);
+                            move_stat.reference_rate = move_stat.target_rate;
+                            move_stat.target_rate = move_stat.reference_rate + change;
                         }
-                    }
                 }
-                prev_utility_ = curr_utility;
-                // should add target monitor
-                // decide based on prev_utility_
-                // and prev_rate_
                 break;
             case HIBERNATE:
                 double base_line_rate = 2 * 1.5 / 1024 * 8/(rtt);
@@ -743,7 +721,6 @@ class PCC : public CCC {
         slow_start_factor_ = 2;
         state_ = SEARCH;
         monitor_in_start_phase_ = -1;
-        prev_utility_ = -10000000;
         kPrint = false;
         trend_count_ = 0;
         curr_ = 0;
@@ -756,7 +733,6 @@ class PCC : public CCC {
         setRate(base_rate_);
         kPrint = false;
         state_ = SEARCH;
-        prev_utility_ = -10000000;
         trend_count_ = 0;
         curr_ = 0;
         prev_change_ = 0;
@@ -859,7 +835,7 @@ class PCC : public CCC {
         long double loss_rate = (long double)((double) loss/(double) total);
 	sum_total += total;
         sum_loss += loss;
-        avg_loss =  loss_rate * 0.3 + avg_loss *0.7; 
+        avg_loss =  loss_rate * 0.3 + avg_loss *0.7;
 
 
         // convert to milliseconds
@@ -896,7 +872,7 @@ class PCC : public CCC {
            loss_control_amplifier = 1;
         }
 
-        
+
         //cout<<"avg_loss is "<<avg_loss<<endl;
         //cout<<"loss rate"<<loss_rate<<endl;
         //long double loss_contribution = total* (11.35 * (pow((1+loss_rate), exponent_)-1));
@@ -954,7 +930,7 @@ class PCC : public CCC {
     int hibernate_depth;
     int trend_count_;
     double avg_loss;
-    double loss_control_amplifier; 
+    double loss_control_amplifier;
     uint64_t sum_total;
     uint64_t sum_loss;
 
