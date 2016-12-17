@@ -61,6 +61,8 @@ class PCC : public CCC {
         last_utility_(-100000) {
         amplifier = 0;
         boundary_amplifier = 0;
+	sum_total = 0;
+        sum_loss = 0;
         probe_amplifier = 0;
         m_dPktSndPeriod = 10000;
         m_dCWndSize = 100000.0;
@@ -71,6 +73,7 @@ class PCC : public CCC {
         deviation_immune_monitor = -1;
         trend_count_ = 0;
         curr_ = 0;
+	loss_control_amplifier = 1; 
         swing_buffer = 0;
         recent_end_stat.initialized = false;
         setRTO(100000000);
@@ -152,12 +155,12 @@ class PCC : public CCC {
     virtual void onACK(const int& ack) {}
 
     virtual void onMonitorStart(int current_monitor, int& suggested_length,
-                                int& mss, int& length_amplifier) {
+                                int& mss, double& length_amplifier) {
         ConnectionState old_state;
 #ifdef DEBUG
         cerr<<"Monitor "<<current_monitor<<" starts"<<endl;
 #endif
-        //length_amplifier = probe_amplifier;
+        length_amplifier = loss_control_amplifier;
         do {
             old_state = state_;
             switch (state_) {
@@ -249,6 +252,9 @@ class PCC : public CCC {
         // TODO we should keep track of all monitors and closely mointoring RTT
         // and utility change between monitor
         if(double(loss)/total >0.8) {
+#ifdef DEBUG
+        cerr<<"Emergency stop"<<endl;
+#endif
             state_ = SEARCH;
             guess_measurement_bucket.clear();
             base_rate_ = base_rate_ * 0.5;
@@ -401,6 +407,9 @@ class PCC : public CCC {
                         // maybe this will work, if this does not, need to revisit sanity check
                         change = decide(utility_down/factor, utility_up/factor, rate_down, rate_up,
                                         false);
+                        if(avg_loss > 0.05 && change >0) {
+                           change = 0;
+                        }
                         //cout<<"decide "<<change<<endl;
                         //if(abs(change)/base_rate_ > 0.5 && change <0) {change = change/abs(change)*0.5*base_rate_;}
 #ifdef DEBUG
@@ -576,6 +585,8 @@ class PCC : public CCC {
         //double change = avg_gradient() * rate();
         double change = avg_gradient() * kFactor;
         if(change * prev_change_ <= 0) {
+            //amplifier = 0;
+            //boundary_amplifier = 0;
             if(swing_buffer < 2)
                 swing_buffer ++;
 
@@ -846,6 +857,9 @@ class PCC : public CCC {
             last_measurement_interval = norm_measurement_interval;
         }
         long double loss_rate = (long double)((double) loss/(double) total);
+	sum_total += total;
+        sum_loss += loss;
+        avg_loss =  loss_rate * 0.3 + avg_loss *0.7; 
 
 
         // convert to milliseconds
@@ -869,10 +883,21 @@ class PCC : public CCC {
         //long double loss_contribution = total * (long double) (alpha_* (pow((1+((long double)((double) loss/(double) total))), exponent_)-1));
         long double loss_contribution = total* (11.35 * (pow((1+loss_rate),
                                                 exponent_)-1));
-        //if(loss_rate < 0.04)
-        //    loss_contribution = total* (1* (pow((1+loss_rate), exponent_)-1));
+        if(loss_rate < 0.03)
+            loss_contribution = total* (1* (pow((1+loss_rate), exponent_)-1));
 
-        //avg_loss = avg_loss*0.9 + loss_rate*0.1;
+        cout<<"loss rate is at"<<avg_loss<<endl;
+        if(avg_loss > 0.05) {
+           loss_control_amplifier += 0.1;
+           if(loss_control_amplifier > 4) {
+               loss_control_amplifier = 4;
+           }
+        }else {
+           loss_control_amplifier = 1;
+        }
+
+        
+        //cout<<"avg_loss is "<<avg_loss<<endl;
         //cout<<"loss rate"<<loss_rate<<endl;
         //long double loss_contribution = total* (11.35 * (pow((1+loss_rate), exponent_)-1));
         //long double loss_contribution = total* (kBeta * (1/(1-loss_rate)-1));
@@ -929,6 +954,9 @@ class PCC : public CCC {
     int hibernate_depth;
     int trend_count_;
     double avg_loss;
+    double loss_control_amplifier; 
+    uint64_t sum_total;
+    uint64_t sum_loss;
 
     int curr_;
     double prev_gradiants_[MAX_MONITOR];

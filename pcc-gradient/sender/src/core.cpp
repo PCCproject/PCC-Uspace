@@ -3134,8 +3134,9 @@ void CUDT::start_monitor(int length)
 	//ygi: hack here!
     int suggested_length = 100000;
     int mss = m_iMSS;
-    int amplifier = 0;
+    double amplifier = 0;
 	m_pCC->onMonitorStart(current_monitor, suggested_length, mss, amplifier);
+    cout<<amplifier<<endl;
     if(mss != m_iMSS) {
         this->resizeMSS(mss);
     }
@@ -3156,7 +3157,7 @@ void CUDT::start_monitor(int length)
 	m_monitor_count++;
 
 	//double rand_factor = (rand() %10) / 100.;
-	int send_period = 2.0*m_iRTT; //100 * 1000; // 100 milliseconds
+	int send_period = 1.0*m_iRTT * amplifier; //100 * 1000; // 100 milliseconds
 	//length = send_period*(0.5 + rand_factor)/m_pCC->m_dPktSndPeriod;
             if(send_period > 1000000) {
                send_period = 300000;
@@ -3172,7 +3173,7 @@ void CUDT::start_monitor(int length)
         if (length > 3000) {
            length = 3000;
         }
-        length += (amplifier * 10);
+       // length += (amplifier * 10);
         //if(length < 100) {
         //   length = 100;
         //}
