@@ -3136,7 +3136,6 @@ void CUDT::start_monitor(int length)
     int mss = m_iMSS;
     double amplifier = 0;
 	m_pCC->onMonitorStart(current_monitor, suggested_length, mss, amplifier);
-    cout<<amplifier<<endl;
     if(mss != m_iMSS) {
         this->resizeMSS(mss);
     }

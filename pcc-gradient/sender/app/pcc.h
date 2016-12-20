@@ -102,7 +102,7 @@ class PCC : public CCC {
 
     ~PCC() {}
     double getkDelta() {
-        return kStep;
+        return 0.02;
         return 0.05 * (1 + probe_amplifier);
     }
 
@@ -212,10 +212,13 @@ class PCC : public CCC {
             case MOVING:
                 // TODO: should handle how we move and how we record utility as well
 #ifdef DEBUG
-                cerr<<"monitor "<<current_monitor<<"is in moving state setting rate to"<<move_stat.next_rate<<endl;
+                cerr<<"monitor "<<current_monitor<<"is in moving state setting rate to"<<move_stat.target_rate<<endl;
 #endif
                 setRate(move_stat.target_rate);
                 base_rate_ = move_stat.target_rate;
+                if(move_stat.target_monitor == -1) {
+                move_stat.target_monitor = current_monitor;
+                }
                 if (base_rate_ < kMinRateMbps) {
 #ifdef DEBUG
                     cerr<<"trying to set rate below min rate in moving phase just decided, enter guessing"<<endl;
@@ -274,7 +277,7 @@ class PCC : public CCC {
         measurement_intervals_++;
         ConnectionState old_state;
 #ifdef DEBUG
-        cerr<<"Monitor "<<endMonitor<<" ended with utility "<<curr_utility<<endl;
+        cerr<<"Monitor "<<endMonitor<<" ended with utility "<<curr_utility<<"total "<<total<<"loss pkt"<<loss<<endl;
 #endif
         // TODO we should keep track of all monitors and closely mointoring RTT
         // and utility change between monitor
@@ -454,8 +457,6 @@ class PCC : public CCC {
                         move_stat.reference_ready = false;
                         probe_amplifier ++;
                     }
-                    setRate(base_rate_);
-                    state_ = SEARCH;
                     guess_measurement_bucket.clear();
                 }
                 break;
@@ -471,9 +472,9 @@ class PCC : public CCC {
                 if(endMonitor == move_stat.target_monitor) {
 #ifdef DEBUG
                     cerr<<"find the right monitor"<<endMonitor<<endl;
+#endif
                     move_stat.target_utility = curr_utility;
                     move_stat.target_ready = true;
-#endif
                 }
 
                 if (move_stat.reference_ready && move_stat.target_ready){
@@ -481,13 +482,17 @@ class PCC : public CCC {
                         double change = decide(move_stat.reference_utility, move_stat.target_utility,
                                                move_stat.reference_rate, move_stat.target_rate, false);
                         cerr<<"change for move is "<<change<<endl;
-                        if (change * move_stat.change < 0) {
+                        if (change * move_stat.change <= 0) {
                             cerr<<"direction changed"<<endl;
                             cerr<<"change is "<<change<<" old change is "<<move_stat.change<<endl;
                             // the direction is different, need to move to old rate start to re-guess
-                            base_rate_ = move_stat.reference_rate;
+                            //base_rate_ = move_stat.reference_rate;
+                            base_rate_ = change + base_rate_;
                             setRate(base_rate_);
+                            move_stat.target_monitor = -1;
                             state_ = SEARCH;
+                            move_stat.reference_ready = false;
+                            move_stat.target_ready = false;
                             guess_measurement_bucket.clear();
                         } else {
                             cerr<<"direction same, keep moving with change of "<<change<<endl;
@@ -866,7 +871,6 @@ class PCC : public CCC {
         if(loss_rate < 0.03)
             loss_contribution = total* (1* (pow((1+loss_rate), exponent_)-1));
 
-        cout<<"loss rate is at"<<avg_loss<<endl;
         if(avg_loss > 0.05) {
            loss_control_amplifier += 0.1;
            if(loss_control_amplifier > 4) {
