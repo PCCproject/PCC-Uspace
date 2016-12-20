@@ -102,7 +102,10 @@ class PCC : public CCC {
 
     ~PCC() {}
     double getkDelta() {
-        return 0.02;
+        if(0.7/base_rate_ >0.04) {
+           return 0.7/base_rate_;
+        }
+        return 0.04;
         return 0.05 * (1 + probe_amplifier);
     }
 
