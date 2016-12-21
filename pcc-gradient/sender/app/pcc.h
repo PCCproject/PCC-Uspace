@@ -855,6 +855,12 @@ class PCC : public CCC {
         long double loss_rate = (long double)((double) loss/(double) total);
 	sum_total += total;
         sum_loss += loss;
+        if(loss_rate > 0.01) {
+           loss_rate = ceil(loss_rate * 100)/100.0;
+        }
+        if(loss_rate > 0.05) {
+           loss_rate = ceil(loss_rate * 100 +1)/2*2/100.0;
+        }
         avg_loss =  loss_rate * 0.3 + avg_loss *0.7;
 
 
