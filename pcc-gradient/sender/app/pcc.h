@@ -15,7 +15,7 @@
 #include <mutex>
 #include <thread>
 #include <stdlib.h>
-//#define DEBUG
+#define DEBUG
 #define MAX_MONITOR 500
 using namespace std;
 
@@ -185,6 +185,9 @@ class PCC : public CCC {
 #endif
                 break;
             case SEARCH:
+                if(base_rate_ < kMinRateMbps)
+                   base_rate_ = kMinRateMbps;
+ 
 #ifdef DEBUG
                 cerr<<"Monitor "<<current_monitor<<"is in search state"<<endl;
 #endif
@@ -230,7 +233,7 @@ class PCC : public CCC {
                     setRate(base_rate_);
                     amplifier = 0;
                     boundary_amplifier = 0;
-                    state_ = START;
+                    state_ = SEARCH;
                     guess_measurement_bucket.clear();
                     break;
                 }
@@ -544,6 +547,8 @@ class PCC : public CCC {
             //cout<<"turn to SLOW moving mode"<<endl;
             number_of_probes_ = 4;
         }
+        
+        
 
         for(int i=0; i<number_of_probes_/2; i++) {
             GuessStat g = GuessStat();
@@ -575,6 +580,8 @@ class PCC : public CCC {
         //double change = avg_gradient() * rate();
         double change = avg_gradient() * kFactor;
         if(change * prev_change_ <= 0) {
+            //if(amplifier >0)
+            //    amplifier --;
             //amplifier = 0;
             //boundary_amplifier = 0;
             if(swing_buffer < 2)
@@ -667,11 +674,11 @@ class PCC : public CCC {
         //if (change>0 && change < base_rate_*getkDelta()) { change = base_rate_ * getkDelta();}
         //if (change <0 && change > base_rate_*getkDelta() * (-1)) {change = base_rate_ *getkDelta() * (-1);}
 
-        if (change>0 && change < 0.1) {
-            change = 0.1;
+        if (change>0 && change < 0.5) {
+            change = 0.5;
         }
-        if (change <0 && change > -0.1) {
-            change = -0.1;
+        if (change <0 && change > -0.5) {
+            change = -0.5;
         }
 
         prev_change_ = change;
@@ -752,6 +759,7 @@ class PCC : public CCC {
 
 
     virtual double getMinChange() {
+        return 0.5;
         if (base_rate_ > kMinRateMbps) {
             return kMinRateMbps;
         } else if (base_rate_ > kMinRateMbps / 2) {
@@ -777,11 +785,11 @@ class PCC : public CCC {
 #endif
                 mbps = kMinRateMbpsSlowStart;
             }
-        } else if (mbps < kMinRateMbps) {
+        } else if (mbps < kMinRateMbps * (1-getkDelta())) {
 #ifdef DEBUG
             cerr << "rate is mimimal, changing to " << kMinRateMbps << " instead" << endl;
 #endif
-            mbps = kMinRateMbps;
+            mbps = kMinRateMbps * (1-getkDelta());
         }
 
         if (mbps > kMaxRateMbps) {
