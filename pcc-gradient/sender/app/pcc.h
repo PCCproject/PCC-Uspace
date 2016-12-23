@@ -27,6 +27,7 @@ struct GuessStat {
     long double utility;
     bool ready;
     bool isup;
+    double loss_rate;
 };
 
 
@@ -40,6 +41,7 @@ struct MoveStat {
     int target_monitor;
     bool reference_ready;
     bool target_ready;
+    double loss_rate;
 };
 
 struct RecentEndMonitorStat {
@@ -235,6 +237,7 @@ class PCC : public CCC {
                     boundary_amplifier = 0;
                     state_ = SEARCH;
                     guess_measurement_bucket.clear();
+                    move_stat.target_monitor = -1;
                     break;
                 }
 
@@ -861,7 +864,7 @@ class PCC : public CCC {
         if(loss_rate > 0.05) {
            loss_rate = ceil(loss_rate * 100 +1)/2*2/100.0;
         }
-        avg_loss =  loss_rate * 0.3 + avg_loss *0.7;
+        avg_loss =  loss_rate * 0.7 + avg_loss *0.3;
 
 
         // convert to milliseconds
@@ -920,7 +923,7 @@ class PCC : public CCC {
 #ifdef DEBUG
         cerr<<"total "<<
             total<<"loss contri"<<loss_contribution<<"rtt contr"<<rtt_contribution<<"time "<<time<<"norm measurement"<<norm_measurement_interval<<endl;
-        cerr<<"rtt is "<<rtt<<endl;
+        cerr<<"rtt is "<<rtt<<"loss rate is "<<loss_rate<<"avg loss rate is "<<avg_loss<<endl;
 #endif
 
         return utility;
