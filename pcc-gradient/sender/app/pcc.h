@@ -630,6 +630,8 @@ class PCC : public CCC {
         if(change * prev_change_ <= 0) {
             //if(amplifier >0)
             //    amplifier --;
+            //if(boundary_amplifier >0)
+            //    boundary_amplifier --;
             //amplifier = 0;
             //boundary_amplifier = 0;
             if(swing_buffer < 2)
@@ -906,9 +908,9 @@ class PCC : public CCC {
         if(loss_rate > 0.01) {
            loss_rate = ceil(loss_rate * 100)/100.0;
         }
-        if(loss_rate > 0.05) {
-           loss_rate = ceil(loss_rate * 100 +1)/2*2/100.0;
-        }
+        //if(loss_rate > 0.05) {
+        //   loss_rate = ceil(loss_rate * 100 +1)/2*2/100.0;
+        //}
 
         avg_loss =  loss_rate * 0.7 + avg_loss *0.3;
 
