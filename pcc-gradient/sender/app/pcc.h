@@ -89,6 +89,7 @@ class PCC : public CCC {
         move_stat.target_monitor = -1;
         move_stat.reference_ready = false;
         move_stat.target_ready = false;
+        double_check = 1;
         cerr << "new Code!!!" << endl;
         cerr << "configuration: alpha = " << alpha_ << ", beta = " << beta_   <<
              ", exponent = " << exponent_ <<
@@ -411,7 +412,7 @@ class PCC : public CCC {
                 }
 
                 if (all_ready) {
-                    double utility_down=0, utility_up=0;
+                    double utility_down=0, utility_up=0, loss_up = 0, loss_down = 0;
                     double rate_up = 0, rate_down = 0;
                     double change = 0;
                     int decision = 0;
@@ -434,6 +435,25 @@ class PCC : public CCC {
                             }
                         }
                     }
+                    for(int i=0; i < number_of_probes_; i++) {
+                        if(guess_measurement_bucket[i].isup){
+                            loss_up += guess_measurement_bucket[i].loss_rate;
+                        } else {
+                            loss_down += guess_measurement_bucket[i].loss_rate;
+                        }
+                    }
+
+                    if(loss_up < loss_down) {
+                       if(double_check >0) {
+                          decision = 0;
+                          double_check --;
+                       } else {
+                          double_check = 1; 
+                       }
+                    } else {
+                       double_check = 1;
+                    }
+
                     if(decision != 0) {
                         for (int i=0; i<number_of_probes_; i++) {
                             if(guess_measurement_bucket[i].isup) {
@@ -470,9 +490,6 @@ class PCC : public CCC {
                         move_stat.reference_ready = false;
                         probe_amplifier ++;
                     }
-                    for(int i=0; i < number_of_probes_; i++) {
-                        avg_loss = 0.5*avg_loss + 0.5 * guess_measurement_bucket[i].loss_rate;
-                    }
                     guess_measurement_bucket.clear();
                 }
                 break;
@@ -499,7 +516,14 @@ class PCC : public CCC {
                         double change = decide(move_stat.reference_utility, move_stat.target_utility,
                                                move_stat.reference_rate, move_stat.target_rate, false);
                         cerr<<"change for move is "<<change<<endl;
-                        if (change * move_stat.change <= 0) {
+                        bool second_guess = false;
+                        if((move_stat.reference_rate - move_stat.target_rate) * (move_stat.reference_loss_rate - move_stat.target_loss_rate) <0) {
+                           second_guess = true;
+                           if(double_check > 0) {
+                               double_check--;
+                           }
+                        }
+                        if (change * move_stat.change <= 0 || second_guess) {
                             cerr<<"direction changed"<<endl;
                             cerr<<"change is "<<change<<" old change is "<<move_stat.change<<endl;
                             // the direction is different, need to move to old rate start to re-guess
@@ -519,9 +543,9 @@ class PCC : public CCC {
                             move_stat.target_ready = false;
                             move_stat.change = change;
                             move_stat.reference_rate = move_stat.target_rate;
+                            move_stat.reference_loss_rate = move_stat.target_loss_rate;
                             move_stat.target_rate = move_stat.reference_rate + change;
                         }
-                        avg_loss = 0.5*avg_loss + 0.5 * move_stat.target_loss_rate;
                 }
                 break;
             case HIBERNATE:
@@ -874,8 +898,7 @@ class PCC : public CCC {
            loss_rate = ceil(loss_rate * 100 +1)/2*2/100.0;
         }
 
-        loss_rate = 0.5*loss_rate + 0.5 * avg_loss;
-        //avg_loss =  loss_rate * 0.7 + avg_loss *0.3;
+        avg_loss =  loss_rate * 0.7 + avg_loss *0.3;
 
 
         // convert to milliseconds
@@ -972,6 +995,7 @@ class PCC : public CCC {
     double loss_control_amplifier;
     uint64_t sum_total;
     uint64_t sum_loss;
+    int double_check;
 
     int curr_;
     double prev_gradiants_[MAX_MONITOR];
