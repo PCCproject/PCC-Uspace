@@ -90,6 +90,7 @@ class PCC : public CCC {
         move_stat.reference_ready = false;
         move_stat.target_ready = false;
         double_check = 1;
+        loss_ignore_count = 10;
         cerr << "new Code!!!" << endl;
         cerr << "configuration: alpha = " << alpha_ << ", beta = " << beta_   <<
              ", exponent = " << exponent_ <<
@@ -233,7 +234,7 @@ class PCC : public CCC {
 #ifdef DEBUG
                     cerr<<"trying to set rate below min rate in moving phase just decided, enter guessing"<<endl;
 #endif
-                    base_rate_ = kMinRateMbps/ (1 - getkDelta());
+                    base_rate_ = kMinRateMbps;
                     setRate(base_rate_);
                     amplifier = 0;
                     boundary_amplifier = 0;
@@ -277,6 +278,17 @@ class PCC : public CCC {
         if (endMonitor >= timeout_immune_monitor) {
             timeout_immune_monitor = -1;
         }
+        
+        if(state_ == START) {
+          if(loss_ignore_count >= loss) {
+              loss = 0;
+              loss_ignore_count -= loss;
+          } else {
+              loss -= loss_ignore_count;
+              loss_ignore_count = 0;
+          }
+        }
+      
         double loss_rate = loss/double(total);
         long double curr_utility = utility(total, loss, in_time, rtt,
                                            latency_info);
@@ -301,8 +313,8 @@ class PCC : public CCC {
             state_ = SEARCH;
             guess_measurement_bucket.clear();
             base_rate_ = base_rate_ * 0.5;
-            if(base_rate_ < kMinRateMbps/ (1-getkDelta())) {
-                base_rate_ = kMinRateMbps / (1-getkDelta());
+            if(base_rate_ < kMinRateMbps) {
+                base_rate_ = kMinRateMbps;
             }
             setRate(base_rate_);
         }
@@ -753,7 +765,7 @@ class PCC : public CCC {
     double base_rate_;
     bool kPrint;
     double prev_change_;
-    static constexpr double kMinRateMbps = 0.8;
+    static constexpr double kMinRateMbps = 1.3;
     static constexpr double kMinRateMbpsSlowStart = 0.1;
     static constexpr double kHibernateRate = 0.04;
     static constexpr double kMaxRateMbps = 1024.0;
@@ -925,14 +937,14 @@ class PCC : public CCC {
         if(loss_rate < 0.03)
             loss_contribution = total* (1* (pow((1+loss_rate), exponent_)-1));
 
-        if(avg_loss > 0.05) {
-           loss_control_amplifier += 0.1;
-           if(loss_control_amplifier > 4) {
-               loss_control_amplifier = 4;
-           }
-        }else {
-           loss_control_amplifier = 1;
-        }
+        //if(avg_loss > 0.05) {
+        //   loss_control_amplifier += 0.1;
+        //   if(loss_control_amplifier > 4) {
+        //       loss_control_amplifier = 4;
+        //   }
+        //}else {
+        //   loss_control_amplifier = 1;
+        //}
 
 
         //cout<<"avg_loss is "<<avg_loss<<endl;
@@ -1000,6 +1012,7 @@ class PCC : public CCC {
     int curr_;
     double prev_gradiants_[MAX_MONITOR];
     double swing_buffer;
+    int loss_ignore_count;
 };
 
 #endif
