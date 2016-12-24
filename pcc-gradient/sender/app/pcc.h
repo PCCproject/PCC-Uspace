@@ -41,7 +41,8 @@ struct MoveStat {
     int target_monitor;
     bool reference_ready;
     bool target_ready;
-    double loss_rate;
+    double reference_loss_rate;
+    double target_loss_rate;
 };
 
 struct RecentEndMonitorStat {
@@ -275,11 +276,13 @@ class PCC : public CCC {
         if (endMonitor >= timeout_immune_monitor) {
             timeout_immune_monitor = -1;
         }
+        double loss_rate = loss/double(total);
         long double curr_utility = utility(total, loss, in_time, rtt,
                                            latency_info);
         if(endMonitor == move_stat.reference_monitor) {
             move_stat.reference_utility = curr_utility;
             move_stat.reference_ready = true;
+            move_stat.reference_loss_rate = loss_rate;
         }
 
         utility_sum_ += curr_utility;
@@ -398,6 +401,7 @@ class PCC : public CCC {
                         cerr<<"found matching monitor"<<endMonitor<<endl;
 #endif
                         guess_measurement_bucket[i].utility = curr_utility;
+                        guess_measurement_bucket[i].loss_rate = loss_rate;
                         guess_measurement_bucket[i].ready = true;
                     }
 
@@ -466,6 +470,9 @@ class PCC : public CCC {
                         move_stat.reference_ready = false;
                         probe_amplifier ++;
                     }
+                    for(int i=0; i < number_of_probes_; i++) {
+                        avg_loss = 0.5*avg_loss + 0.5 * guess_measurement_bucket[i].loss_rate;
+                    }
                     guess_measurement_bucket.clear();
                 }
                 break;
@@ -483,6 +490,7 @@ class PCC : public CCC {
                     cerr<<"find the right monitor"<<endMonitor<<endl;
 #endif
                     move_stat.target_utility = curr_utility;
+                    move_stat.target_loss_rate = loss_rate;
                     move_stat.target_ready = true;
                 }
 
@@ -513,6 +521,7 @@ class PCC : public CCC {
                             move_stat.reference_rate = move_stat.target_rate;
                             move_stat.target_rate = move_stat.reference_rate + change;
                         }
+                        avg_loss = 0.5*avg_loss + 0.5 * move_stat.target_loss_rate;
                 }
                 break;
             case HIBERNATE:
@@ -864,7 +873,9 @@ class PCC : public CCC {
         if(loss_rate > 0.05) {
            loss_rate = ceil(loss_rate * 100 +1)/2*2/100.0;
         }
-        avg_loss =  loss_rate * 0.7 + avg_loss *0.3;
+
+        loss_rate = 0.5*loss_rate + 0.5 * avg_loss;
+        //avg_loss =  loss_rate * 0.7 + avg_loss *0.3;
 
 
         // convert to milliseconds
