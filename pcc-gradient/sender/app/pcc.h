@@ -292,6 +292,9 @@ class PCC : public CCC {
         }
       
         double loss_rate = loss/double(total);
+        if(loss_rate > 0) {
+           loss_rate = ceil(loss_rate * 100)/100.0;
+        }
         long double curr_utility = utility(total, loss, in_time, rtt,
                                            latency_info);
         if(endMonitor == move_stat.reference_monitor) {
@@ -316,6 +319,7 @@ class PCC : public CCC {
             state_ = SEARCH;
             guess_measurement_bucket.clear();
             base_rate_ = base_rate_ * 0.5;
+            move_stat.target_monitor = -1;
             if(base_rate_ < kMinRateMbps) {
                 base_rate_ = kMinRateMbps;
             }
@@ -543,6 +547,7 @@ class PCC : public CCC {
                            }
                         }
                         if (second_guess) {
+                                cerr<<"second guess"<<endl;
                                 move_stat.target_monitor = -1;
                                 state_ = SEARCH;
                                 move_stat.reference_ready = false;
@@ -582,6 +587,7 @@ class PCC : public CCC {
                                 //move_stat.change = change;
                                 //move_stat.reference_rate = move_stat.target_rate;
                                 //move_stat.reference_loss_rate = move_stat.target_loss_rate;
+                                //move_stat.reference_loss_pkt = move_stat.target_loss_pkt;
                                 //move_stat.target_rate = move_stat.reference_rate + change;
                             }
                         }
