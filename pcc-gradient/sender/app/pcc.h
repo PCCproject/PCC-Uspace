@@ -43,6 +43,8 @@ struct MoveStat {
     bool target_ready;
     double reference_loss_rate;
     double target_loss_rate;
+    double target_loss_pkt;
+    double reference_loss_pkt;
 };
 
 struct RecentEndMonitorStat {
@@ -296,6 +298,7 @@ class PCC : public CCC {
             move_stat.reference_utility = curr_utility;
             move_stat.reference_ready = true;
             move_stat.reference_loss_rate = loss_rate;
+            move_stat.reference_loss_pkt = loss;
         }
 
         utility_sum_ += curr_utility;
@@ -522,6 +525,7 @@ class PCC : public CCC {
 #endif
                     move_stat.target_utility = curr_utility;
                     move_stat.target_loss_rate = loss_rate;
+                    move_stat.target_loss_pkt = loss;
                     move_stat.target_ready = true;
                 }
 
@@ -531,7 +535,8 @@ class PCC : public CCC {
                                                move_stat.reference_rate, move_stat.target_rate, false);
                         cerr<<"change for move is "<<change<<endl;
                         bool second_guess = false;
-                        if((move_stat.reference_rate - move_stat.target_rate) * (move_stat.reference_loss_rate - move_stat.target_loss_rate) <0) {
+                        if((move_stat.reference_rate - move_stat.target_rate) * (move_stat.reference_loss_rate - move_stat.target_loss_rate) <0
+                            && abs(move_stat.reference_loss_pkt - move_stat.target_loss_pkt) > 2) {
                            second_guess = true;
                            if(double_check > 0) {
                                double_check--;
@@ -567,6 +572,7 @@ class PCC : public CCC {
                                 move_stat.change = change;
                                 move_stat.reference_rate = move_stat.target_rate;
                                 move_stat.reference_loss_rate = move_stat.target_loss_rate;
+                                move_stat.reference_loss_pkt = move_stat.target_loss_pkt;
                                 move_stat.target_rate = move_stat.reference_rate + change;
 
                                 //move_stat.reference_monitor = current;
@@ -935,7 +941,7 @@ class PCC : public CCC {
         long double loss_rate = (long double)((double) loss/(double) total);
 	sum_total += total;
         sum_loss += loss;
-        if(loss_rate > 0.01) {
+        if(loss_rate > 0) {
            loss_rate = ceil(loss_rate * 100)/100.0;
         }
         //if(loss_rate > 0.05) {
