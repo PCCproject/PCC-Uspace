@@ -90,7 +90,7 @@ class PCC : public CCC {
         move_stat.reference_ready = false;
         move_stat.target_ready = false;
         double_check = 1;
-        loss_ignore_count = 10;
+        loss_ignore_count = 0;
         cerr << "new Code!!!" << endl;
         cerr << "configuration: alpha = " << alpha_ << ", beta = " << beta_   <<
              ", exponent = " << exponent_ <<
@@ -107,8 +107,8 @@ class PCC : public CCC {
 
     ~PCC() {}
     double getkDelta() {
-        if(0.7/base_rate_ >0.04) {
-           return 0.7/base_rate_;
+        if(0.5/base_rate_ >0.04) {
+           return 0.5/base_rate_;
         }
         return 0.04;
         return 0.05 * (1 + probe_amplifier);
@@ -492,6 +492,8 @@ class PCC : public CCC {
                         cerr<<"all record is acquired and ready to change by "<<change<<endl;
 #endif
                         state_ = MOVING;
+                        amplifier = 0;
+                        boundary_amplifier = 0;
                         move_stat.target_rate = move_stat.reference_rate + change;
                         move_stat.change = change;
                         if(probe_amplifier > 0)
@@ -535,28 +537,47 @@ class PCC : public CCC {
                                double_check--;
                            }
                         }
-                        if (change * move_stat.change <= 0 || second_guess) {
-                            cerr<<"direction changed"<<endl;
-                            cerr<<"change is "<<change<<" old change is "<<move_stat.change<<endl;
-                            // the direction is different, need to move to old rate start to re-guess
-                            //base_rate_ = move_stat.reference_rate;
-                            base_rate_ = change + base_rate_;
-                            setRate(base_rate_);
-                            move_stat.target_monitor = -1;
-                            state_ = SEARCH;
-                            move_stat.reference_ready = false;
-                            move_stat.target_ready = false;
-                            guess_measurement_bucket.clear();
+                        if (second_guess) {
+                                move_stat.target_monitor = -1;
+                                state_ = SEARCH;
+                                move_stat.reference_ready = false;
+                                move_stat.target_ready = false;
+                                guess_measurement_bucket.clear();
+
                         } else {
-                            cerr<<"direction same, keep moving with change of "<<change<<endl;
-                            move_stat.reference_monitor = current;
-                            move_stat.target_monitor = (current + 1) % MAX_MONITOR;
-                            move_stat.reference_ready = false;
-                            move_stat.target_ready = false;
-                            move_stat.change = change;
-                            move_stat.reference_rate = move_stat.target_rate;
-                            move_stat.reference_loss_rate = move_stat.target_loss_rate;
-                            move_stat.target_rate = move_stat.reference_rate + change;
+                            if (change * move_stat.change <= 0) {
+                                cerr<<"direction changed"<<endl;
+                                cerr<<"change is "<<change<<" old change is "<<move_stat.change<<endl;
+                                // the direction is different, need to move to old rate start to re-guess
+                                //base_rate_ = move_stat.reference_rate;
+                                base_rate_ = change + base_rate_;
+                                setRate(base_rate_);
+                                move_stat.target_monitor = -1;
+                                state_ = SEARCH;
+                                move_stat.reference_ready = false;
+                                move_stat.target_ready = false;
+                                guess_measurement_bucket.clear();
+                            } else {
+                                cerr<<"direction same, keep moving with change of "<<change<<endl;
+                                move_stat.reference_monitor = move_stat.target_monitor;
+                                move_stat.reference_utility = move_stat.target_utility;
+                                move_stat.target_monitor = (current + 1) % MAX_MONITOR;
+                                move_stat.reference_ready = true;
+                                move_stat.target_ready = false;
+                                move_stat.change = change;
+                                move_stat.reference_rate = move_stat.target_rate;
+                                move_stat.reference_loss_rate = move_stat.target_loss_rate;
+                                move_stat.target_rate = move_stat.reference_rate + change;
+
+                                //move_stat.reference_monitor = current;
+                                //move_stat.target_monitor = (current + 1) % MAX_MONITOR;
+                                //move_stat.reference_ready = false;
+                                //move_stat.target_ready = false;
+                                //move_stat.change = change;
+                                //move_stat.reference_rate = move_stat.target_rate;
+                                //move_stat.reference_loss_rate = move_stat.target_loss_rate;
+                                //move_stat.target_rate = move_stat.reference_rate + change;
+                            }
                         }
                 }
                 break;
@@ -588,13 +609,13 @@ class PCC : public CCC {
     }
 
     void search(int current_monitor) {
-        if(trend_count_ >= 3) {
-            //cout<<"turn to fast moving mode"<<endl;
-            number_of_probes_ = 2;
-        } else {
-            //cout<<"turn to SLOW moving mode"<<endl;
-            number_of_probes_ = 4;
-        }
+        //if(trend_count_ >= 3) {
+        //    cout<<"turn to fast moving mode"<<endl;
+        //    number_of_probes_ = 2;
+        //} else {
+        //    //cout<<"turn to SLOW moving mode"<<endl;
+        //    number_of_probes_ = 4;
+        //}
         
         
 
@@ -632,9 +653,9 @@ class PCC : public CCC {
             //    amplifier --;
             //if(boundary_amplifier >0)
             //    boundary_amplifier --;
-            //amplifier = 0;
-            //boundary_amplifier = 0;
-            if(swing_buffer < 2)
+            amplifier = 0;
+            boundary_amplifier = 0;
+            if(swing_buffer < 4)
                 swing_buffer ++;
 
         }
@@ -661,14 +682,20 @@ class PCC : public CCC {
         } else {
             trend_count_ ++;
             if(swing_buffer == 0) {
-                amplifier ++;
+                if(amplifier > 3) {
+                    amplifier +=0.5;
+                }
+                else {
+                    amplifier ++;
+                }
             }
             if (swing_buffer > 0) {
                 swing_buffer --;
             }
         }
         //change *= (amplifier*0.05+ kFactor);
-        //cout<<pow(amplifier, 2)<<endl;
+        
+        //cout<<swing_buffer<<"\t"<<amplifier<<endl;
         //cout<<boundary_amplifier<<endl;
         //cout<<change<<endl;
 
@@ -685,7 +712,10 @@ class PCC : public CCC {
         //}
         if((abs(change)/base_rate_)>ratio) {
             change = abs(change)/change*base_rate_*ratio;
-            boundary_amplifier+=1;
+                boundary_amplifier+=1;
+                //if(boundary_amplifier >= 2) {
+                //    boundary_amplifier += 0.5;
+                //} else { boundary_amplifier+=1;}
         } else {
             if(boundary_amplifier >= 1)
                 boundary_amplifier-=1;
@@ -990,7 +1020,7 @@ class PCC : public CCC {
     double rate_;
     long double utility_sum_;
     size_t measurement_intervals_;
-    int amplifier;
+    double amplifier;
     int probe_amplifier;
     double boundary_amplifier;
     long double prev_utility_;
