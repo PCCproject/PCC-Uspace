@@ -954,7 +954,7 @@ class PCC : public CCC {
         //   loss_rate = ceil(loss_rate * 100 +1)/2*2/100.0;
         //}
 
-        avg_loss =  loss_rate * 0.7 + avg_loss *0.3;
+        avg_loss =  loss_rate * 0.2 + avg_loss *0.8;
 
 
         // convert to milliseconds
@@ -978,8 +978,17 @@ class PCC : public CCC {
         //long double loss_contribution = total * (long double) (alpha_* (pow((1+((long double)((double) loss/(double) total))), exponent_)-1));
         long double loss_contribution = total* (11.35 * (pow((1+loss_rate),
                                                 exponent_)-1));
-        if(loss_rate < 0.03)
+        
+
+        if(loss_rate <= 0.03)
             loss_contribution = total* (1* (pow((1+loss_rate), exponent_)-1));
+
+        if(avg_loss <= 0.02 && loss <=5) {
+            loss_contribution = 0;
+        }
+        //    //loss_contribution = 0;
+        //else if (loss_rate<=0.01)
+        //    loss_contribution = 0;
 
         //if(avg_loss > 0.05) {
         //   loss_control_amplifier += 0.1;
