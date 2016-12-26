@@ -540,7 +540,7 @@ class PCC : public CCC {
                         cerr<<"change for move is "<<change<<endl;
                         bool second_guess = false;
                         if((move_stat.reference_rate - move_stat.target_rate) * (move_stat.reference_loss_rate - move_stat.target_loss_rate) <0
-                            && (abs(move_stat.reference_loss_pkt - move_stat.target_loss_pkt) > 1 || avg_loss > 0.02)) {
+                            && (abs(move_stat.reference_loss_pkt - move_stat.target_loss_pkt) > 2 || avg_loss > 0.02)) {
                            second_guess = true;
                            if(double_check > 0) {
                                double_check--;
