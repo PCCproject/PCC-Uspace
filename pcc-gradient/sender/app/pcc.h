@@ -31,6 +31,8 @@ struct GuessStat {
     double loss;
     double total;
     double latency_info;
+    double time;
+    double rtt;
 };
 
 
@@ -52,6 +54,10 @@ struct MoveStat {
     double reference_total_pkt;
     double target_latency_info;
     double reference_latency_info;
+    double target_time;
+    double reference_time;
+    double target_rtt;
+    double reference_rtt;
 };
 
 struct RecentEndMonitorStat {
@@ -308,7 +314,11 @@ class PCC : public CCC {
             move_stat.reference_utility = curr_utility;
             move_stat.reference_ready = true;
             move_stat.reference_loss_rate = loss_rate;
-            move_stat.reference_loss_pkt = loss;
+	    move_stat.reference_loss_pkt = loss;
+	    move_stat.reference_time = in_time;
+	    move_stat.reference_rtt = rtt;
+            move_stat.reference_total_pkt = total;
+            move_stat.reference_latency_info = latency_info;
         }
 
         utility_sum_ += curr_utility;
@@ -429,6 +439,11 @@ class PCC : public CCC {
 #endif
                         guess_measurement_bucket[i].utility = curr_utility;
                         guess_measurement_bucket[i].loss_rate = loss_rate;
+                        guess_measurement_bucket[i].loss = loss;
+                        guess_measurement_bucket[i].total = total;
+                        guess_measurement_bucket[i].time = in_time;
+                        guess_measurement_bucket[i].rtt = rtt;
+                        guess_measurement_bucket[i].latency_info = latency_info;
                         guess_measurement_bucket[i].ready = true;
                     }
 
@@ -442,6 +457,25 @@ class PCC : public CCC {
                     double rate_up = 0, rate_down = 0;
                     double change = 0;
                     int decision = 0;
+                    double overall_total=0, overall_loss=0;
+                    double overall_loss_rate =0;
+
+                    for(int i=0; i < number_of_probes_; i++) {
+                        overall_total += guess_measurement_bucket[i].total;
+                        overall_loss += guess_measurement_bucket[i].loss;
+                    }
+                    
+                    overall_loss_rate = overall_loss/overall_total;
+
+
+                    if(overall_loss_rate >=1) {
+                        cout<<"detect"<<endl;
+                        for(int i=0; i < number_of_probes_; i++) {
+                            guess_measurement_bucket[i].utility = utility(guess_measurement_bucket[i].total, overall_loss_rate*guess_measurement_bucket[i].total, guess_measurement_bucket[i].time, guess_measurement_bucket[i].rtt,
+                                           guess_measurement_bucket[i].latency_info);
+                        }
+                    }
+
                     for(int i=0; i < number_of_probes_/2; i++) {
                         if(guess_measurement_bucket[i*2].utility < guess_measurement_bucket[i*2
                                 +1].utility) {
@@ -468,6 +502,8 @@ class PCC : public CCC {
                             loss_down += guess_measurement_bucket[i].loss_rate;
                         }
                     }
+
+                    overall_loss_rate = overall_loss/overall_total;
 
                     if(loss_up *(3) < loss_down && decision>0 && loss_up !=0) {
                        cout<<"hit"<<endl;
@@ -547,17 +583,32 @@ class PCC : public CCC {
                     move_stat.target_utility = curr_utility;
                     move_stat.target_loss_rate = loss_rate;
                     move_stat.target_loss_pkt = loss;
+                    move_stat.target_time = in_time;
+                    move_stat.target_rtt = rtt;
+                    move_stat.target_total_pkt = total;
+                    move_stat.target_latency_info = latency_info;
                     move_stat.target_ready = true;
                 }
 
                 if (move_stat.reference_ready && move_stat.target_ready){
                         // see if the change direction is wrong and is reversed
+                        double overall_loss =0, overall_total = 0;
+                        overall_loss = move_stat.reference_loss_pkt + move_stat.target_loss_pkt;
+                        overall_total = move_stat.reference_total_pkt + move_stat.target_loss_pkt;
+                        if(overall_loss/overall_total >=1) {
+                           cout<<"detect"<<endl;
+                           move_stat.reference_utility = utility(move_stat.reference_total_pkt, move_stat.reference_total_pkt*overall_loss/overall_total, move_stat.reference_time, move_stat.reference_rtt,
+                                           move_stat.reference_latency_info);
+                           move_stat.target_utility = utility(move_stat.target_total_pkt, move_stat.target_total_pkt*overall_loss/overall_total, move_stat.target_time, move_stat.target_rtt,
+                                           move_stat.target_latency_info);
+                        }
+
                         double change = decide(move_stat.reference_utility, move_stat.target_utility,
                                                move_stat.reference_rate, move_stat.target_rate, false);
                         cerr<<"change for move is "<<change<<endl;
                         bool second_guess = false;
                         if((move_stat.reference_rate - move_stat.target_rate) * (move_stat.reference_loss_rate - move_stat.target_loss_rate) <0
-                            && (abs(move_stat.reference_loss_pkt - move_stat.target_loss_pkt) > 3)) {
+                            && (abs(move_stat.reference_loss_pkt - move_stat.target_loss_pkt) > 2)) {
                            second_guess = true;
                            if(double_check > 0) {
                                double_check--;
@@ -610,6 +661,9 @@ class PCC : public CCC {
                                     move_stat.reference_rate = move_stat.target_rate;
                                     move_stat.reference_loss_rate = move_stat.target_loss_rate;
                                     move_stat.reference_loss_pkt = move_stat.target_loss_pkt;
+                                    move_stat.reference_total_pkt = move_stat.target_total_pkt;
+                                    move_stat.reference_time = move_stat.target_time;
+                                    move_stat.reference_rtt = move_stat.target_rtt;
                                     move_stat.target_rate = move_stat.reference_rate + change;
 
                                     //move_stat.reference_monitor = current;
@@ -971,7 +1025,7 @@ class PCC : public CCC {
         return min;
     }
 
-    virtual long double utility(unsigned long total, unsigned long loss,
+    virtual long double utility(double total, double loss,
                                 double time, double rtt, double latency_info) {
         static long double last_measurement_interval = 1;
 
