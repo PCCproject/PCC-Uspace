@@ -28,6 +28,9 @@ struct GuessStat {
     bool ready;
     bool isup;
     double loss_rate;
+    double loss;
+    double total;
+    double latency_info;
 };
 
 
@@ -45,6 +48,10 @@ struct MoveStat {
     double target_loss_rate;
     double target_loss_pkt;
     double reference_loss_pkt;
+    double target_total_pkt;
+    double reference_total_pkt;
+    double target_latency_info;
+    double reference_latency_info;
 };
 
 struct RecentEndMonitorStat {
@@ -462,13 +469,14 @@ class PCC : public CCC {
                         }
                     }
 
-                    if(loss_up *(10) < loss_down && decision>0 && loss_up !=0) {
+                    if(loss_up *(3) < loss_down && decision>0 && loss_up !=0) {
                        cout<<"hit"<<endl;
                        if(double_check >0) {
                           decision = 0;
                           double_check --;
                        } else {
                           double_check = 1; 
+                          trend_count_ = 2;
                        }
                     } else {
                        double_check = 1;
@@ -514,6 +522,8 @@ class PCC : public CCC {
                         }
                     } else {
                         //if(probe_amplifier < 5)
+                        trend_count_ = 2;
+                        prev_change_ = 0;
                         state_ = SEARCH;
                         move_stat.reference_ready = false;
                         probe_amplifier ++;
@@ -547,7 +557,7 @@ class PCC : public CCC {
                         cerr<<"change for move is "<<change<<endl;
                         bool second_guess = false;
                         if((move_stat.reference_rate - move_stat.target_rate) * (move_stat.reference_loss_rate - move_stat.target_loss_rate) <0
-                            && (abs(move_stat.reference_loss_pkt - move_stat.target_loss_pkt) > 2 || avg_loss > 0.02)) {
+                            && (abs(move_stat.reference_loss_pkt - move_stat.target_loss_pkt) > 3)) {
                            second_guess = true;
                            if(double_check > 0) {
                                double_check--;
@@ -555,11 +565,12 @@ class PCC : public CCC {
                         } else {
                            
                         }
-                        second_guess = false;
                         if (second_guess) {
                                 cerr<<"second guess"<<endl;
                                 move_stat.target_monitor = -1;
                                 state_ = SEARCH;
+                                trend_count_ = 2;
+                                prev_change_ = 0;
                                 move_stat.reference_ready = false;
                                 move_stat.target_ready = false;
                                 guess_measurement_bucket.clear();
@@ -682,7 +693,7 @@ class PCC : public CCC {
         //double change = 2 * rate()/1000 * kEpsilon * avg_gradient();
         //double change = avg_gradient() * rate();
         double change = avg_gradient() * kFactor;
-        if(change * prev_change_ <= 0) {
+        if(change * prev_change_ < 0) {
             //if(amplifier >0)
             //    amplifier --;
             //if(boundary_amplifier >0)
@@ -692,6 +703,8 @@ class PCC : public CCC {
             if(swing_buffer < 4)
                 swing_buffer ++;
 
+        } else if(prev_change_ * change ==0) {
+            // do nothing
         }
         //cout<<"amplifier"<<amplifier<<endl;
         if(amplifier<3) {
@@ -711,8 +724,10 @@ class PCC : public CCC {
         //} else {
         //    change *= (pow(amplifier, 1) * 8 - 58 + 1);
         //}
-        if(change * prev_change_ <= 0) {
+        if(change * prev_change_ < 0) {
             trend_count_ =0;
+        } else if(prev_change_ * change ==0) {
+            // do nothing
         } else {
             trend_count_ ++;
             if(swing_buffer == 0) {
@@ -756,10 +771,10 @@ class PCC : public CCC {
             //cout<<"not forcing"<<endl;
         }
 
-        if(change * prev_change_ <= 0) {
+        if(change * prev_change_ < 0) {
             amplifier = 0;
             boundary_amplifier = 0;
-        }
+        } 
 
         if(abs(change)/base_rate_ > 0.5) {
             //change = abs(change)/change*rate()*(0.5);
@@ -1005,9 +1020,6 @@ class PCC : public CCC {
         if(loss_rate <= 0.03)
             loss_contribution = total* (1* (pow((1+loss_rate), exponent_)-1));
 
-        if(avg_loss <= 0.02 && loss <=5) {
-            loss_contribution = 0;
-        }
         //    //loss_contribution = 0;
         //else if (loss_rate<=0.01)
         //    loss_contribution = 0;
