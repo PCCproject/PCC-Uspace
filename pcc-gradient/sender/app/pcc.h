@@ -92,7 +92,7 @@ class PCC : public CCC {
         move_stat.reference_ready = false;
         move_stat.target_ready = false;
         double_check = 1;
-        loss_ignore_count = 0;
+        loss_ignore_count = 50;
         cerr << "new Code!!!" << endl;
         cerr << "configuration: alpha = " << alpha_ << ", beta = " << beta_   <<
              ", exponent = " << exponent_ <<
@@ -109,10 +109,10 @@ class PCC : public CCC {
 
     ~PCC() {}
     double getkDelta() {
-        if(0.5/base_rate_ >0.04) {
+        if(0.5/base_rate_ >0.05) {
            return 0.5/base_rate_;
         }
-        return 0.04;
+        return 0.05;
         return 0.05 * (1 + probe_amplifier);
     }
 
@@ -462,7 +462,8 @@ class PCC : public CCC {
                         }
                     }
 
-                    if(loss_up < loss_down) {
+                    if(loss_up *(10) < loss_down && decision>0 && loss_up !=0) {
+                       cout<<"hit"<<endl;
                        if(double_check >0) {
                           decision = 0;
                           double_check --;
@@ -498,13 +499,19 @@ class PCC : public CCC {
 #ifdef DEBUG
                         cerr<<"all record is acquired and ready to change by "<<change<<endl;
 #endif
-                        state_ = MOVING;
-                        amplifier = 0;
-                        boundary_amplifier = 0;
-                        move_stat.target_rate = move_stat.reference_rate + change;
-                        move_stat.change = change;
-                        if(probe_amplifier > 0)
-                            probe_amplifier --;
+                        if(change/base_rate_<=0.05) {
+                            state_ = SEARCH;
+                            base_rate_ =base_rate_+change;
+                            setRate(base_rate_);
+                        } else {
+                            state_ = MOVING;
+                            amplifier = 0;
+                            boundary_amplifier = 0;
+                            move_stat.target_rate = move_stat.reference_rate + change;
+                            move_stat.change = change;
+                            if(probe_amplifier > 0)
+                                probe_amplifier --;
+                        }
                     } else {
                         //if(probe_amplifier < 5)
                         state_ = SEARCH;
@@ -548,6 +555,7 @@ class PCC : public CCC {
                         } else {
                            
                         }
+                        second_guess = false;
                         if (second_guess) {
                                 cerr<<"second guess"<<endl;
                                 move_stat.target_monitor = -1;
@@ -569,28 +577,40 @@ class PCC : public CCC {
                                 move_stat.reference_ready = false;
                                 move_stat.target_ready = false;
                                 guess_measurement_bucket.clear();
+                                number_of_probes_ = 4;
                             } else {
                                 cerr<<"direction same, keep moving with change of "<<change<<endl;
-                                move_stat.reference_monitor = move_stat.target_monitor;
-                                move_stat.reference_utility = move_stat.target_utility;
-                                move_stat.target_monitor = (current + 1) % MAX_MONITOR;
-                                move_stat.reference_ready = true;
-                                move_stat.target_ready = false;
-                                move_stat.change = change;
-                                move_stat.reference_rate = move_stat.target_rate;
-                                move_stat.reference_loss_rate = move_stat.target_loss_rate;
-                                move_stat.reference_loss_pkt = move_stat.target_loss_pkt;
-                                move_stat.target_rate = move_stat.reference_rate + change;
+                                if(change/base_rate_<=0.05) {
+                                    base_rate_ = change + base_rate_;
+                                    setRate(base_rate_);
+                                    move_stat.target_monitor = -1;
+                                    state_ = SEARCH;
+                                    move_stat.reference_ready = false;
+                                    move_stat.target_ready = false;
+                                    guess_measurement_bucket.clear();
+                                    trend_count_ = 2;
+                                } else {
+                                    move_stat.reference_monitor = move_stat.target_monitor;
+                                    move_stat.reference_utility = move_stat.target_utility;
+                                    move_stat.target_monitor = (current + 1) % MAX_MONITOR;
+                                    move_stat.reference_ready = true;
+                                    move_stat.target_ready = false;
+                                    move_stat.change = change;
+                                    move_stat.reference_rate = move_stat.target_rate;
+                                    move_stat.reference_loss_rate = move_stat.target_loss_rate;
+                                    move_stat.reference_loss_pkt = move_stat.target_loss_pkt;
+                                    move_stat.target_rate = move_stat.reference_rate + change;
 
-                                //move_stat.reference_monitor = current;
-                                //move_stat.target_monitor = (current + 1) % MAX_MONITOR;
-                                //move_stat.reference_ready = false;
-                                //move_stat.target_ready = false;
-                                //move_stat.change = change;
-                                //move_stat.reference_rate = move_stat.target_rate;
-                                //move_stat.reference_loss_rate = move_stat.target_loss_rate;
-                                //move_stat.reference_loss_pkt = move_stat.target_loss_pkt;
-                                //move_stat.target_rate = move_stat.reference_rate + change;
+                                    //move_stat.reference_monitor = current;
+                                    //move_stat.target_monitor = (current + 1) % MAX_MONITOR;
+                                    //move_stat.reference_ready = false;
+                                    //move_stat.target_ready = false;
+                                    //move_stat.change = change;
+                                    //move_stat.reference_rate = move_stat.target_rate;
+                                    //move_stat.reference_loss_rate = move_stat.target_loss_rate;
+                                    //move_stat.reference_loss_pkt = move_stat.target_loss_pkt;
+                                    //move_stat.target_rate = move_stat.reference_rate + change;
+                                }
                             }
                         }
                 }
@@ -623,13 +643,13 @@ class PCC : public CCC {
     }
 
     void search(int current_monitor) {
-        //if(trend_count_ >= 3) {
-        //    cout<<"turn to fast moving mode"<<endl;
-        //    number_of_probes_ = 2;
-        //} else {
-        //    //cout<<"turn to SLOW moving mode"<<endl;
-        //    number_of_probes_ = 4;
-        //}
+        if(trend_count_ >= 2) {
+            //cout<<"turn to fast moving mode"<<endl;
+            number_of_probes_ = 2;
+        } else {
+            //cout<<"turn to SLOW moving mode"<<endl;
+            number_of_probes_ = 4;
+        }
         
         
 
