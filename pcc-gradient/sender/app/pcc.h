@@ -470,10 +470,16 @@ class PCC : public CCC {
 
                     if(overall_loss_rate >= 0.05) {
                         cout<<"detect "<<overall_loss_rate<<endl;
-                        //for(int i=0; i < number_of_probes_; i++) {
-                        //    guess_measurement_bucket[i].utility = utility(guess_measurement_bucket[i].total, overall_loss_rate*guess_measurement_bucket[i].total, guess_measurement_bucket[i].time, guess_measurement_bucket[i].rtt,
-                        //                   guess_measurement_bucket[i].latency_info);
-                        //}
+                        double loss_rate_to_use = 0;
+                        for(int i=0; i < number_of_probes_; i++) {
+                            if(guess_measurement_bucket[i].loss_rate>loss_rate_to_use) {
+                                loss_rate_to_use = guess_measurement_bucket[i].loss_rate;
+                            }
+                        }
+                        for(int i=0; i < number_of_probes_; i++) {
+                            guess_measurement_bucket[i].utility = utility(guess_measurement_bucket[i].total, loss_rate_to_use*guess_measurement_bucket[i].total, guess_measurement_bucket[i].time, guess_measurement_bucket[i].rtt,
+                                           guess_measurement_bucket[i].latency_info);
+                        }
                     }
 
                     for(int i=0; i < number_of_probes_/2; i++) {
@@ -542,7 +548,7 @@ class PCC : public CCC {
 #ifdef DEBUG
                         cerr<<"all record is acquired and ready to change by "<<change<<endl;
 #endif
-                        if(change/base_rate_<=0.05) {
+                        if(change/base_rate_<=0.1) {
                             state_ = SEARCH;
                             base_rate_ =base_rate_+change;
                             setRate(base_rate_);
@@ -597,10 +603,11 @@ class PCC : public CCC {
                         double overall_loss_rate = overall_loss/overall_total;
                         if(overall_loss_rate >= 0.05) {
                            cout<<"detect"<<overall_loss_rate<<endl;
-                           //move_stat.reference_utility = utility(move_stat.reference_total_pkt, move_stat.reference_total_pkt*overall_loss/overall_total, move_stat.reference_time, move_stat.reference_rtt,
-                           //                move_stat.reference_latency_info);
-                           //move_stat.target_utility = utility(move_stat.target_total_pkt, move_stat.target_total_pkt*overall_loss/overall_total, move_stat.target_time, move_stat.target_rtt,
-                           //                move_stat.target_latency_info);
+                           double loss_rate_to_use = move_stat.reference_loss_rate?move_stat.reference_loss_rate>move_stat.target_loss_rate:move_stat.target_loss_rate;
+                           move_stat.reference_utility = utility(move_stat.reference_total_pkt, move_stat.reference_total_pkt*loss_rate_to_use, move_stat.reference_time, move_stat.reference_rtt,
+                                           move_stat.reference_latency_info);
+                           move_stat.target_utility = utility(move_stat.target_total_pkt, move_stat.target_total_pkt*loss_rate_to_use, move_stat.target_time, move_stat.target_rtt,
+                                           move_stat.target_latency_info);
                         }
 
                         double change = decide(move_stat.reference_utility, move_stat.target_utility,
@@ -642,7 +649,7 @@ class PCC : public CCC {
                                 number_of_probes_ = 4;
                             } else {
                                 cerr<<"direction same, keep moving with change of "<<change<<endl;
-                                if(change/base_rate_<=0.05) {
+                                if(change/base_rate_<=0.1) {
                                     base_rate_ = change + base_rate_;
                                     setRate(base_rate_);
                                     move_stat.target_monitor = -1;
