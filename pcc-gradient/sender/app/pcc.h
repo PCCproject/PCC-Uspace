@@ -468,12 +468,12 @@ class PCC : public CCC {
                     overall_loss_rate = overall_loss/overall_total;
 
 
-                    if(overall_loss_rate >=1) {
-                        cout<<"detect"<<endl;
-                        for(int i=0; i < number_of_probes_; i++) {
-                            guess_measurement_bucket[i].utility = utility(guess_measurement_bucket[i].total, overall_loss_rate*guess_measurement_bucket[i].total, guess_measurement_bucket[i].time, guess_measurement_bucket[i].rtt,
-                                           guess_measurement_bucket[i].latency_info);
-                        }
+                    if(overall_loss_rate >= 0.05) {
+                        cout<<"detect "<<overall_loss_rate<<endl;
+                        //for(int i=0; i < number_of_probes_; i++) {
+                        //    guess_measurement_bucket[i].utility = utility(guess_measurement_bucket[i].total, overall_loss_rate*guess_measurement_bucket[i].total, guess_measurement_bucket[i].time, guess_measurement_bucket[i].rtt,
+                        //                   guess_measurement_bucket[i].latency_info);
+                        //}
                     }
 
                     for(int i=0; i < number_of_probes_/2; i++) {
@@ -497,15 +497,14 @@ class PCC : public CCC {
                     }
                     for(int i=0; i < number_of_probes_; i++) {
                         if(guess_measurement_bucket[i].isup){
-                            loss_up += guess_measurement_bucket[i].loss_rate;
+                            loss_up += guess_measurement_bucket[i].loss;
                         } else {
-                            loss_down += guess_measurement_bucket[i].loss_rate;
+                            loss_down += guess_measurement_bucket[i].loss;
                         }
                     }
 
-                    overall_loss_rate = overall_loss/overall_total;
 
-                    if(loss_up *(3) < loss_down && decision>0 && loss_up !=0) {
+                    if((loss_down - loss_up) >2 && decision>0 && loss_up !=0 && overall_loss_rate>=0.05) {
                        cout<<"hit"<<endl;
                        if(double_check >0) {
                           decision = 0;
@@ -595,12 +594,13 @@ class PCC : public CCC {
                         double overall_loss =0, overall_total = 0;
                         overall_loss = move_stat.reference_loss_pkt + move_stat.target_loss_pkt;
                         overall_total = move_stat.reference_total_pkt + move_stat.target_loss_pkt;
-                        if(overall_loss/overall_total >=1) {
-                           cout<<"detect"<<endl;
-                           move_stat.reference_utility = utility(move_stat.reference_total_pkt, move_stat.reference_total_pkt*overall_loss/overall_total, move_stat.reference_time, move_stat.reference_rtt,
-                                           move_stat.reference_latency_info);
-                           move_stat.target_utility = utility(move_stat.target_total_pkt, move_stat.target_total_pkt*overall_loss/overall_total, move_stat.target_time, move_stat.target_rtt,
-                                           move_stat.target_latency_info);
+                        double overall_loss_rate = overall_loss/overall_total;
+                        if(overall_loss_rate >= 0.05) {
+                           cout<<"detect"<<overall_loss_rate<<endl;
+                           //move_stat.reference_utility = utility(move_stat.reference_total_pkt, move_stat.reference_total_pkt*overall_loss/overall_total, move_stat.reference_time, move_stat.reference_rtt,
+                           //                move_stat.reference_latency_info);
+                           //move_stat.target_utility = utility(move_stat.target_total_pkt, move_stat.target_total_pkt*overall_loss/overall_total, move_stat.target_time, move_stat.target_rtt,
+                           //                move_stat.target_latency_info);
                         }
 
                         double change = decide(move_stat.reference_utility, move_stat.target_utility,
@@ -608,7 +608,7 @@ class PCC : public CCC {
                         cerr<<"change for move is "<<change<<endl;
                         bool second_guess = false;
                         if((move_stat.reference_rate - move_stat.target_rate) * (move_stat.reference_loss_rate - move_stat.target_loss_rate) <0
-                            && (abs(move_stat.reference_loss_pkt - move_stat.target_loss_pkt) > 2)) {
+                            && (abs(move_stat.reference_loss_pkt - move_stat.target_loss_pkt) > 2 || overall_loss_rate >= 0.05)) {
                            second_guess = true;
                            if(double_check > 0) {
                                double_check--;
