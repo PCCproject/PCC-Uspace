@@ -554,8 +554,6 @@ class PCC : public CCC {
                             setRate(base_rate_);
                         } else {
                             state_ = MOVING;
-                            amplifier = 0;
-                            boundary_amplifier = 0;
                             move_stat.target_rate = move_stat.reference_rate + change;
                             move_stat.change = change;
                             if(probe_amplifier > 0)
@@ -601,14 +599,15 @@ class PCC : public CCC {
                         overall_loss = move_stat.reference_loss_pkt + move_stat.target_loss_pkt;
                         overall_total = move_stat.reference_total_pkt + move_stat.target_loss_pkt;
                         double overall_loss_rate = overall_loss/overall_total;
-                        if(overall_loss_rate >= 0.05) {
-                           cout<<"detect"<<overall_loss_rate<<endl;
-                           double loss_rate_to_use = move_stat.reference_loss_rate?move_stat.reference_loss_rate>move_stat.target_loss_rate:move_stat.target_loss_rate;
-                           move_stat.reference_utility = utility(move_stat.reference_total_pkt, move_stat.reference_total_pkt*loss_rate_to_use, move_stat.reference_time, move_stat.reference_rtt,
-                                           move_stat.reference_latency_info);
-                           move_stat.target_utility = utility(move_stat.target_total_pkt, move_stat.target_total_pkt*loss_rate_to_use, move_stat.target_time, move_stat.target_rtt,
-                                           move_stat.target_latency_info);
-                        }
+                        //if(overall_loss_rate >= 0.05) {
+                        //   cerr<<"detect"<<overall_loss_rate<<" refernece loss "<<move_stat.reference_loss_rate<<"target loss rate"<<move_stat.target_loss_rate<<endl;
+                        //   double loss_rate_to_use = (move_stat.reference_loss_rate>move_stat.target_loss_rate)?move_stat.reference_loss_rate:move_stat.target_loss_rate;
+                        //   move_stat.reference_utility = utility(move_stat.reference_total_pkt, move_stat.reference_total_pkt*loss_rate_to_use, move_stat.reference_time, move_stat.reference_rtt,
+                        //                   move_stat.reference_latency_info);
+                        //   move_stat.target_utility = utility(move_stat.target_total_pkt, move_stat.target_total_pkt*loss_rate_to_use, move_stat.target_time, move_stat.target_rtt,
+                        //                   move_stat.target_latency_info);
+                        //   cerr<<"loss rate to use is "<<loss_rate_to_use<<"utility after calculation is "<<move_stat.target_utility<<" "<<move_stat.reference_utility<<endl;
+                        //}
 
                         double change = decide(move_stat.reference_utility, move_stat.target_utility,
                                                move_stat.reference_rate, move_stat.target_rate, false);
@@ -715,7 +714,7 @@ class PCC : public CCC {
     }
 
     void search(int current_monitor) {
-        if(trend_count_ >= 2) {
+        if(trend_count_ >= 1) {
             //cout<<"turn to fast moving mode"<<endl;
             number_of_probes_ = 2;
         } else {
@@ -761,7 +760,7 @@ class PCC : public CCC {
             //    boundary_amplifier --;
             amplifier = 0;
             boundary_amplifier = 0;
-            if(swing_buffer < 4)
+            if(swing_buffer < 1)
                 swing_buffer ++;
 
         } else if(prev_change_ * change ==0) {
@@ -793,7 +792,7 @@ class PCC : public CCC {
             trend_count_ ++;
             if(swing_buffer == 0) {
                 if(amplifier > 3) {
-                    amplifier +=0.5;
+                    amplifier +=1;
                 }
                 else {
                     amplifier ++;
