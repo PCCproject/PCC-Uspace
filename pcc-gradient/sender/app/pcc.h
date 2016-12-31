@@ -305,9 +305,9 @@ class PCC : public CCC {
         }
       
         double loss_rate = loss/double(total);
-        if(loss_rate > 0) {
-           loss_rate = ceil(loss_rate * 100)/100.0;
-        }
+        //if(loss_rate > 0) {
+        //   loss_rate = ceil(loss_rate * 100)/100.0;
+        //}
         long double curr_utility = utility(total, loss, in_time, rtt,
                                            latency_info);
         if(endMonitor == move_stat.reference_monitor) {
@@ -469,13 +469,29 @@ class PCC : public CCC {
 
 
                     if(overall_loss_rate >= 0.05) {
-                        cout<<"detect "<<overall_loss_rate<<endl;
+                        //cout<<"detect "<<overall_loss_rate<<endl;
                         double loss_rate_to_use = 0;
                         for(int i=0; i < number_of_probes_; i++) {
                             if(guess_measurement_bucket[i].loss_rate>loss_rate_to_use) {
                                 loss_rate_to_use = guess_measurement_bucket[i].loss_rate;
                             }
                         }
+                        for(int i=0; i < number_of_probes_; i++) {
+                            guess_measurement_bucket[i].utility = utility(guess_measurement_bucket[i].total, loss_rate_to_use*guess_measurement_bucket[i].total, guess_measurement_bucket[i].time, guess_measurement_bucket[i].rtt,
+                                           guess_measurement_bucket[i].latency_info);
+                        }
+                    }
+
+                    if(overall_loss_rate <= 0.01) {
+                        //cout<<"detect 2"<<overall_loss_rate<<endl;
+                        //cout<<"overall loss rate"<<overall_loss_rate<<endl;
+                        double loss_rate_to_use = 0;
+                        for(int i=0; i < number_of_probes_; i++) {
+                                //cout<<guess_measurement_bucket[i].loss_rate<<endl;
+                            if(guess_measurement_bucket[i].loss_rate>loss_rate_to_use) {
+                            }
+                        }
+                        loss_rate_to_use = overall_loss_rate;
                         for(int i=0; i < number_of_probes_; i++) {
                             guess_measurement_bucket[i].utility = utility(guess_measurement_bucket[i].total, loss_rate_to_use*guess_measurement_bucket[i].total, guess_measurement_bucket[i].time, guess_measurement_bucket[i].rtt,
                                            guess_measurement_bucket[i].latency_info);
@@ -760,7 +776,7 @@ class PCC : public CCC {
             //    boundary_amplifier --;
             amplifier = 0;
             boundary_amplifier = 0;
-            if(swing_buffer < 1)
+            if(swing_buffer < 2)
                 swing_buffer ++;
 
         } else if(prev_change_ * change ==0) {
@@ -792,7 +808,7 @@ class PCC : public CCC {
             trend_count_ ++;
             if(swing_buffer == 0) {
                 if(amplifier > 3) {
-                    amplifier +=1;
+                    amplifier +=0.5;
                 }
                 else {
                     amplifier ++;
@@ -1044,9 +1060,9 @@ class PCC : public CCC {
         long double loss_rate = (long double)((double) loss/(double) total);
 	sum_total += total;
         sum_loss += loss;
-        if(loss_rate > 0) {
-           loss_rate = ceil(loss_rate * 100)/100.0;
-        }
+        //if(loss_rate > 0) {
+        //   loss_rate = ceil(loss_rate * 100)/100.0;
+        //}
         //if(loss_rate > 0.05) {
         //   loss_rate = ceil(loss_rate * 100 +1)/2*2/100.0;
         //}
