@@ -468,7 +468,7 @@ class PCC : public CCC {
                     overall_loss_rate = overall_loss/overall_total;
 
 
-                    if(overall_loss_rate >= 0.05) {
+                    /*if(overall_loss_rate >= 0.05) {
                         //cout<<"detect "<<overall_loss_rate<<endl;
                         double loss_rate_to_use = 0;
                         for(int i=0; i < number_of_probes_; i++) {
@@ -480,7 +480,7 @@ class PCC : public CCC {
                             guess_measurement_bucket[i].utility = utility(guess_measurement_bucket[i].total, loss_rate_to_use*guess_measurement_bucket[i].total, guess_measurement_bucket[i].time, guess_measurement_bucket[i].rtt,
                                            guess_measurement_bucket[i].latency_info);
                         }
-                    }
+                    }*/
 
                     if(overall_loss_rate <= 0.01) {
                         //cout<<"detect 2"<<overall_loss_rate<<endl;
