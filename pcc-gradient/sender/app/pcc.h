@@ -296,9 +296,17 @@ class PCC : public CCC {
         
         if(state_ == START) {
           if(loss_ignore_count >= loss) {
+              if (latency_info > -0.2 && latency_info < 0.2) {
+                latency_info = 0.0;
+              }
               loss = 0;
               loss_ignore_count -= loss;
           } else {
+              if (loss_ignore_count > 0) {
+                if (latency_info > -0.2 && latency_info < 0.2) {
+                  latency_info = 0.0;
+                }
+              }
               loss -= loss_ignore_count;
               loss_ignore_count = 0;
           }
@@ -329,7 +337,7 @@ class PCC : public CCC {
 #endif
         // TODO we should keep track of all monitors and closely mointoring RTT
         // and utility change between monitor
-        if(double(loss)/total >0.8) {
+        if(double(loss)/total >0.5) {
 #ifdef DEBUG
         cerr<<"Emergency stop"<<endl;
 #endif
@@ -1133,6 +1141,7 @@ class PCC : public CCC {
         cerr<<"total "<<
             total<<"loss contri"<<loss_contribution<<"rtt contr"<<rtt_contribution<<"time "<<time<<"norm measurement"<<norm_measurement_interval<<endl;
         cerr<<"rtt is "<<rtt<<"loss rate is "<<loss_rate<<"avg loss rate is "<<avg_loss<<endl;
+        cerr<<"latency info is "<<latency_info<<endl;
 #endif
 
         return utility;
