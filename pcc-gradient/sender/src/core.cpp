@@ -39,6 +39,7 @@ written by
  *****************************************************************************/
 
 #ifndef WIN32
+#include <assert.h>
 #include <unistd.h>
 #include <netdb.h>
 #include <arpa/inet.h>
@@ -61,8 +62,97 @@ written by
 #include <iostream>
 #include "queue.h"
 #include "core.h"
+#include "CongestionEvents.h"
+#include <unordered_map>
+#include <map>
+#include <mutex>
 
 using namespace std;
+
+typedef uint64_t PacketId;
+
+std::map<int, std::vector<PacketId> > pkt_num_to_id_map;
+std::mutex pkt_num_to_id_lock;
+
+std::map<PacketId, int> pkt_byte_map;
+std::mutex pkt_byte_map_lock;
+std::mutex pcc_sender_lock;
+
+PacketId GetNextPacketId() {
+    static PacketId cur_pkt_id = 0;
+    ++cur_pkt_id;
+    return cur_pkt_id;
+}
+
+std::vector<PacketId> GetPacketIdList(int pkt_num) {
+    pkt_num_to_id_lock.lock();
+    std::map<int, std::vector<PacketId> >::iterator element = pkt_num_to_id_map.find(pkt_num);
+    pkt_num_to_id_lock.unlock();
+    if (element == pkt_num_to_id_map.end()) {
+        //std::cerr << "Unable to find packet id for packet " << pkt_num << std::endl; 
+        //exit(-1);
+        return std::vector<PacketId>(); // Return an empty vector
+    }
+    return element->second;
+}
+
+void RecordPacketId(int pkt_num, PacketId pkt_id) {
+    pkt_num_to_id_lock.lock();
+    //std::cerr << "Recorded packet " << pkt_num << " id as " << pkt_id << std::endl;
+    std::map<int, std::vector<PacketId> >::iterator element = pkt_num_to_id_map.find(pkt_num);
+    if (element == pkt_num_to_id_map.end()) {
+        //std::cerr << "Unable to find packet id for packet " << pkt_num << std::endl; 
+        std::vector<PacketId> ids;
+        ids.push_back(pkt_id);
+        pkt_num_to_id_map.insert(std::make_pair(pkt_num, ids));
+    } else {
+        element->second.push_back(pkt_id);
+    }
+    pkt_num_to_id_lock.unlock();
+}
+
+void DeletePacketIdRecord(int pkt_num) {
+    std::map<int, std::vector<PacketId> >::iterator element = pkt_num_to_id_map.find(pkt_num);
+    if (element == pkt_num_to_id_map.end()) {
+        //std::cerr << "Unable to delete id record for packet " << pkt_id << std::endl; 
+        return;
+    }
+    pkt_num_to_id_lock.lock();
+    //std::cerr << "Deleted id record for packet " << pkt_num << std::endl;
+    pkt_num_to_id_map.erase(element);
+    pkt_num_to_id_lock.unlock();
+}
+
+int GetPacketSize(PacketId pkt_id) {
+    pkt_byte_map_lock.lock();
+    std::map<PacketId, int>::iterator element = pkt_byte_map.find(pkt_id);
+    pkt_byte_map_lock.unlock();
+    if (element == pkt_byte_map.end()) {
+        //std::cerr << "Unable to find packet size for packet " << pkt_id << std::endl; 
+        //exit(-1);
+        return 0;
+    }
+    return element->second;
+}
+
+void DeletePacketSizeRecord(PacketId pkt_id) {
+    std::map<PacketId, int>::iterator element = pkt_byte_map.find(pkt_id);
+    if (element == pkt_byte_map.end()) {
+        //std::cerr << "Unable to delete packet size for packet " << pkt_id << std::endl; 
+        return;
+    }
+    pkt_byte_map_lock.lock();
+    //std::cerr << "Deleted record for packet " << pkt_num << std::endl;
+    pkt_byte_map.erase(element);
+    pkt_byte_map_lock.unlock();
+}
+
+void RecordPacketSize(PacketId pkt_id, int size) {
+    pkt_byte_map_lock.lock();
+    //std::cerr << "Recorded packet " << pkt_id << " size as " << size << std::endl;
+    pkt_byte_map.insert(std::make_pair(pkt_id, size));
+    pkt_byte_map_lock.unlock();
+}
 
 
 CUDTUnited CUDT::s_UDTUnited;
@@ -804,6 +894,7 @@ int CUDT::connect(const CPacket& response) throw ()
 	}
 
 	m_pCC = m_pCCFactory->create();
+    pcc_sender = new PccSender(this, 1000, 1000);
 	m_pCC->m_UDT = m_SocketID;
 	m_pCC->setMSS(m_iMSS);
 	m_pCC->setMaxCWndSize((int&)m_iFlowWindowSize);
@@ -2014,6 +2105,24 @@ void CUDT::sendCtrl(const int& pkttype, void* lparam, void* rparam, const int& s
 void CUDT::add_to_loss_record(int32_t loss1, int32_t loss2){
 //TODO: loss record does not have lock, this might cause problem
 
+    CongestionVector acked_packets;
+    CongestionVector lost_packets;
+    std::cerr << "Lost: getting sizes for packets between " << loss1 << " and " << loss2 << std::endl;
+    for (int loss = loss1; loss <= loss2; ++loss) {
+        std::vector<PacketId> pkt_ids = GetPacketIdList(loss);
+        for (PacketId pkt_id : pkt_ids) {
+            CongestionEvent loss_event;
+            loss_event.seq_no = pkt_id;
+            loss_event.acked_bytes = 0;
+            loss_event.lost_bytes = GetPacketSize(pkt_id);
+            loss_event.time = CTimer::getTime();
+            lost_packets.push_back(loss_event);
+        }
+    }
+    pcc_sender_lock.lock();
+    OnCongestionEvent(*pcc_sender, CTimer::getTime(), (uint64_t)m_iRTT, acked_packets, lost_packets);
+    pcc_sender_lock.unlock();
+		
 #ifdef EXPERIMENTAL_FEATURE_CONTINOUS_SEND
 	pthread_mutex_lock(&m_LossrecordLock);
 	loss_record1.push_back(loss1);
@@ -2021,6 +2130,7 @@ void CUDT::add_to_loss_record(int32_t loss1, int32_t loss2){
 	pthread_mutex_unlock(&m_LossrecordLock);
 #endif
 }
+
 void CUDT::processCtrl(CPacket& ctrlpkt)
 {
 	// Just heard from the peer, reset the expiration count.
@@ -2037,7 +2147,29 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 	{
 	case 2: //010 - Acknowledgement
 	{
-		int32_t ack;
+        
+        int32_t ack = *(int32_t *)ctrlpkt.m_pcData;
+		
+        CongestionVector acked_packets;
+        CongestionVector lost_packets;
+        //std::cerr << "Getting sizes for packets between " << m_iSndLastAck << " and " << ack - 1 << std::endl;
+        for (int pkt_num = m_iSndLastAck; pkt_num < ack; ++pkt_num) {
+            std::vector<PacketId> pkt_ids = GetPacketIdList(pkt_num);
+            for (PacketId pkt_id : pkt_ids) {
+                CongestionEvent ack_event;
+                ack_event.time = CTimer::getTime();
+                ack_event.seq_no = pkt_id;
+                ack_event.acked_bytes = 0;
+                ack_event.acked_bytes += GetPacketSize(pkt_id);
+                ack_event.lost_bytes = 0;
+                DeletePacketSizeRecord(pkt_id);
+                acked_packets.push_back(ack_event);
+            }    
+            DeletePacketIdRecord(pkt_num);
+        }
+        pcc_sender_lock.lock();
+        OnCongestionEvent(*pcc_sender, CTimer::getTime(), (uint64_t)m_iRTT, acked_packets, lost_packets);
+        pcc_sender_lock.unlock();
 
 		// process a lite ACK
 		if (4 == ctrlpkt.getLength())
@@ -2232,7 +2364,7 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 
 	case 3: //011 - Loss Report
 	{
-		int32_t* losslist = (int32_t *)(ctrlpkt.m_pcData);
+        int32_t* losslist = (int32_t *)(ctrlpkt.m_pcData);
 		m_pCC->onLoss(losslist, ctrlpkt.getLength() / 4);
 		// update CC parameters
 		// m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
@@ -2256,8 +2388,9 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 				int num = 0;
 				//cerr<<(losslist[i]& 0x7FFFFFFF)<<'\t'<<losslist[i+1]<<endl;
 				if (CSeqNo::seqcmp(losslist[i] & 0x7FFFFFFF, const_cast<int32_t&>(m_iSndLastAck)) >= 0)
-				{   num = m_pSndLossList->insert(losslist[i] & 0x7FFFFFFF, losslist[i + 1]);
-                                add_to_loss_record(losslist[i]& 0x7FFFFFFF, losslist[i+1]);
+				{   
+                    add_to_loss_record(losslist[i]& 0x7FFFFFFF, losslist[i+1]);
+                    num = m_pSndLossList->insert(losslist[i] & 0x7FFFFFFF, losslist[i + 1]);
 //				loss_record1[lossptr]=losslist[i]& 0x7FFFFFFF;
 //				loss_record2[lossptr]=losslist[i+1];
 				//lossptr++;
@@ -2265,8 +2398,9 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 				}
 
 				else if (CSeqNo::seqcmp(losslist[i + 1], const_cast<int32_t&>(m_iSndLastAck)) >= 0)
-				{               num = m_pSndLossList->insert(const_cast<int32_t&>(m_iSndLastAck), losslist[i + 1]);
-                                add_to_loss_record(const_cast<int32_t&>(m_iSndLastAck), losslist[i+1]);
+				{               
+                    add_to_loss_record(const_cast<int32_t&>(m_iSndLastAck), losslist[i+1]);
+                    num = m_pSndLossList->insert(const_cast<int32_t&>(m_iSndLastAck), losslist[i + 1]);
 //				loss_record1[lossptr]=m_iSndLastAck;
 				//loss_record2[lossptr]=losslist[i+1];
 				//lossptr++;
@@ -2286,8 +2420,8 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 					break;
 				}
 
+                add_to_loss_record(losslist[i], losslist[i]);
 				int num = m_pSndLossList->insert(losslist[i], losslist[i]);
-                                add_to_loss_record(losslist[i], losslist[i]);
 //				loss_record1[lossptr]=losslist[i];
 //				loss_record2[lossptr]=losslist[i];
 				//lossptr++;
@@ -2519,7 +2653,7 @@ for(int i=0; i< total[tmp]; i++) {
                                                 //cout<<"Fill in rtt value as"<<m_last_rtt[Mon % MAX_MONITOR]<<endl;
                                                 //cerr<<"Monitor"<<tmp<<"ends at"<<CTimer::getTime()<<endl;
 
-						m_pCC->onMonitorEnds(total[tmp],total[tmp]-left[tmp],(end_transmission_time[tmp]-start_time[tmp])/1000000,current_monitor,tmp, rtt_value[Mon]/double(rtt_count[Mon]), latency_info);
+						//m_pCC->onMonitorEnds(total[tmp],total[tmp]-left[tmp],(end_transmission_time[tmp]-start_time[tmp])/1000000,current_monitor,tmp, rtt_value[Mon]/double(rtt_count[Mon]), latency_info);
 						m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
 						if (!left_monitor) break;
 					}
@@ -2765,6 +2899,20 @@ m_pSndLossList->insert(const_cast<int32_t&>(m_iSndLastAck), const_cast<int32_t&>
 	packet.m_iID = m_PeerID;
 	packet.setLength(payload);
 	m_pCC->onPktSent(&packet);
+
+    PacketId pkt_id = GetNextPacketId();
+    /*
+    std::vector<PacketId>
+    if (GetPacketId(packet.m_iSeqNo) != 0) {
+        std::cout << "\n\nError: packet " << packet.m_iSeqNo << " already in flight as " << GetPacketId(packet.m_iSeqNo) << "!\n\n";
+    }
+    */
+    RecordPacketId(packet.m_iSeqNo, pkt_id);
+    RecordPacketSize(pkt_id, packet.getLength());
+    std::cout << "Sent: " << pkt_id << ":" << packet.m_iSeqNo << std::endl;
+    pcc_sender_lock.lock();
+    OnPacketSent(*pcc_sender, packet.m_iTimeStamp, pkt_id, packet.getLength());
+    pcc_sender_lock.unlock();
 
 
 	++ m_llSentTotal;
@@ -3135,7 +3283,7 @@ void CUDT::start_monitor(int length)
     int suggested_length = 100000;
     int mss = m_iMSS;
     double amplifier = 0;
-	m_pCC->onMonitorStart(current_monitor, suggested_length, mss, amplifier);
+	//m_pCC->onMonitorStart(current_monitor, suggested_length, mss, amplifier);
     if(mss != m_iMSS) {
         this->resizeMSS(mss);
     }
@@ -3267,7 +3415,8 @@ void CUDT::init_state() {
 
 bool CUDT::timeout_monitors() {
         return false;
-	lock_guard<mutex> lck(monitor_mutex_);
+	assert(false && "Code unreachable!");
+    lock_guard<mutex> lck(monitor_mutex_);
 	uint64_t current_time = CTimer::getTime();
 	int tmp = (current_monitor + 1) % MAX_MONITOR;
 	while (tmp != current_monitor) {

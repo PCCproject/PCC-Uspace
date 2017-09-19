@@ -50,6 +50,7 @@ written by
 class UDT_API CCC
 {
 friend class CUDT;
+friend class PccSender;
 
 public:
    CCC();

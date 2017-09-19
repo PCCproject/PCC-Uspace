@@ -213,11 +213,12 @@ DWORD WINAPI monitor(LPVOID s)
          cout << "perfmon: " << UDT::getlasterror().getErrorMessage() << endl;
          break;
       }
-    cout<<""<<i<<"\t" << perf.mbpsSendRate << "\t"
+    /*cout<<""<<i<<"\t" << perf.mbpsSendRate << "\t"
            << perf.msRTT << "\t"
            <<  perf.pktSentTotal << "\t"
            << perf.pktSndLossTotal <<endl;
-	if (perf.pktSentTotal == 0) {
+	*/
+    if (perf.pktSentTotal == 0) {
 		avg_loss_rate = 0;
 	} else {
 		avg_loss_rate = (1.0 * perf.pktSndLossTotal - base_loss) / (1.0 * perf.pktSentTotal - base_sent);

@@ -61,6 +61,8 @@ written by
 #include <thread>
 #include "time.h"
 
+#include "pcc_sender.h"
+
 enum UDTSockType {UDT_STREAM = 1, UDT_DGRAM};
 
 class CUDT
@@ -75,6 +77,7 @@ friend class CSndQueue;
 friend class CRcvQueue;
 friend class CSndUList;
 friend class CRcvUList;
+friend class PccSender;
 
 private: // constructor and desctructor
    CUDT();
@@ -359,6 +362,7 @@ private: // Options
 private: // congestion control
    CCCVirtualFactory* m_pCCFactory;             // Factory class to create a specific CC instance
    CCC* m_pCC;                                  // congestion control class
+   PccSender* pcc_sender;
    CCache<CInfoBlock>* m_pCache;		// network information cache
 
 private: // Status

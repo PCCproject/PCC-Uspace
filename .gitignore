@@ -1,0 +1,8 @@
+*.o
+*.so
+*.a
+*server
+*client
+sendfile
+recvfile
+udt

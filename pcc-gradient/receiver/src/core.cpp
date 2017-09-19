@@ -1969,6 +1969,7 @@ void CUDT::sendCtrl(int pkttype, void* lparam, void* rparam, int size)
    case 32767: //0x7FFF - Resevered for future use
       if (NULL != rparam)
       {
+         //std::cout << "Sending special control packet" << std::endl;
          ctrlpkt.m_iTimeStamp = int((CTimer::getTime() -1472926800000000)/1000);
          ctrlpkt.pack(pkttype, NULL, rparam, size);
          ctrlpkt.m_iID = m_PeerID;
@@ -2424,6 +2425,7 @@ int CUDT::packData(CPacket& packet, uint64_t& ts)
 
 int CUDT::processData(CUnit* unit)
 {
+    //std::cout << "CUDT::processData" << std::endl;
    CPacket& packet = unit->m_Packet;
    // Just heard from the peer, reset the expiration count.
    m_iEXPCount = 1;
