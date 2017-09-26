@@ -464,6 +464,8 @@ private: // Generation and processing of packets
    uint64_t deadlines[MAX_MONITOR];
    uint64_t allocated_times_[MAX_MONITOR];
 
+   int loss_head_loc;
+
    static const uint64_t kMinTimeoutMillis = 50000;
 private: // Trace
    uint64_t m_StartTime;                        // timestamp when the UDT entity is started

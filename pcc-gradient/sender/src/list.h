@@ -180,7 +180,7 @@ public:
       // Returned value:
       //    None.
 
-   void getLossArray(int32_t* array, int& len, const int& limit);
+   void getLossArray(int32_t* array, int& len, int limit, int & offset);
 
 public:
    int32_t* m_piData1;                  // sequence number starts

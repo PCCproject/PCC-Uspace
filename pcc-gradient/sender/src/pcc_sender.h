@@ -14,6 +14,8 @@ class CUDT;
 // higher utility.
 class PccSender {
  public:
+
+ void DumpIntervalPacketStates() { /*interval_queue_.DumpIntervalPacketStates();*/ }
   // Sender's mode during a connection.
   enum SenderMode {
     // Initial phase of the connection. Sending rate gets doubled as

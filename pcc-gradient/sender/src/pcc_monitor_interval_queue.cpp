@@ -3,7 +3,9 @@
 #include <iostream>
       
       
-#define DEBUG_MONITOR_INTERVAL_QUEUE_ACKS
+//#define DEBUG_MONITOR_INTERVAL_QUEUE_ACKS
+//#define DEBUG_MONITOR_INTERVAL_QUEUE_LOSS
+//#define DEBUG_INTERVAL_SIZE
 
 namespace {
 // Number of probing MonitorIntervals necessary for Probing.
@@ -43,6 +45,22 @@ MonitorInterval::MonitorInterval(float sending_rate_mbps,
       rtt_on_monitor_end_us(rtt_us),
       utility(0.0) {}
 
+void MonitorInterval::DumpPacketStates() {
+    for (std::map<QuicPacketNumber, PacketState>::iterator it = pkt_state_map.begin(); it != pkt_state_map.end(); ++it) {
+        if (it->second == PACKET_STATE_SENT) {
+            std::cout << it->first << " in state SENT" << std::endl;
+        }
+    }
+}
+
+void PccMonitorIntervalQueue::DumpIntervalPacketStates() {
+  for (MonitorInterval& interval : monitor_intervals_) {
+    if (!interval.is_useful || IsUtilityAvailable(interval)) {
+      interval.DumpPacketStates();
+    }
+  }
+}
+
 UtilityInfo::UtilityInfo() : sending_rate_mbps(0.0), utility(0.0) {}
 
 UtilityInfo::UtilityInfo(float rate, float utility)
@@ -57,10 +75,10 @@ PccMonitorIntervalQueue::PccMonitorIntervalQueue(
 void PccMonitorIntervalQueue::EnqueueNewMonitorInterval(float sending_rate_mbps,
                                                         bool is_useful,
                                                         int64_t rtt_us) {
-  std::cout << "Added new monitor interval" << std::endl;
+  //std::cout << "Added new monitor interval" << std::endl;
   if (is_useful) {
     ++num_useful_intervals_;
-    std::cout << "\tInterval is useful! (now have " << num_useful_intervals_ << ")" << std::endl;
+    //std::cout << "\tInterval is useful! (now have " << num_useful_intervals_ << ")" << std::endl;
   }
 
   monitor_intervals_.emplace_back(sending_rate_mbps, is_useful, rtt_us);
@@ -77,15 +95,18 @@ void PccMonitorIntervalQueue::OnPacketSent(QuicTime sent_time,
   }
 
   if (packet_number < monitor_intervals_.back().last_packet_number) {
-    std::cerr << "Tried to add packet " << packet_number << " to [" << monitor_intervals_.back().first_packet_number << ", " << monitor_intervals_.back().last_packet_number << "]" << std::endl;
     return;
   }
   monitor_intervals_.back().last_packet_sent_time = sent_time;
   monitor_intervals_.back().last_packet_number = packet_number;
   monitor_intervals_.back().bytes_total += bytes;
+
+  monitor_intervals_.back().pkt_state_map.insert(std::make_pair(packet_number, PACKET_STATE_SENT));
+#ifdef DEBUG_INTERVAL_SIZE
   if (monitor_intervals_.back().is_useful) {
     std::cout << "Added packet " << packet_number << " to monitor interval, now " << monitor_intervals_.back().bytes_total << " bytes " << std::endl;
   }
+#endif
 }
 
 void PccMonitorIntervalQueue::OnCongestionEvent(
@@ -93,13 +114,12 @@ void PccMonitorIntervalQueue::OnCongestionEvent(
     const CongestionVector& lost_packets,
     int64_t rtt_us) {
   if (num_useful_intervals_ == 0) {
-    std::cout << "No useful intervals..." << std::endl;
     // Skip all the received packets if no intervals are useful.
     return;
   }
 
   bool has_invalid_utility = false;
-  std::cout << "MIQ: " << num_useful_intervals_ << " useful intervals" << std::endl;
+  //std::cout << "MIQ: " << num_useful_intervals_ << " useful intervals" << std::endl;
   for (MonitorInterval& interval : monitor_intervals_) {
     if (!interval.is_useful || IsUtilityAvailable(interval)) {
       // Skips intervals that are not useful, or have available utilities
@@ -113,6 +133,9 @@ void PccMonitorIntervalQueue::OnCongestionEvent(
       std::cout << "Lost packet : " << it->seq_no << std::endl;
       #endif
       if (IntervalContainsPacket(interval, it->seq_no)) {
+        std::map<QuicPacketNumber, PacketState>::iterator element = interval.pkt_state_map.find(it->seq_no);
+        interval.pkt_state_map.erase(element);
+        interval.pkt_state_map.insert(std::make_pair(it->seq_no, PACKET_STATE_LOST));
         interval.bytes_lost += it->lost_bytes;
         #ifdef DEBUG_MONITOR_INTERVAL_QUEUE_LOSS
         std::cout << "\tattributed bytes to an interval" << std::endl;
@@ -130,6 +153,9 @@ void PccMonitorIntervalQueue::OnCongestionEvent(
       std::cout << "Acked packet : " << it->seq_no << std::endl;
       #endif
       if (IntervalContainsPacket(interval, it->seq_no)) {
+        std::map<QuicPacketNumber, PacketState>::iterator element = interval.pkt_state_map.find(it->seq_no);
+        interval.pkt_state_map.erase(element);
+        interval.pkt_state_map.insert(std::make_pair(it->seq_no, PACKET_STATE_LOST));
         interval.bytes_acked += it->acked_bytes;
         #ifdef DEBUG_MONITOR_INTERVAL_QUEUE_ACKS
         std::cout << "\tattributed bytes to an interval" << std::endl;
@@ -150,7 +176,7 @@ void PccMonitorIntervalQueue::OnCongestionEvent(
     }
   }
 
-  std::cout << "MIQ: num_useful = " << num_useful_intervals_ << ", num_avail = " << num_available_intervals_ << " invalid utility = " << has_invalid_utility << std::endl;
+  //std::cout << "MIQ: num_useful = " << num_useful_intervals_ << ", num_avail = " << num_available_intervals_ << " invalid utility = " << has_invalid_utility << std::endl;
   if (num_useful_intervals_ > num_available_intervals_ &&
       !has_invalid_utility) {
     return;
@@ -204,12 +230,19 @@ bool PccMonitorIntervalQueue::IntervalContainsPacket(
     QuicPacketNumber packet_number) const {
   bool result =  (packet_number >= interval.first_packet_number &&
           packet_number <= interval.last_packet_number);
+#ifdef DEBUG_MONITOR_INTERVAL_QUEUE_LOSS
   std::cout << "Checking for packet " << packet_number << " in interval: [" << interval.first_packet_number << ", " << interval.last_packet_number << "]" << std::endl;
+#else
+#ifdef DEBUG_MONITOR_INTERVAL_QUEUE_ACKS
+  std::cout << "Checking for packet " << packet_number << " in interval: [" << interval.first_packet_number << ", " << interval.last_packet_number << "]" << std::endl;
+#endif
+#endif
   return result;
 }
 
 bool PccMonitorIntervalQueue::CalculateUtility(MonitorInterval* interval) {
   if (interval->last_packet_sent_time == interval->first_packet_sent_time) {
+    // std::cout << "Invalid utility: single packet in interval" << std::endl;
     // Cannot get valid utility if interval only contains one packet.
     return false;
   }

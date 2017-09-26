@@ -41,6 +41,9 @@ double PCC::kLatencyCoefficient(0);
 double PCC::kInitialBoundary(0);
 double PCC::kBoundaryIncrement(0);
 
+extern void DumpPacketIdRecords();
+extern void DumpPacketSizeRecords();
+
 void intHandler(int dummy) {
 	if (iteration_count  > 0) {
 		cout << "Avg. rate: " <<  rate_sum / iteration_count << " loss rate = " << avg_loss_rate << " avg. RTT = " << rtt_sum / iteration_count;
@@ -49,38 +52,42 @@ void intHandler(int dummy) {
 		}
 		cout << endl;
 	}
+    //DumpPacketIdRecords();
+    //DumpPacketSizeRecords();
 	exit(0);
 }
 
 
 int main(int argc, char* argv[])
 {
-   if ((argc < 3) || (0 == atoi(argv[2])))
-   {
-      cout << "usage: " << argv[0] << " server_ip server_port [factor] [step] [alpha = 4] [beta = 1] [exponent = 2.5] [poly_utility = 1]" << endl;
+    if ((argc < 4) || (0 == atoi(argv[3]))) {
+        cout << "usage: " << argv[0] << " <send|recv> server_ip server_port [factor] [step] [alpha = 4] [beta = 1] [exponent = 2.5] [poly_utility = 1]" << endl;
       return 0;
-   }
+    }
+
+    bool should_send = !strcmp(argv[1], "send");
+    
 	signal(SIGINT, intHandler);
 
 	double alpha = 1;
 	double beta = 10.8;
 	double exponent = 0.9;
 	bool use_poly = true;
-        double factor = 1.0;
-        double step = 0.05;
-        double latency = 0;
-        double initial_boundary = 0.05;
-        double boundary_increment = 0.06;
+    double factor = 1.0;
+    double step = 0.05;
+    double latency = 0;
+    double initial_boundary = 0.05;
+    double boundary_increment = 0.06;
 
 
-	if (argc > 3) latency = atof(argv[3]);
-	if (argc > 4) factor = atof(argv[4]);
-	if (argc > 5) step = atof(argv[5]);
-	if (argc > 6) initial_boundary = atof(argv[6]);
-	if (argc > 7) boundary_increment = atof(argv[7]);
-	if (argc > 8) alpha = atof(argv[8]);
-	if (argc > 9) beta = atof(argv[9]);
-	if (argc > 10) exponent = atof(argv[8]);
+	if (argc > 4) latency = atof(argv[4]);
+	if (argc > 5) factor = atof(argv[5]);
+	if (argc > 6) step = atof(argv[6]);
+	if (argc > 7) initial_boundary = atof(argv[7]);
+	if (argc > 8) boundary_increment = atof(argv[8]);
+	if (argc > 9) alpha = atof(argv[9]);
+	if (argc > 10) beta = atof(argv[10]);
+	if (argc > 11) exponent = atof(argv[9]);
 	PCC::set_utility_params(alpha, beta, exponent, use_poly, factor, step, latency, initial_boundary, boundary_increment);
 //sleep(1500);
    // use this function to initialize the UDT library
@@ -126,7 +133,7 @@ int main(int argc, char* argv[])
 
    freeaddrinfo(local);
 
-   if (0 != getaddrinfo(argv[1], argv[2], &hints, &peer))
+   if (0 != getaddrinfo(argv[2], argv[3], &hints, &peer))
    {
       cout << "incorrect server/peer address. " << argv[1] << ":" << argv[2] << endl;
       return 0;
@@ -155,24 +162,39 @@ int main(int argc, char* argv[])
       CreateThread(NULL, 0, monitor, &client, 0, NULL);
    #endif
 
-   for (int i = 0; i < 1000000; i ++)
-   {
-      int ssize = 0;
-      int ss;
-      while (ssize < size)
-      {
-         if (UDT::ERROR == (ss = UDT::send(client, data + ssize, size - ssize, 0)))
-         {
-            cout << "send:" << UDT::getlasterror().getErrorMessage() << endl;
-            break;
-         }
+    if (should_send) {
+        while (true) {
+            int ssize = 0;
+            int ss;
+            while (ssize < size) {
+                if (UDT::ERROR == (ss = UDT::send(client, data + ssize, size - ssize, 0))) {
+                    cout << "send:" << UDT::getlasterror().getErrorMessage() << endl;
+                    break;
+                }
 
-         ssize += ss;
-      }
+                ssize += ss;
+            }
 
-      if (ssize < size)
-         break;
-   }
+            if (ssize < size)
+                break;
+        }
+    } else {
+        while (true) {
+            int rsize = 0;
+            int rs;
+            while (rsize < size) {
+                if (UDT::ERROR == (rs = UDT::send(client, data + rsize, size - rsize, 0))) {
+                    cout << "recv:" << UDT::getlasterror().getErrorMessage() << endl;
+                    break;
+                }
+
+                rsize += rs;
+            }
+
+            if (rsize < size)
+                break;
+        }
+    }
 
    UDT::close(client);
 
@@ -194,7 +216,7 @@ DWORD WINAPI monitor(LPVOID s)
 
    UDT::TRACEINFO perf;
 
-   cout << "SendRate(Mb/s)\tRTT(ms)\tCTotal\tLoss\tRecvACK\tRecvNAK" << endl;
+   cerr << "SendRate(Mb/s)\tRTT(ms)\tCTotal\tLoss\tRecvACK\tRecvNAK" << endl;
    int i=0;
    while (true)
    {
@@ -213,11 +235,10 @@ DWORD WINAPI monitor(LPVOID s)
          cout << "perfmon: " << UDT::getlasterror().getErrorMessage() << endl;
          break;
       }
-    /*cout<<""<<i<<"\t" << perf.mbpsSendRate << "\t"
+    cerr   <<""<<i<<"\t" << perf.mbpsSendRate << "\t"
            << perf.msRTT << "\t"
            <<  perf.pktSentTotal << "\t"
            << perf.pktSndLossTotal <<endl;
-	*/
     if (perf.pktSentTotal == 0) {
 		avg_loss_rate = 0;
 	} else {

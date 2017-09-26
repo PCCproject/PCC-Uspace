@@ -617,7 +617,7 @@ int CRcvLossList::remove(const int32_t& seqno)
 		m_piNext[loc] = m_piNext[i];
 		m_piNext[i] = loc;
 		m_piPrior[loc] = i;
-		cout<<"SplitHappens!!"<<endl;
+		//cout<<"SplitHappens!!"<<endl;
 		if (m_iTail == i)
 			m_iTail = loc;
 		else
@@ -680,25 +680,33 @@ int CRcvLossList::getFirstLostSeq() const
 	return m_piData1[m_iHead];
 }
 
-void CRcvLossList::getLossArray(int32_t* array, int& len, const int& limit)
+void CRcvLossList::getLossArray(int32_t* array, int& len, int limit, int & offset)
 {
-	len = 0;
+   len = 0;
 
-	int i = m_iHead;
+   int i = m_iHead;
+   int seek=offset;
+while(seek>0)
+{
 
-	while ((len < limit - 1) && (-1 != i))
-	{
-		array[len] = m_piData1[i];
-		if (-1 != m_piData2[i])
-		{
-			// there are more than 1 loss in the sequence
-			array[len] |= 0x80000000;
-			++ len;
-			array[len] = m_piData2[i];
-		}
+i=m_piNext[i];
+seek--;
+}
+   while ((len < limit - 1) && (-1 != i))
+   {
+      array[len] = m_piData1[i];
+      if (-1 != m_piData2[i])
+      {
+         // there are more than 1 loss in the sequence
+         array[len] |= 0x80000000;
+         ++ len;
+         array[len] = m_piData2[i];
+      }
 
-		++ len;
+      ++ len;
 
-		i = m_piNext[i];
-	}
+      i = m_piNext[i];
+   ++offset;
+   }
+//cout<<"len"<<len<<endl;
 }

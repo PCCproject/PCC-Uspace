@@ -7,6 +7,9 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cmath>
+#include <map>
+
+enum PacketState {PACKET_STATE_SENT, PACKET_STATE_ACKED, PACKET_STATE_LOST};
 
 typedef struct CongestionEvent {
     int32_t seq_no;
@@ -31,6 +34,7 @@ struct MonitorInterval {
   MonitorInterval();
   MonitorInterval(float sending_rate_mbps, bool is_useful, int64_t rtt_us);
   ~MonitorInterval() {}
+  void DumpPacketStates();
 
   // Sending rate in Mbit/s.
   float sending_rate_mbps;
@@ -62,6 +66,8 @@ struct MonitorInterval {
   // Utility value of this MonitorInterval, which is calculated
   // when all sent packets are either acked or lost.
   float utility;
+
+  std::map<QuicPacketNumber, PacketState> pkt_state_map;
 };
 
 // UtilityInfo is used to store <sending_rate_mbps, utility> pairs
@@ -118,6 +124,7 @@ class PccMonitorIntervalQueue {
 
   // Returns the most recent MonitorInterval in the tail of the queue
   const MonitorInterval& current() const;
+  void DumpIntervalPacketStates();
   size_t num_useful_intervals() const { return num_useful_intervals_; }
   bool empty() const;
   size_t size() const;

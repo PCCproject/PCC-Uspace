@@ -27,6 +27,15 @@ const float kAverageRttWeight = 0.1;
 const size_t kDefaultTCPMSS = 1400;
 }  // namespace
 
+double ComputeMonitorDuration(double sending_rate_mbps, double rtt_us) {
+    if (1.5 * rtt_us < 5.0 * kBitsPerByte * 1456 / sending_rate_mbps) {
+        //std::cout << "Duration = " << 5.0 * kBitsPerByte * 1456 << " / " << sending_rate_mbps << std::endl;
+        return 5.0 * kBitsPerByte * 1456 / sending_rate_mbps;
+    }
+    //std::cout << "Duration = 1.5 * " << rtt_us << std::endl;
+    return 1.5 * rtt_us;
+}
+
 PccSender::PccSender(CUDT* cudt, int32_t initial_congestion_window,
                      int32_t max_congestion_window)
     : mode_(STARTING),
@@ -44,7 +53,8 @@ PccSender::PccSender(CUDT* cudt, int32_t initial_congestion_window,
                                   kBitsPerByte) /
                    static_cast<float>(kInitialRttMicroseconds),
                kMinSendingRate);
-      this->cudt = cudt;
+  this->cudt = cudt;
+  SetRate(sending_rate_mbps_);
 }
 
 bool PccSender::OnPacketSent(uint64_t sent_time,
@@ -59,8 +69,9 @@ bool PccSender::OnPacketSent(uint64_t sent_time,
           monitor_duration_) {
     MaybeSetSendingRate();
     // Set the monitor duration to be 1.5 of avg_rtt_.
-    monitor_duration_ = 1.5 * avg_rtt_;
-
+    monitor_duration_ = ComputeMonitorDuration(sending_rate_mbps_, avg_rtt_); //1.5 * avg_rtt_;
+	
+    //std::cout << "Monitor duration: " << monitor_duration_ << std::endl;
     interval_queue_.EnqueueNewMonitorInterval(
         sending_rate_mbps_, CreateUsefulInterval(),
         avg_rtt_);
@@ -73,13 +84,16 @@ bool PccSender::OnPacketSent(uint64_t sent_time,
 void PccSender::OnCongestionEvent(uint64_t event_time, uint64_t rtt,
                                   const CongestionVector& acked_packets,
                                   const CongestionVector& lost_packets) {
-  if (avg_rtt_ == 0) {
-    avg_rtt_ = rtt;
-  } else {
-      avg_rtt_ = (1 - kAverageRttWeight) * avg_rtt_ +
-                    kAverageRttWeight * last_rtt_;
+  if (acked_packets.size() > 0) {
+      if (avg_rtt_ == 0) {
+        avg_rtt_ = rtt;
+      } else {
+          avg_rtt_ = (1 - kAverageRttWeight) * avg_rtt_ +
+                        kAverageRttWeight * last_rtt_;
+          //std::cout << "RTT = " << rtt << " avg. = " << avg_rtt_ << std::endl;
+      }
+      last_rtt_ = rtt;
   }
-  last_rtt_ = rtt;
   time_last_rtt_received_ = event_time;
 
   interval_queue_.OnCongestionEvent(acked_packets, lost_packets,

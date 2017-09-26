@@ -38,10 +38,6 @@ endif
 
 DIR = $(shell pwd)
 
-APP = gradient_descent_pcc_client
-
-all: $(APP)
-
 %.o: %.cpp
 	$(C++) $(CCFLAGS) $< -c
 
@@ -59,6 +55,10 @@ gradient_descent_pcc_client: gradient_descent_pcc_client.o
 	$(C++) $^ -o $@ $(LDFLAGS)
 exponentiated_weights_pcc_client: exponentiated_weights_pcc_client.o
 	$(C++) $^ -o $@ $(LDFLAGS)
+
+APP = appserver gradient_descent_pcc_client
+
+all: $(APP)
 
 clean:
 	rm -f *.o $(APP)

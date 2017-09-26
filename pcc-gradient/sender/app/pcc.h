@@ -85,7 +85,7 @@ class PCC : public CCC {
         sum_loss = 0;
         probe_amplifier = 0;
         m_dPktSndPeriod = 10000;
-        m_dCWndSize = 100000.0;
+        m_dCWndSize = 1000000.0;
         prev_change_ = 0;
         avg_rtt = 0;
         hibernate_depth = 0;
