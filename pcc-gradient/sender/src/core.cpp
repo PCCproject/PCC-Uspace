@@ -2164,6 +2164,35 @@ void CUDT::add_to_loss_record(int32_t loss1, int32_t loss2){
 #endif
 }
 
+void CUDT::ProcessAck(AckPacket& ack_packet) {
+    
+    PacketId acked_packet_id = packet_tracker.GetPacketId(ack_packet.GetAckedPacketSeqNo());
+    if (!PacketTracker::IsPacketIdValid(acked_packet_id)) {
+        return;
+    }
+    packet_tracker.OnPacketAck(acked_packet_id);
+    uint64_t rtt = packet_tracker.GetPacketRtt(acked_packet_id);
+
+    CongestionVector acked_packets;
+    CongestionVector lost_packets;
+    pcc_sender_lock.lock();
+    CongestionEvent ack_event;
+    ack_event.time = CTimer::getTime();
+    ack_event.seq_no = acked_packet_id;
+    ack_event.acked_bytes = 0;
+    ack_event.acked_bytes += packet_tracker.GetPacketSize(acked_packet_id);
+    ack_event.lost_bytes = 0;
+    acked_packets.push_back(ack_event);
+    OnCongestionEvent(*pcc_sender, CTimer::getTime(), rtt, acked_packets, lost_packets);
+    pcc_sender_lock.unlock();
+
+    packet_tracker.DeletePacketRecord(acked_packet_id);
+    ++m_iRecvACK;
+    ++m_iRecvACKTotal;
+
+}
+
+
 void CUDT::processCtrl(CPacket& ctrlpkt)
 {
 	// Just heard from the peer, reset the expiration count.
@@ -2180,331 +2209,7 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 	{
 	case 2: //010 - Acknowledgement
 	{
-        
-        int32_t ack = *(int32_t *)ctrlpkt.m_pcData;
-		
-        CongestionVector acked_packets;
-        CongestionVector lost_packets;
-        std::cerr << "Getting sizes for packets between " << m_iSndLastAck << " and " << ack - 1 << std::endl;
-        pcc_sender_lock.lock();
-        uint64_t min_rtt = 1000000000;
-        for (int pkt_num = m_iSndLastAck; pkt_num < ack; ++pkt_num) {
-            PacketId pkt_id = GetPacketId(pkt_num);
-            CongestionEvent ack_event;
-            ack_event.time = CTimer::getTime();
-            ack_event.seq_no = pkt_id;
-            ack_event.acked_bytes = 0;
-            ack_event.acked_bytes += GetPacketSize(pkt_id);
-            ack_event.lost_bytes = 0;
-            DeletePacketSizeRecord(pkt_id);
-            acked_packets.push_back(ack_event);
-            DeletePacketIdRecord(pkt_num);
-            rtt_tracker.OnPacketAck(pkt_id);
-            uint64_t new_rtt = rtt_tracker.GetLatestRtt();
-            min_rtt = new_rtt < min_rtt ? new_rtt : min_rtt;
-        }
-        if (acked_packets.size() > 0) {
-            OnCongestionEvent(*pcc_sender, CTimer::getTime(), min_rtt, acked_packets, lost_packets);
-        }
-        pcc_sender_lock.unlock();
-
-		// process a lite ACK
-		if (4 == ctrlpkt.getLength())
-		{
-			ack = *(int32_t *)ctrlpkt.m_pcData;
-			if (CSeqNo::seqcmp(ack, const_cast<int32_t&>(m_iSndLastAck)) >= 0)
-			{
-				m_iFlowWindowSize -= CSeqNo::seqoff(const_cast<int32_t&>(m_iSndLastAck), ack);
-				m_iSndLastAck = ack;
-				//cout<<"lite ACK"<<m_iFlowWindowSize<<endl;
-			}
-
-			break;
-		}
-		// read ACK seq. no.
-		ack = ctrlpkt.getAckSeqNo();
-
-		// send ACK acknowledgement
-		// number of ACK2 can be much less than number of ACK
-		uint64_t now = CTimer::getTime();
-		if ((currtime - m_ullSndLastAck2Time > (uint64_t)m_iSYNInterval))
-		{
-                        //cout<<"send ACK ACK"<<endl;
-			sendCtrl(6, &ack);
-			m_iSndLastAck2 = ack;
-			m_ullSndLastAck2Time = now;
-		}
-
-		// Got data ACK
-		ack = *(int32_t *)ctrlpkt.m_pcData;
-
-		// check the validation of the ack
-		if (CSeqNo::seqcmp(ack, CSeqNo::incseq(m_iSndCurrSeqNo)) > 0)
-		{
-			//this should not happen: attack or bug
-			m_bBroken = true;
-			m_iBrokenCounter = 0;
-			break;
-		}
-
-		if (CSeqNo::seqcmp(ack, const_cast<int32_t&>(m_iSndLastAck)) >= 0)
-		{
-			// Update Flow Window Size, must update before and together with m_iSndLastAck
-			m_iFlowWindowSize = *((int32_t *)ctrlpkt.m_pcData + 3);
-			//cout<<m_iFlowWindowSize<<endl;
-			m_iSndLastAck = ack;
-		}
-
-		// protect packet retransmission
-		CGuard::enterCS(m_AckLock);
-
-		int offset = CSeqNo::seqoff((int32_t&)m_iSndLastDataAck, ack);
-		if (offset <= 0)
-		{
-			// discard it if it is a repeated ACK
-			CGuard::leaveCS(m_AckLock);
-			m_pSndQueue->m_pSndUList->update(this, false);
-			break;
-		}
-
-		// acknowledge the sending buffer
-		m_pSndBuffer->ackData(offset);
-		//TODO: this is a potential performance loss point
-#ifdef EXPERIMENTAL_FEATURE_CONTINOUS_SEND
-		pthread_mutex_lock(&m_LossrecordLock);
-        itr_loss_record1 = loss_record1.begin();
-        itr_loss_record2 = loss_record2.begin();
-        vector<int32_t>::iterator itr_mark1, itr_mark2;
-        itr_mark1 = loss_record1.begin();
-        itr_mark2 = loss_record2.begin();
-               // cout<<"newround!"<<endl;
-                if(!loss_record1.empty()){
-		//TODO this part does not consider the situation when sequence number wrapped
-		while(itr_loss_record2 != loss_record2.end()){
-                //        cout<<*itr_loss_record2<<endl;
-
-			if(CSeqNo::seqcmp(const_cast<int32_t&>(*itr_loss_record2),const_cast<int32_t&>(ack))<0){
-                          itr_mark1 = itr_loss_record1;
-                          itr_mark2 = itr_loss_record2;
-			}
-			itr_loss_record2++;
-			itr_loss_record1++;
-
-		}
-               // cout<<"get out sometimes"<<endl;
-		if(CSeqNo::seqcmp(const_cast<int32_t&>(*loss_record2.begin()),const_cast<int32_t&>(ack)>0)){
-
-		}else{
-                        if(itr_mark1 == loss_record1.begin()){
-                        loss_record1.erase(loss_record1.begin());
-                        loss_record2.erase(loss_record2.begin());
-                        }else{
-			loss_record1.erase(loss_record1.begin(),itr_mark1);
-			loss_record2.erase(loss_record2.begin(),itr_mark2);
-                        }
-		}}
-
-		pthread_mutex_unlock(&m_LossrecordLock);
-#endif
-                // record total time used for sending
-		m_llSndDuration += currtime - m_llSndDurationCounter;
-		m_llSndDurationTotal += currtime - m_llSndDurationCounter;
-		m_llSndDurationCounter = currtime;
-
-		// update sending variables
-		m_iSndLastDataAck = ack;
-		m_pSndLossList->remove(CSeqNo::decseq((int32_t&)m_iSndLastDataAck));
-
-		CGuard::leaveCS(m_AckLock);
-
-#ifndef WIN32
-		pthread_mutex_lock(&m_SendBlockLock);
-		if (m_bSynSending)
-			pthread_cond_signal(&m_SendBlockCond);
-		pthread_mutex_unlock(&m_SendBlockLock);
-#else
-		if (m_bSynSending)
-			SetEvent(m_SendBlockCond);
-#endif
-
-		// acknowledde any waiting epolls to write
-		s_UDTUnited.m_EPoll.enable_write(m_SocketID, m_sPollID);
-
-		// insert this socket to snd list if it is not on the list yet
-		//cout<<"ctrlupdate"<<endl;
-		m_pSndQueue->m_pSndUList->update(this, false);
-
-		// Update RTT
-		//m_iRTT = *((int32_t *)ctrlpkt.m_pcData + 1);
-		//m_iRTTVar = *((int32_t *)ctrlpkt.m_pcData + 2);
-		int rtt = *((int32_t *)ctrlpkt.m_pcData + 1);
-		//m_iRTTVar = (m_iRTTVar * 3 + abs(rtt - m_iRTT)) >> 2;
-		m_iRTT = (m_iRTT * 7 + rtt) >> 3;
-
-		m_pCC->setRTT(m_iRTT);
-
-		if (ctrlpkt.getLength() > 16)
-		{
-			// Update Estimated Bandwidth and packet delivery rate
-			if (*((int32_t *)ctrlpkt.m_pcData + 4) > 0)
-				m_iDeliveryRate = (m_iDeliveryRate * 7 + *((int32_t *)ctrlpkt.m_pcData + 4)) >> 3;
-
-			if (*((int32_t *)ctrlpkt.m_pcData + 5) > 0)
-				m_iBandwidth = (m_iBandwidth * 7 + *((int32_t *)ctrlpkt.m_pcData + 5)) >> 3;
-
-			m_pCC->setRcvRate(m_iDeliveryRate);
-			m_pCC->setBandwidth(m_iBandwidth);
-		}
-
-		// how about duplicate ack
-		//      if (monitor)
-		//	      check_monitor_end_ack(ack);
-
-
-
-		m_pCC->onACK(ack);
-		// update CC parameters
-		m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
-		m_dCongestionWindow = m_pCC->m_dCWndSize;
-
-		++ m_iRecvACK;
-		++ m_iRecvACKTotal;
-
-		break;
-	}
-
-	case 6: //110 - Acknowledgement of Acknowledgement
-	{
-		int32_t ack;
-		int rtt = -1;
-
-		// update RTT
-		rtt = m_pACKWindow->acknowledge(ctrlpkt.getAckSeqNo(), ack);
-		if (rtt <= 0)
-			break;
-
-		//if increasing delay detected...
-		//   sendCtrl(4);
-
-		// RTT EWMA
-		//m_iRTTVar = (m_iRTTVar * 3 + abs(rtt - m_iRTT)) >> 2;
-		m_iRTT = (m_iRTT * 7 + rtt) >> 3;
-
-		//m_pCC->setRTT(m_iRTT);
-
-		// update last ACK that has been received by the sender
-		if (CSeqNo::seqcmp(ack, m_iRcvLastAckAck) > 0)
-			m_iRcvLastAckAck = ack;
-
-		break;
-	}
-
-	case 3: //011 - Loss Report
-	{
-        int32_t* losslist = (int32_t *)(ctrlpkt.m_pcData);
-		m_pCC->onLoss(losslist, ctrlpkt.getLength() / 4);
-		// update CC parameters
-		// m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
-		m_dCongestionWindow = m_pCC->m_dCWndSize;
-                timeval t;
-                gettimeofday(&t, 0);
-		//cout<<"losshere"<<t.tv_usec<<endl;
-		bool secure = true;
-        #ifdef DEBUG_LOSS
-            std::cout << "Loss list length: " << (int)(ctrlpkt.getLength() / 4) << std::endl;
-        #endif
-
-		// decode loss list message and insert loss into the sender loss list
-		for (int i = 0, n = (int)(ctrlpkt.getLength() / 4); i < n; ++ i)
-		{
-            #ifdef DEBUG_LOSS
-                std::cerr << "\tlosslist[i] = " << (losslist[i] & 0x7FFFFFFF)
-                          << ", losslist[i + 1] = " << losslist[i + 1]
-                          << ", i = " << i 
-                          << std::endl;
-			#endif
-            if (0 != (losslist[i] & 0x80000000))
-			{
-				if ((CSeqNo::seqcmp(losslist[i] & 0x7FFFFFFF, losslist[i + 1]) > 0) || (CSeqNo::seqcmp(losslist[i + 1], const_cast<int32_t&>(m_iSndCurrSeqNo)) > 0))
-				{
-
-                    #ifdef DEBUG_LOSS
-                        if ((CSeqNo::seqcmp(losslist[i] & 0x7FFFFFFF, losslist[i + 1]) > 0)) {
-                            std::cerr << "Issue is loss list" << std::endl;
-                        }
-                    #endif
-					// seq_a must not be greater than seq_b; seq_b must not be greater than the most recent sent seq
-					secure = false;
-					break;
-				}
-
-                int num = 0;
-                #ifdef DEBUG_LOSS
-                    std::cout << "Inserting loss range: [" << (losslist[i] & 0x7FFFFFFF) << ", " << losslist[i + 1] << std::endl;
-				#endif 
-                if (CSeqNo::seqcmp(losslist[i] & 0x7FFFFFFF, const_cast<int32_t&>(m_iSndLastAck)) >= 0)
-				{   
-                    add_to_loss_record(losslist[i]& 0x7FFFFFFF, losslist[i+1]);
-                    num = m_pSndLossList->insert(losslist[i] & 0x7FFFFFFF, losslist[i + 1]);
-//				loss_record1[lossptr]=losslist[i]& 0x7FFFFFFF;
-//				loss_record2[lossptr]=losslist[i+1];
-				//lossptr++;
-				//cout<<"L"<<lossptr<<endl;
-				}
-
-				else if (CSeqNo::seqcmp(losslist[i + 1], const_cast<int32_t&>(m_iSndLastAck)) >= 0)
-				{               
-                    add_to_loss_record(const_cast<int32_t&>(m_iSndLastAck), losslist[i+1]);
-                    num = m_pSndLossList->insert(const_cast<int32_t&>(m_iSndLastAck), losslist[i + 1]);
-//				loss_record1[lossptr]=m_iSndLastAck;
-				//loss_record2[lossptr]=losslist[i+1];
-				//lossptr++;
-				//cout<<"L"<<lossptr<<endl;
-				}//cout<<"This is lost packet with seq. No. as "<<losslist[i]<<endl;
-				m_iTraceSndLoss += num;
-				m_iSndLossTotal += num;
-
-				++ i;
-			}
-			else if (CSeqNo::seqcmp(losslist[i], const_cast<int32_t&>(m_iSndLastAck)) >= 0)
-			{
-				if (CSeqNo::seqcmp(losslist[i], const_cast<int32_t&>(m_iSndCurrSeqNo)) > 0)
-				{
-                    //seq_a must not be greater than the most recent sent seq
-					secure = false;
-					break;
-				}
-
-                #ifdef DEBUG_LOSS
-                    std::cout << "Inserting individual loss: " << losslist[i] << std::endl;
-                #endif
-                add_to_loss_record(losslist[i], losslist[i]);
-				int num = m_pSndLossList->insert(losslist[i], losslist[i]);
-//				loss_record1[lossptr]=losslist[i];
-//				loss_record2[lossptr]=losslist[i];
-				//lossptr++;
-				//cout<<"L"<<lossptr<<endl;
-				m_iTraceSndLoss += num;
-				m_iSndLossTotal += num;
-			}
-		}
-
-		if (!secure)
-		{
-			//this should not happen: attack or bug
-			cout<<"This is insecure!"<<endl;
-			m_bBroken = true;
-			m_iBrokenCounter = 0;
-			break;
-		}
-
-		// the lost packet (retransmission) should be sent out immediately
-		//cout<<"loss update"<<endl;
-		m_pSndQueue->m_pSndUList->update(this, false);
-
-		//++ m_iRecvNAK;
-		//++ m_iRecvNAKTotal;
-		//   cout<<m_iRecvNAKTotal<<endl;;
+        ProcessAck(ctrlpkt); 
 		break;
 	}
 
@@ -2546,6 +2251,140 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 
 		break;
 	}
+case 6: //110 - Acknowledgement of Acknowledgement
+{
+    int32_t ack;
+    int rtt = -1;
+
+    // update RTT
+    rtt = m_pACKWindow->acknowledge(ctrlpkt.getAckSeqNo(), ack);
+    if (rtt <= 0)
+        break;
+
+    //if increasing delay detected...
+    //   sendCtrl(4);
+
+    // RTT EWMA
+    //m_iRTTVar = (m_iRTTVar * 3 + abs(rtt - m_iRTT)) >> 2;
+    m_iRTT = (m_iRTT * 7 + rtt) >> 3;
+
+    //m_pCC->setRTT(m_iRTT);
+
+    // update last ACK that has been received by the sender
+    if (CSeqNo::seqcmp(ack, m_iRcvLastAckAck) > 0)
+        m_iRcvLastAckAck = ack;
+
+    break;
+}
+
+case 3: //011 - Loss Report
+{
+    int32_t* losslist = (int32_t *)(ctrlpkt.m_pcData);
+    m_pCC->onLoss(losslist, ctrlpkt.getLength() / 4);
+    // update CC parameters
+    // m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
+    m_dCongestionWindow = m_pCC->m_dCWndSize;
+            timeval t;
+            gettimeofday(&t, 0);
+    //cout<<"losshere"<<t.tv_usec<<endl;
+    bool secure = true;
+    #ifdef DEBUG_LOSS
+        std::cout << "Loss list length: " << (int)(ctrlpkt.getLength() / 4) << std::endl;
+    #endif
+
+    // decode loss list message and insert loss into the sender loss list
+    for (int i = 0, n = (int)(ctrlpkt.getLength() / 4); i < n; ++ i)
+    {
+        #ifdef DEBUG_LOSS
+            std::cerr << "\tlosslist[i] = " << (losslist[i] & 0x7FFFFFFF)
+                      << ", losslist[i + 1] = " << losslist[i + 1]
+                      << ", i = " << i 
+                      << std::endl;
+        #endif
+        if (0 != (losslist[i] & 0x80000000))
+        {
+            if ((CSeqNo::seqcmp(losslist[i] & 0x7FFFFFFF, losslist[i + 1]) > 0) || (CSeqNo::seqcmp(losslist[i + 1], const_cast<int32_t&>(m_iSndCurrSeqNo)) > 0))
+            {
+
+                #ifdef DEBUG_LOSS
+                    if ((CSeqNo::seqcmp(losslist[i] & 0x7FFFFFFF, losslist[i + 1]) > 0)) {
+                        std::cerr << "Issue is loss list" << std::endl;
+                    }
+                #endif
+                // seq_a must not be greater than seq_b; seq_b must not be greater than the most recent sent seq
+                secure = false;
+                break;
+            }
+
+            int num = 0;
+            #ifdef DEBUG_LOSS
+                std::cout << "Inserting loss range: [" << (losslist[i] & 0x7FFFFFFF) << ", " << losslist[i + 1] << std::endl;
+            #endif 
+            if (CSeqNo::seqcmp(losslist[i] & 0x7FFFFFFF, const_cast<int32_t&>(m_iSndLastAck)) >= 0)
+            {   
+                add_to_loss_record(losslist[i]& 0x7FFFFFFF, losslist[i+1]);
+                num = m_pSndLossList->insert(losslist[i] & 0x7FFFFFFF, losslist[i + 1]);
+//				loss_record1[lossptr]=losslist[i]& 0x7FFFFFFF;
+//				loss_record2[lossptr]=losslist[i+1];
+            //lossptr++;
+            //cout<<"L"<<lossptr<<endl;
+            }
+
+            else if (CSeqNo::seqcmp(losslist[i + 1], const_cast<int32_t&>(m_iSndLastAck)) >= 0)
+            {               
+                add_to_loss_record(const_cast<int32_t&>(m_iSndLastAck), losslist[i+1]);
+                num = m_pSndLossList->insert(const_cast<int32_t&>(m_iSndLastAck), losslist[i + 1]);
+//				loss_record1[lossptr]=m_iSndLastAck;
+            //loss_record2[lossptr]=losslist[i+1];
+            //lossptr++;
+            //cout<<"L"<<lossptr<<endl;
+            }//cout<<"This is lost packet with seq. No. as "<<losslist[i]<<endl;
+            m_iTraceSndLoss += num;
+            m_iSndLossTotal += num;
+
+            ++ i;
+        }
+        else if (CSeqNo::seqcmp(losslist[i], const_cast<int32_t&>(m_iSndLastAck)) >= 0)
+        {
+            if (CSeqNo::seqcmp(losslist[i], const_cast<int32_t&>(m_iSndCurrSeqNo)) > 0)
+            {
+                //seq_a must not be greater than the most recent sent seq
+                secure = false;
+                break;
+            }
+
+            #ifdef DEBUG_LOSS
+                std::cout << "Inserting individual loss: " << losslist[i] << std::endl;
+            #endif
+            add_to_loss_record(losslist[i], losslist[i]);
+            int num = m_pSndLossList->insert(losslist[i], losslist[i]);
+//				loss_record1[lossptr]=losslist[i];
+//				loss_record2[lossptr]=losslist[i];
+            //lossptr++;
+            //cout<<"L"<<lossptr<<endl;
+            m_iTraceSndLoss += num;
+            m_iSndLossTotal += num;
+        }
+    }
+
+    if (!secure)
+    {
+        //this should not happen: attack or bug
+        cout<<"This is insecure!"<<endl;
+        m_bBroken = true;
+        m_iBrokenCounter = 0;
+        break;
+    }
+
+    // the lost packet (retransmission) should be sent out immediately
+    //cout<<"loss update"<<endl;
+    m_pSndQueue->m_pSndUList->update(this, false);
+
+    //++ m_iRecvNAK;
+    //++ m_iRecvNAKTotal;
+    //   cout<<m_iRecvNAKTotal<<endl;;
+
+}
 
 	case 5: //101 - Shutdown
 		m_bShutdown = true;
