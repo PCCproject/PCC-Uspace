@@ -215,6 +215,7 @@ DWORD WINAPI monitor(LPVOID s)
 #endif
 {
    UDTSOCKET u = *(UDTSOCKET*)s;
+    int i = 0;
 
    UDT::TRACEINFO perf;
 
@@ -222,6 +223,10 @@ DWORD WINAPI monitor(LPVOID s)
 
    while (true)
    {
+      ++i;
+      if (i == 60) {
+          exit(-1);
+      }
       #ifndef WIN32
          sleep(1);
       #else

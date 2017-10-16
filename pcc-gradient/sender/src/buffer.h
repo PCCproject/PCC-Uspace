@@ -46,6 +46,14 @@ written by
 #include "list.h"
 #include "queue.h"
 #include <fstream>
+#include <queue>
+
+class LessThan {
+  public:
+    int operator() (const int32_t& a, const int32_t& b) {
+        return b < a;
+    }
+};
 
 class CSndBuffer
 {
@@ -172,7 +180,7 @@ private:
 class CRcvBuffer
 {
 public:
-   CRcvBuffer(CUnitQueue* queue, const int& bufsize = 65536);
+   CRcvBuffer(CUnitQueue* queue, int32_t first_seq_no, const int& bufsize = 65536);
    ~CRcvBuffer();
 
       // Functionality:
@@ -212,7 +220,7 @@ public:
       // Returned value:
       //    1 if a user buffer is fulfilled, otherwise 0.
 
-   void ackData(const int& len);
+   void AckData(int32_t seq_no);
 
       // Functionality:
       //    Query how many buffer space left for data receiving.
@@ -264,16 +272,20 @@ private:
    bool scanMsg(int& start, int& end, bool& passack);
 
 private:
-   CUnit** m_pUnit;                     // pointer to the protocol buffer
-   int m_iSize;                         // size of the protocol buffer
-   CUnitQueue* m_pUnitQueue;		// the shared unit queue
+    CUnit** m_pUnit;                     // pointer to the protocol buffer
+    int m_iSize;                         // size of the protocol buffer
+    CUnitQueue* m_pUnitQueue;		// the shared unit queue
 
-   int m_iStartPos;                     // the head position for I/O (inclusive)
-   int m_iLastAckPos;                   // the last ACKed position (exclusive)
+    int m_iStartPos;                     // the head position for I/O (inclusive)
+    int m_iLastAckPos;                   // the last ACKed position (exclusive)
 					// EMPTY: m_iStartPos = m_iLastAckPos   FULL: m_iStartPos = m_iLastAckPos + 1
-   int m_iMaxPos;			// the furthest data position
+    int m_iMaxPos;			// the furthest data position
 
-   int m_iNotch;			// the starting read point of the first unit
+    int m_iNotch;			// the starting read point of the first unit
+
+    std::priority_queue<int32_t, std::vector<int32_t>, LessThan> ack_queue_;
+
+    int32_t seq_offset_;
 
 private:
    CRcvBuffer();

@@ -335,14 +335,13 @@ int CSndUList::pop(sockaddr*& addr, CPacket& pkt)
 	if (!u->m_bConnected || u->m_bBroken)
 		return -1;
 
-        if(u->packData(pkt, ts)<=0){
+    if(u->packData(pkt, ts) <= 0){
         addr = u->m_pPeerAddr;
 
         if (ts > 0)
                 insert_(ts, u);
         return -1;
-        }
-        else{
+    } else{
         addr = u->m_pPeerAddr;
 
                 if (ts > 0)

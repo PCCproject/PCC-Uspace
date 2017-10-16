@@ -9,7 +9,7 @@
 #include <cmath>
 #include <map>
 
-enum PacketState {PACKET_STATE_SENT, PACKET_STATE_ACKED, PACKET_STATE_LOST};
+enum MiPacketState {MI_PACKET_STATE_SENT, MI_PACKET_STATE_ACKED, MI_PACKET_STATE_LOST};
 
 typedef struct CongestionEvent {
     int32_t seq_no;
@@ -32,14 +32,15 @@ typedef int64_t QuicTime;
 // - calculate the MonitorInterval's utility value.
 struct MonitorInterval {
   MonitorInterval();
-  MonitorInterval(float sending_rate_mbps, bool is_useful, int64_t rtt_us);
+  MonitorInterval(float sending_rate_mbps, bool is_useful, int64_t rtt_us, uint64_t end_time);
   ~MonitorInterval() {}
-  void DumpPacketStates();
+  void DumpMiPacketStates();
 
   // Sending rate in Mbit/s.
   float sending_rate_mbps;
   // True if calculating utility for this MonitorInterval.
   bool is_useful;
+  uint64_t end_time;
 
   // Sent time of the first packet.
   QuicTime first_packet_sent_time;
@@ -67,7 +68,7 @@ struct MonitorInterval {
   // when all sent packets are either acked or lost.
   float utility;
 
-  std::map<QuicPacketNumber, PacketState> pkt_state_map;
+  std::map<QuicPacketNumber, MiPacketState> pkt_state_map;
 };
 
 // UtilityInfo is used to store <sending_rate_mbps, utility> pairs
@@ -109,7 +110,8 @@ class PccMonitorIntervalQueue {
   // for MonitorInterval initialization.
   void EnqueueNewMonitorInterval(float sending_rate_mbps,
                                  bool is_useful,
-                                 int64_t rtt_us);
+                                 int64_t rtt_us,
+                                 uint64_t end_time);
 
   // Called when a packet belonging to current monitor interval is sent.
   void OnPacketSent(QuicTime sent_time,
@@ -120,11 +122,12 @@ class PccMonitorIntervalQueue {
   void OnCongestionEvent(
       const CongestionVector& acked_packets,
       const CongestionVector& lost_packets,
-      int64_t rtt_us);
+      int64_t rtt_us,
+      uint64_t event_time);
 
   // Returns the most recent MonitorInterval in the tail of the queue
   const MonitorInterval& current() const;
-  void DumpIntervalPacketStates();
+  void DumpIntervalMiPacketStates();
   size_t num_useful_intervals() const { return num_useful_intervals_; }
   bool empty() const;
   size_t size() const;
@@ -132,7 +135,7 @@ class PccMonitorIntervalQueue {
  private:
   // Returns true if the utility of |interval| is available, i.e.,
   // when all the interval's packets are either acked or lost.
-  bool IsUtilityAvailable(const MonitorInterval& interval) const;
+  bool IsUtilityAvailable(const MonitorInterval& interval, uint64_t cur_time) const;
 
   // Retruns true if |packet_number| belongs to |interval|.
   bool IntervalContainsPacket(const MonitorInterval& interval,
