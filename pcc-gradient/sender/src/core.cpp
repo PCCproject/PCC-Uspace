@@ -2230,7 +2230,6 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 
 		break;
 	}
-
 	case 5: //101 - Shutdown
 		m_bShutdown = true;
 		m_bClosing = true;
