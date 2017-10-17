@@ -92,11 +92,6 @@ CSndBuffer::CSndBuffer(const int& size, const int& mss):
 	m_pFirstBlock = m_pCurrBlock = m_pLastBlock = m_pBlock;
 	FirstBuffer = m_pBuffer;
 	FirstBlock = 0;
-/*	Block *test = m_pBlock;
-	do {
-		cout << "initial " << test->m_iBufferNo << " " << test << endl;
-		test = test->m_pNext;
-	} while (test != m_pBlock);*/
 
 #ifndef WIN32
 pthread_mutex_init(&m_BufLock, NULL);
@@ -553,14 +548,15 @@ cout << "end increase testing\n";*/
 
 ////////////////////////////////////////////////////////////////////////////////
 
-CRcvBuffer::CRcvBuffer(CUnitQueue* queue, const int& bufsize):
+CRcvBuffer::CRcvBuffer(CUnitQueue* queue, int32_t first_seq_no, const int& bufsize):
 		m_pUnit(NULL),
 		m_iSize(bufsize),
 		m_pUnitQueue(queue),
 		m_iStartPos(0),
 		m_iLastAckPos(0),
 		m_iMaxPos(0),
-		m_iNotch(0)
+		m_iNotch(0),
+        seq_offset_(first_seq_no)
 {
 	m_pUnit = new CUnit* [m_iSize];
 	for (int i = 0; i < m_iSize; ++ i)
@@ -674,10 +670,17 @@ int CRcvBuffer::readBufferToFile(fstream& ofs, const int& len)
 	return len - rs;
 }
 
-void CRcvBuffer::ackData(const int& len)
+void CRcvBuffer::AckData(int32_t seq_no)
 {
-	m_iLastAckPos = (m_iLastAckPos + len) % m_iSize;
-	m_iMaxPos -= len;
+    int32_t consecutive_num_acked = 0;
+    if (seq_no - seq_offset_ == m_iLastAckPos + 1) {
+        ++consecutive_num_acked;
+        for (int i = 2; !ack_queue_.empty() && ack_queue_.top() - seq_offset_ == m_iLastAckPos + i; ++consecutive_num_acked) {
+            ack_queue_.pop();
+        }
+    }
+	m_iLastAckPos = (m_iLastAckPos + consecutive_num_acked) % m_iSize;
+	m_iMaxPos -= consecutive_num_acked;
 	if (m_iMaxPos < 0)
 		m_iMaxPos = 0;
 

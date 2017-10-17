@@ -188,6 +188,7 @@ struct CPerfMon
    double mbpsSendRate;                 // sending rate in Mb/s
    double mbpsRecvRate;                 // receiving rate in Mb/s
    int64_t usSndDuration;		// busy sending time (i.e., idle time exclusive)
+   double mbpsGoodput;		// busy sending time (i.e., idle time exclusive)
 
    // instant measurements
    double usPktSndPeriod;               // packet sending period, in microseconds

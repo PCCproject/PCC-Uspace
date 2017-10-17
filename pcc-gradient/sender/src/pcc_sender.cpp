@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <algorithm>
 
+//#define DEBUG_RATE_CONTROL
+
 namespace {
 // Minimum sending rate of the connection.
 const float kMinSendingRate = 2.0f;
@@ -28,9 +30,9 @@ const size_t kDefaultTCPMSS = 1400;
 }  // namespace
 
 double ComputeMonitorDuration(double sending_rate_mbps, double rtt_us) {
-    if (1.5 * rtt_us < 5.0 * kBitsPerByte * 1456 / sending_rate_mbps) {
-        //std::cout << "Duration = " << 5.0 * kBitsPerByte * 1456 << " / " << sending_rate_mbps << std::endl;
-        return 5.0 * kBitsPerByte * 1456 / sending_rate_mbps;
+    if (1.5 * rtt_us < 30.0 * kBitsPerByte * 1456 / sending_rate_mbps) {
+        //std::cout << "Duration = " << 5.0 * kBitsPerByte * 1456 << " / " << sending_rate_mbps << ", rtt_us = " << rtt_us << std::endl;
+        return 30.0 * kBitsPerByte * 1456 / sending_rate_mbps;
     }
     //std::cout << "Duration = 1.5 * " << rtt_us << std::endl;
     return 1.5 * rtt_us;
@@ -67,6 +69,7 @@ bool PccSender::OnPacketSent(uint64_t sent_time,
   if (interval_queue_.num_useful_intervals() == 0 ||
       sent_time - interval_queue_.current().first_packet_sent_time >
           monitor_duration_) {
+    //std::cout << "Num useful intervals = " << interval_queue_.num_useful_intervals() << std::endl;
     MaybeSetSendingRate();
     // Set the monitor duration to be 1.5 of avg_rtt_.
     monitor_duration_ = ComputeMonitorDuration(sending_rate_mbps_, avg_rtt_); //1.5 * avg_rtt_;
@@ -74,7 +77,8 @@ bool PccSender::OnPacketSent(uint64_t sent_time,
     //std::cout << "Monitor duration: " << monitor_duration_ << std::endl;
     interval_queue_.EnqueueNewMonitorInterval(
         sending_rate_mbps_, CreateUsefulInterval(),
-        avg_rtt_);
+        avg_rtt_, sent_time + monitor_duration_);
+    //std::cout << "New num useful intervals = " << interval_queue_.num_useful_intervals() << std::endl;
   }
   interval_queue_.OnPacketSent(sent_time, packet_number, bytes);
 
@@ -85,29 +89,34 @@ void PccSender::OnCongestionEvent(uint64_t event_time, uint64_t rtt,
                                   const CongestionVector& acked_packets,
                                   const CongestionVector& lost_packets) {
   if (acked_packets.size() > 0) {
+      //std::cout << "Updating RTT" << std::endl;
       if (avg_rtt_ == 0) {
         avg_rtt_ = rtt;
       } else {
           avg_rtt_ = (1 - kAverageRttWeight) * avg_rtt_ +
                         kAverageRttWeight * last_rtt_;
-          //std::cout << "RTT = " << rtt << " avg. = " << avg_rtt_ << std::endl;
       }
       last_rtt_ = rtt;
+      //std::cout << "RTT = " << rtt << " avg. = " << avg_rtt_ << std::endl;
   }
   time_last_rtt_received_ = event_time;
 
   interval_queue_.OnCongestionEvent(acked_packets, lost_packets,
-                                    avg_rtt_);
+                                    avg_rtt_, event_time);
 }
 
 void PccSender::SetRate(double mbps) {
-    std::cout << "SetRate(" << mbps << ")" << std::endl;
+    #ifdef DEBUG_RATE_CONTROL
+        std::cout << "SetRate(" << mbps << ")" << std::endl;
+    #endif
     cudt->m_pCC->m_dPktSndPeriod = (cudt->m_iMSS * 8.0) / mbps;
 }
 
 void PccSender::OnUtilityAvailable(
     const std::vector<UtilityInfo>& utility_info) {
-  std::cout << "OnUtilityAvailable" << std::endl;
+  #ifdef DEBUG_RATE_CONTROL
+      std::cout << "OnUtilityAvailable" << std::endl;
+  #endif
   switch (mode_) {
     case STARTING:
       if (utility_info[0].utility > latest_utility_) {
@@ -139,6 +148,7 @@ void PccSender::OnUtilityAvailable(
                      utility_info[2 * kNumIntervalGroupsInProbing - 1].utility);
         EnterDecisionMade();
       } else {
+        //std::cout << "Staying in probing mode" << std::endl;
         // Stays in PROBING mode.
         EnterProbing();
       }
@@ -236,6 +246,10 @@ bool PccSender::CanMakeDecision(
   // enough data to send.
   if (utility_info.size() < 2 * kNumIntervalGroupsInProbing) {
     return false;
+  }
+
+  for (UtilityInfo u: utility_info) {
+    //std::cout << "Utility info: u=" << u.utility << ", s=" << u.sending_rate_mbps << std::endl;
   }
 
   bool increase = false;

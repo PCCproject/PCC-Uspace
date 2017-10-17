@@ -27,11 +27,13 @@ MonitorInterval::MonitorInterval()
       bytes_total(0),
       bytes_acked(0),
       bytes_lost(0),
-      utility(0.0) {}
+      utility(0.0),
+      end_time(0.0){}
 
 MonitorInterval::MonitorInterval(float sending_rate_mbps,
                                  bool is_useful,
-                                 int64_t rtt_us)
+                                 int64_t rtt_us,
+                                 uint64_t end_time)
     : sending_rate_mbps(sending_rate_mbps),
       is_useful(is_useful),
       first_packet_sent_time(0),
@@ -43,21 +45,20 @@ MonitorInterval::MonitorInterval(float sending_rate_mbps,
       bytes_lost(0),
       rtt_on_monitor_start_us(rtt_us),
       rtt_on_monitor_end_us(rtt_us),
-      utility(0.0) {}
+      utility(0.0),
+      end_time(end_time){}
 
-void MonitorInterval::DumpPacketStates() {
-    for (std::map<QuicPacketNumber, PacketState>::iterator it = pkt_state_map.begin(); it != pkt_state_map.end(); ++it) {
-        if (it->second == PACKET_STATE_SENT) {
-            std::cout << it->first << " in state SENT" << std::endl;
-        }
+void MonitorInterval::DumpMiPacketStates() {
+  for (std::map<QuicPacketNumber, MiPacketState>::iterator it = pkt_state_map.begin(); it != pkt_state_map.end(); ++it) {
+    if (it->second == MI_PACKET_STATE_SENT) {
+      std::cout << it->first << " in state SENT" << std::endl;
     }
+  }
 }
 
-void PccMonitorIntervalQueue::DumpIntervalPacketStates() {
+void PccMonitorIntervalQueue::DumpIntervalMiPacketStates() {
   for (MonitorInterval& interval : monitor_intervals_) {
-    if (!interval.is_useful || IsUtilityAvailable(interval)) {
-      interval.DumpPacketStates();
-    }
+    interval.DumpMiPacketStates();
   }
 }
 
@@ -74,14 +75,15 @@ PccMonitorIntervalQueue::PccMonitorIntervalQueue(
 
 void PccMonitorIntervalQueue::EnqueueNewMonitorInterval(float sending_rate_mbps,
                                                         bool is_useful,
-                                                        int64_t rtt_us) {
+                                                        int64_t rtt_us,
+                                                        uint64_t end_time) {
   //std::cout << "Added new monitor interval" << std::endl;
   if (is_useful) {
     ++num_useful_intervals_;
     //std::cout << "\tInterval is useful! (now have " << num_useful_intervals_ << ")" << std::endl;
   }
 
-  monitor_intervals_.emplace_back(sending_rate_mbps, is_useful, rtt_us);
+  monitor_intervals_.emplace_back(sending_rate_mbps, is_useful, rtt_us, end_time);
 }
 
 void PccMonitorIntervalQueue::OnPacketSent(QuicTime sent_time,
@@ -101,7 +103,7 @@ void PccMonitorIntervalQueue::OnPacketSent(QuicTime sent_time,
   monitor_intervals_.back().last_packet_number = packet_number;
   monitor_intervals_.back().bytes_total += bytes;
 
-  monitor_intervals_.back().pkt_state_map.insert(std::make_pair(packet_number, PACKET_STATE_SENT));
+  //monitor_intervals_.back().pkt_state_map.insert(std::make_pair(packet_number, MI_PACKET_STATE_SENT));
 #ifdef DEBUG_INTERVAL_SIZE
   if (monitor_intervals_.back().is_useful) {
     std::cout << "Added packet " << packet_number << " to monitor interval, now " << monitor_intervals_.back().bytes_total << " bytes " << std::endl;
@@ -112,7 +114,8 @@ void PccMonitorIntervalQueue::OnPacketSent(QuicTime sent_time,
 void PccMonitorIntervalQueue::OnCongestionEvent(
     const CongestionVector& acked_packets,
     const CongestionVector& lost_packets,
-    int64_t rtt_us) {
+    int64_t rtt_us,
+    uint64_t event_time) {
   if (num_useful_intervals_ == 0) {
     // Skip all the received packets if no intervals are useful.
     return;
@@ -121,7 +124,7 @@ void PccMonitorIntervalQueue::OnCongestionEvent(
   bool has_invalid_utility = false;
   //std::cout << "MIQ: " << num_useful_intervals_ << " useful intervals" << std::endl;
   for (MonitorInterval& interval : monitor_intervals_) {
-    if (!interval.is_useful || IsUtilityAvailable(interval)) {
+    if (!interval.is_useful || IsUtilityAvailable(interval, event_time)) {
       // Skips intervals that are not useful, or have available utilities
       continue;
     }
@@ -133,9 +136,9 @@ void PccMonitorIntervalQueue::OnCongestionEvent(
       std::cout << "Lost packet : " << it->seq_no << std::endl;
       #endif
       if (IntervalContainsPacket(interval, it->seq_no)) {
-        std::map<QuicPacketNumber, PacketState>::iterator element = interval.pkt_state_map.find(it->seq_no);
-        interval.pkt_state_map.erase(element);
-        interval.pkt_state_map.insert(std::make_pair(it->seq_no, PACKET_STATE_LOST));
+        //std::map<QuicPacketNumber, MiPacketState>::iterator element = interval.pkt_state_map.find(it->seq_no);
+        //interval.pkt_state_map.erase(element);
+        //interval.pkt_state_map.insert(std::make_pair(it->seq_no, MI_PACKET_STATE_LOST));
         interval.bytes_lost += it->lost_bytes;
         #ifdef DEBUG_MONITOR_INTERVAL_QUEUE_LOSS
         std::cout << "\tattributed bytes to an interval" << std::endl;
@@ -153,9 +156,9 @@ void PccMonitorIntervalQueue::OnCongestionEvent(
       std::cout << "Acked packet : " << it->seq_no << std::endl;
       #endif
       if (IntervalContainsPacket(interval, it->seq_no)) {
-        std::map<QuicPacketNumber, PacketState>::iterator element = interval.pkt_state_map.find(it->seq_no);
-        interval.pkt_state_map.erase(element);
-        interval.pkt_state_map.insert(std::make_pair(it->seq_no, PACKET_STATE_LOST));
+        //std::map<QuicPacketNumber, MiPacketState>::iterator element = interval.pkt_state_map.find(it->seq_no);
+        //interval.pkt_state_map.erase(element);
+        //interval.pkt_state_map.insert(std::make_pair(it->seq_no, MI_PACKET_STATE_LOST));
         interval.bytes_acked += it->acked_bytes;
         #ifdef DEBUG_MONITOR_INTERVAL_QUEUE_ACKS
         std::cout << "\tattributed bytes to an interval" << std::endl;
@@ -166,11 +169,21 @@ void PccMonitorIntervalQueue::OnCongestionEvent(
       }
     }
 
-    if (IsUtilityAvailable(interval)) {
+    if (IsUtilityAvailable(interval, event_time)) {
       interval.rtt_on_monitor_end_us = rtt_us;
       has_invalid_utility = !CalculateUtility(&interval);
       if (has_invalid_utility) {
         break;
+      }
+      ++num_available_intervals_;
+    }
+  }
+
+  num_available_intervals_ = 0;
+  for (MonitorInterval& interval : monitor_intervals_) {
+    if (interval.is_useful && IsUtilityAvailable(interval, event_time)) {
+      if (interval.utility == 0) {
+        CalculateUtility(&interval);
       }
       ++num_available_intervals_;
     }
@@ -221,8 +234,12 @@ size_t PccMonitorIntervalQueue::size() const {
 }
 
 bool PccMonitorIntervalQueue::IsUtilityAvailable(
-    const MonitorInterval& interval) const {
-  return (interval.bytes_acked + interval.bytes_lost == interval.bytes_total);
+    const MonitorInterval& interval,
+    uint64_t event_time) const {
+    
+    //std::cout << "interval [" << interval.first_packet_number << ", " << interval.last_packet_number << "] ends at " <<
+    //    interval.end_time << " (now: " << event_time << ")" << std::endl;
+    return (event_time >= interval.end_time && interval.bytes_acked + interval.bytes_lost == interval.bytes_total);
 }
 
 bool PccMonitorIntervalQueue::IntervalContainsPacket(
@@ -257,7 +274,7 @@ bool PccMonitorIntervalQueue::CalculateUtility(MonitorInterval* interval) {
   float bytes_acked = static_cast<float>(interval->bytes_acked);
   float bytes_lost = static_cast<float>(interval->bytes_lost);
   float bytes_total = static_cast<float>(interval->bytes_total);
-
+      
   float current_utility =
       (bytes_acked / static_cast<float>(mi_duration) *
            (1.0 -
@@ -266,7 +283,13 @@ bool PccMonitorIntervalQueue::CalculateUtility(MonitorInterval* interval) {
            (1.0 - 1.0 / (1.0 + std::exp(kRTTCoefficient * (1.0 - rtt_ratio)))) -
        bytes_lost / static_cast<float>(mi_duration)) *
       1000.0;
-
+  /*
+  std::cout << "Utility = " << current_utility << " = " << bytes_acked << " / " << static_cast<float>(mi_duration) << " * "
+           << "(1.0 - 1.0 / (1.0 + e^(" << kLossCoefficient << " * (" << bytes_lost << " / " << bytes_total
+           << " - " << kLossTolerance << ")))) * (1.0 - 1.0 / (1.0 + e^( * " << kRTTCoefficient
+           << " * (1.0 - " << rtt_ratio << ")))) - " << bytes_lost << " / " << static_cast<float>(mi_duration) <<
+           ") * 1000" << std::endl;
+  */
   interval->utility = current_utility;
   return true;
 }

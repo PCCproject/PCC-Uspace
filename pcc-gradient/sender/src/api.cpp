@@ -1829,92 +1829,6 @@ int CUDT::recv(UDTSOCKET u, char* buf, int len, int)
    }
 }
 
-int CUDT::sendmsg(UDTSOCKET u, const char* buf, int len, int ttl, bool inorder)
-{
-   try
-   {
-      CUDT* udt = s_UDTUnited.lookup(u);
-      return udt->sendmsg((char*)buf, len, ttl, inorder);
-   }
-   catch (CUDTException e)
-   {
-      s_UDTUnited.setError(new CUDTException(e));
-      return ERROR;
-   }
-   catch (bad_alloc&)
-   {
-      s_UDTUnited.setError(new CUDTException(3, 2, 0));
-      return ERROR;
-   }
-   catch (...)
-   {
-      s_UDTUnited.setError(new CUDTException(-1, 0, 0));
-      return ERROR;
-   }
-}
-
-int CUDT::recvmsg(UDTSOCKET u, char* buf, int len)
-{
-   try
-   {
-      CUDT* udt = s_UDTUnited.lookup(u);
-      return udt->recvmsg(buf, len);
-   }
-   catch (CUDTException e)
-   {
-      s_UDTUnited.setError(new CUDTException(e));
-      return ERROR;
-   }
-   catch (...)
-   {
-      s_UDTUnited.setError(new CUDTException(-1, 0, 0));
-      return ERROR;
-   }
-}
-
-int64_t CUDT::sendfile(UDTSOCKET u, fstream& ifs, int64_t& offset, const int64_t& size, const int& block)
-{
-   try
-   {
-      CUDT* udt = s_UDTUnited.lookup(u);
-      return udt->sendfile(ifs, offset, size, block);
-   }
-   catch (CUDTException e)
-   {
-      s_UDTUnited.setError(new CUDTException(e));
-      return ERROR;
-   }
-   catch (bad_alloc&)
-   {
-      s_UDTUnited.setError(new CUDTException(3, 2, 0));
-      return ERROR;
-   }
-   catch (...)
-   {
-      s_UDTUnited.setError(new CUDTException(-1, 0, 0));
-      return ERROR;
-   }
-}
-
-int64_t CUDT::recvfile(UDTSOCKET u, fstream& ofs, int64_t& offset, const int64_t& size, const int& block)
-{
-   try
-   {
-      CUDT* udt = s_UDTUnited.lookup(u);
-      return udt->recvfile(ofs, offset, size, block);
-   }
-   catch (CUDTException e)
-   {
-      s_UDTUnited.setError(new CUDTException(e));
-      return ERROR;
-   }
-   catch (...)
-   {
-      s_UDTUnited.setError(new CUDTException(-1, 0, 0));
-      return ERROR;
-   }
-}
-
 int CUDT::select(int, ud_set* readfds, ud_set* writefds, ud_set* exceptfds, const timeval* timeout)
 {
    if ((NULL == readfds) && (NULL == writefds) && (NULL == exceptfds))
@@ -2228,26 +2142,6 @@ int send(UDTSOCKET u, const char* buf, int len, int flags)
 int recv(UDTSOCKET u, char* buf, int len, int flags)
 {
    return CUDT::recv(u, buf, len, flags);
-}
-
-int sendmsg(UDTSOCKET u, const char* buf, int len, int ttl, bool inorder)
-{
-   return CUDT::sendmsg(u, buf, len, ttl, inorder);
-}
-
-int recvmsg(UDTSOCKET u, char* buf, int len)
-{
-   return CUDT::recvmsg(u, buf, len);
-}
-
-int64_t sendfile(UDTSOCKET u, fstream& ifs, int64_t& offset, int64_t size, int block)
-{
-   return CUDT::sendfile(u, ifs, offset, size, block);
-}
-
-int64_t recvfile(UDTSOCKET u, fstream& ofs, int64_t& offset, int64_t size, int block)
-{
-   return CUDT::recvfile(u, ofs, offset, size, block);
 }
 
 int select(int nfds, UDSET* readfds, UDSET* writefds, UDSET* exceptfds, const struct timeval* timeout)

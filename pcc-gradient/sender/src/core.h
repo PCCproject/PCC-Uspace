@@ -62,6 +62,9 @@ written by
 #include "time.h"
 
 #include "pcc_sender.h"
+#include "packet_tracker.h"
+
+typedef uint64_t PacketId;
 
 enum UDTSockType {UDT_STREAM = 1, UDT_DGRAM};
 
@@ -363,6 +366,7 @@ private: // congestion control
    CCCVirtualFactory* m_pCCFactory;             // Factory class to create a specific CC instance
    CCC* m_pCC;                                  // congestion control class
    PccSender* pcc_sender;
+   PacketTracker<int32_t, PacketId>* packet_tracker_;
    CCache<CInfoBlock>* m_pCache;		// network information cache
 
 private: // Status
@@ -453,7 +457,9 @@ private: // synchronization: mutexes and conditions
    double get_min_rtt() const;
 
 private: // Generation and processing of packets
+   void SendAck(int32_t seq_no);
    void sendCtrl(const int& pkttype, void* lparam = NULL, void* rparam = NULL, const int& size = 0);
+   void ProcessAck(CPacket& ctrlpkt);
    void processCtrl(CPacket& ctrlpkt);
    int packData(CPacket& packet, uint64_t& ts);
    int processData(CUnit* unit);
@@ -463,6 +469,7 @@ private: // Generation and processing of packets
    double estimate_rtt_for_timedout_monitors(int monitor);
    uint64_t deadlines[MAX_MONITOR];
    uint64_t allocated_times_[MAX_MONITOR];
+   int32_t GetNextSeqNo();
 
    int loss_head_loc;
 

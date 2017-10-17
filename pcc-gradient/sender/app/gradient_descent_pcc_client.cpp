@@ -155,6 +155,7 @@ int main(int argc, char* argv[])
 
    int size = 100000;
    char* data = new char[size];
+   bzero(data, size);
 
    #ifndef WIN32
       pthread_create(new pthread_t, NULL, monitor, &client);
@@ -216,7 +217,7 @@ DWORD WINAPI monitor(LPVOID s)
 
    UDT::TRACEINFO perf;
 
-   cerr << "SendRate(Mb/s)\tRTT(ms)\tCTotal\tLoss\tRecvACK\tRecvNAK" << endl;
+   cout << "SendRate(Mb/s)\tRTT(ms)\tCTotal\tLoss\tRecvACK\tRecvNAK" << endl;
    int i=0;
    while (true)
    {
@@ -225,17 +226,16 @@ DWORD WINAPI monitor(LPVOID s)
       #else
          Sleep(1000);
       #endif
-    i++;
-    if(i>10000)
-        {
-        exit(1);
+        i++;
+        if ( i== 60) {
+            exit(1);
         }
       if (UDT::ERROR == UDT::perfmon(u, &perf))
       {
          cout << "perfmon: " << UDT::getlasterror().getErrorMessage() << endl;
          break;
       }
-    cerr   <<""<<i<<"\t" << perf.mbpsSendRate << "\t"
+    cout   <<""<<i<<"\t" << perf.mbpsSendRate << "\t"
            << perf.msRTT << "\t"
            <<  perf.pktSentTotal << "\t"
            << perf.pktSndLossTotal <<endl;
