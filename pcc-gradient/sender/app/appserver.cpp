@@ -18,14 +18,15 @@ using namespace std;
 #ifndef WIN32
 void* senddata(void*);
 void* recvdata(void*);
-void* monitor(void* s);
+void* recv_monitor(void* s);
+void* send_monitor(void* s);
 #else
 DWORD WINAPI recvdata(LPVOID);
 #endif
 
 int main(int argc, char* argv[])
 {
-   if ((strcmp(argv[1], "recv") && strcmp(argv[2], "send")) || ((2 != argc) && ((3 != argc) || (0 == atoi(argv[2])))))
+   if ((strcmp(argv[1], "recv") && strcmp(argv[1], "send")) || ((2 != argc) && ((3 != argc) || (0 == atoi(argv[2])))))
    {
       cout << "usage: appserver <send|recv> [server_port]" << endl;
       return 0;
@@ -128,7 +129,7 @@ DWORD WINAPI senddata(LPVOID usocket)
 {
    UDTSOCKET sender = *(UDTSOCKET*)usocket;
    delete (UDTSOCKET*)usocket;
-   pthread_create(new pthread_t, NULL, monitor, &sender);
+   pthread_create(new pthread_t, NULL, send_monitor, &sender);
    char* data;
    int size = 100000000;
    data = new char[size];
@@ -170,7 +171,7 @@ DWORD WINAPI recvdata(LPVOID usocket)
 {
    UDTSOCKET recver = *(UDTSOCKET*)usocket;
    delete (UDTSOCKET*)usocket;
-   pthread_create(new pthread_t, NULL, monitor, &recver);
+   pthread_create(new pthread_t, NULL, recv_monitor, &recver);
    char* data;
    int size = 100000000;
    data = new char[size];
@@ -209,9 +210,9 @@ DWORD WINAPI recvdata(LPVOID usocket)
 }
 
 #ifndef WIN32
-void* monitor(void* s)
+void* recv_monitor(void* s)
 #else
-DWORD WINAPI monitor(LPVOID s)
+DWORD WINAPI recv_monitor(LPVOID s)
 #endif
 {
    UDTSOCKET u = *(UDTSOCKET*)s;
@@ -242,6 +243,51 @@ DWORD WINAPI monitor(LPVOID s)
       cout << perf.mbpsRecvRate << "\t\t"
            << perf.msRTT << "\t"
            << perf.pktRecv << "\t\t"
+           << std::endl;
+   }
+
+   #ifndef WIN32
+      return NULL;
+   #else
+      return 0;
+   #endif
+}
+
+#ifndef WIN32
+void* send_monitor(void* s)
+#else
+DWORD WINAPI send_monitor(LPVOID s)
+#endif
+{
+   UDTSOCKET u = *(UDTSOCKET*)s;
+    int i = 0;
+
+   UDT::TRACEINFO perf;
+
+   cout << "Send Rate(Mb/s)\tRTT(ms)\t\tSent\t\tLost" << endl;
+
+   while (true)
+   {
+      ++i;
+      if (i == 60) {
+          exit(-1);
+      }
+      #ifndef WIN32
+         sleep(1);
+      #else
+         Sleep(1000);
+      #endif
+
+      if (UDT::ERROR == UDT::perfmon(u, &perf))
+      {
+         cout << "perfmon: " << UDT::getlasterror().getErrorMessage() << endl;
+         break;
+      }
+
+      cout << perf.mbpsSendRate << "\t\t"
+           << perf.msRTT << "\t"
+           << perf.pktSentTotal << "\t"
+           << perf.pktSndLossTotal << "\t"
            << std::endl;
    }
 

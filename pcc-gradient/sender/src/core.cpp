@@ -1807,7 +1807,7 @@ void CUDT::add_to_loss_record(int32_t loss1, int32_t loss2){
     pcc_sender_lock.lock();
     for (int loss = loss1; loss <= loss2; ++loss) {
         PacketId pkt_id = packet_tracker_->GetPacketId(loss);
-        std::cout << "Loss ID: " << pkt_id << std::endl;
+        //std::cout << "Loss ID: " << pkt_id << std::endl;
         CongestionEvent loss_event;
         loss_event.seq_no = pkt_id;
         loss_event.acked_bytes = 0;
@@ -2301,6 +2301,7 @@ int CUDT::packData(CPacket& packet, uint64_t& ts)
 
 int CUDT::processData(CUnit* unit)
 {
+    //std::cout << "Process data" << std::endl;
     CPacket& packet = unit->m_Packet;
     SendAck(packet.m_iSeqNo);
 	// Just heard from the peer, reset the expiration count.

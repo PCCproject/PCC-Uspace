@@ -184,7 +184,7 @@ int main(int argc, char* argv[])
             int rsize = 0;
             int rs;
             while (rsize < size) {
-                if (UDT::ERROR == (rs = UDT::send(client, data + rsize, size - rsize, 0))) {
+                if (UDT::ERROR == (rs = UDT::recv(client, data + rsize, size - rsize, 0))) {
                     cout << "recv:" << UDT::getlasterror().getErrorMessage() << endl;
                     break;
                 }
