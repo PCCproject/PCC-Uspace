@@ -69,9 +69,9 @@ class TimespecLessThan {
   public:
     int operator() (const struct timespec ts_1, const struct timespec ts_2) {
         if (ts_1.tv_sec != ts_2.tv_sec) {
-            return ts_1.tv_sec < ts_2.tv_sec;
+            return ts_1.tv_sec > ts_2.tv_sec;
         }
-        return ts_1.tv_nsec < ts_2.tv_nsec;
+        return ts_1.tv_nsec > ts_2.tv_nsec;
     }
 };
 
@@ -143,6 +143,7 @@ PacketTracker<SeqNoType, IdType>::PacketTracker(pthread_cond_t* send_cond) {
 template <typename SeqNoType, typename IdType>
 IdType PacketTracker<SeqNoType, IdType>::MakeNewPacketId(CPacket& packet) {
     IdType result = ++prev_packet_id_;
+    //std::cout << "Making new id: " << result << std::endl;
     return result;
 }
 
@@ -155,14 +156,15 @@ template <typename SeqNoType, typename IdType>
 void PacketTracker<SeqNoType, IdType>::EnqueuePacket(CPacket& packet) {
     SeqNoType seq_no = packet.m_iSeqNo;
     //std::cout << "Enqueueing packet: " << seq_no << std::endl;
-    lock_.lock();
+    std::lock_guard<std::mutex> guard(lock_);
     typename std::unordered_map<SeqNoType, PacketRecord<SeqNoType, IdType>*>::iterator packet_record_iter =
         packet_record_map_.find(seq_no);
     if (packet_record_iter == packet_record_map_.end()) {
         
         // Packet Id is not currently recorded, so we should record a new ID for it.
-        IdType packet_id = MakeNewPacketId(packet);
-        packet_record_map_.insert(std::make_pair(seq_no, new PacketRecord<SeqNoType, IdType>(packet, packet_id, PACKET_STATE_QUEUED)));
+        //IdType packet_id = MakeNewPacketId(packet);
+        //std::cout << "Enqueued packet: " << packet_id << ":" << seq_no << std::endl;
+        packet_record_map_.insert(std::make_pair(seq_no, new PacketRecord<SeqNoType, IdType>(packet, 0, PACKET_STATE_QUEUED)));
         send_queue_.push(seq_no);
     } else {
         std::cerr << "ERROR: Attempted to enqueue packet that already has a record!" << std::endl;
@@ -170,7 +172,6 @@ void PacketTracker<SeqNoType, IdType>::EnqueuePacket(CPacket& packet) {
         exit(-1);
     }
     ++cur_num_packets_;
-    lock_.unlock();
 }
 
 template <typename SeqNoType, typename IdType>
@@ -203,6 +204,7 @@ void PacketTracker<SeqNoType, IdType>::OnPacketSent(CPacket& packet) {
                 exit(-1);
             } else {
                 retransmittable_queue_.pop();
+                //std::cout << "Removed " << seq_no << " from retransmit queue" << std::endl;
             }
         }
         PacketRecord<SeqNoType, IdType>* packet_record = packet_record_iter->second;
@@ -241,6 +243,7 @@ void PacketTracker<SeqNoType, IdType>::OnPacketLoss(SeqNoType seq_no) {
         packet_record->UpdateRecord(PACKET_STATE_LOST);
         packet_record->SetPacketId(0);
         retransmittable_queue_.push(seq_no);
+        //std::cout << "Added " << seq_no << " to retransmittable queue" << std::endl;
     } else {
         //std::cerr << "ERROR: Packet was lost but never recorded as sent!" << std::endl;
         //std::cerr << "\t seq_no = " << seq_no << std::endl;

@@ -309,6 +309,9 @@ CUDT::CUDT(const CUDT& ancestor)
 
 	m_pCCFactory = ancestor.m_pCCFactory->clone();
 	m_pCache = ancestor.m_pCache;
+    if (m_pCC != NULL) {
+        delete m_pCC;
+    }
 	m_pCC = m_pCCFactory->create();
 
     pcc_sender = new PccSender(this, 10, 1000);
@@ -1804,7 +1807,7 @@ void CUDT::add_to_loss_record(int32_t loss1, int32_t loss2){
     pcc_sender_lock.lock();
     for (int loss = loss1; loss <= loss2; ++loss) {
         PacketId pkt_id = packet_tracker_->GetPacketId(loss);
-        //std::cout << "Loss ID: " << pkt_id << std::endl;
+        std::cout << "Loss ID: " << pkt_id << std::endl;
         CongestionEvent loss_event;
         loss_event.seq_no = pkt_id;
         loss_event.acked_bytes = 0;
@@ -1844,6 +1847,7 @@ void CUDT::ProcessAck(CPacket& ctrlpkt) {
     ack_event.lost_bytes = 0;
     acked_packets.push_back(ack_event);
     uint64_t rtt_us = packet_tracker_->GetPacketRtt(seq_no);
+    m_iRTT = (7 * m_iRTT + rtt_us) / 8;
     OnCongestionEvent(*pcc_sender, CTimer::getTime(), rtt_us, acked_packets, lost_packets);
     packet_tracker_->DeletePacketRecord(seq_no);
     pcc_sender_lock.unlock();
@@ -1868,7 +1872,6 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 	case 2: //010 - Acknowledgement
 	{
         ProcessAck(ctrlpkt);
-
 		break;
 	}
 	case 6: //110 - Acknowledgement of Acknowledgement
@@ -1886,7 +1889,7 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 
 		// RTT EWMA
 		//m_iRTTVar = (m_iRTTVar * 3 + abs(rtt - m_iRTT)) >> 2;
-		m_iRTT = (m_iRTT * 7 + rtt) >> 3;
+		//m_iRTT = (m_iRTT * 7 + rtt) >> 3;
 
 		//m_pCC->setRTT(m_iRTT);
 
@@ -1942,7 +1945,7 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 				#endif 
                 if (CSeqNo::seqcmp(losslist[i] & 0x7FFFFFFF, const_cast<int32_t&>(m_iSndLastAck)) >= 0)
 				{   
-                    add_to_loss_record(losslist[i]& 0x7FFFFFFF, losslist[i+1]);
+                    //add_to_loss_record(losslist[i]& 0x7FFFFFFF, losslist[i+1]);
                     num = m_pSndLossList->insert(losslist[i] & 0x7FFFFFFF, losslist[i + 1]);
 //				loss_record1[lossptr]=losslist[i]& 0x7FFFFFFF;
 //				loss_record2[lossptr]=losslist[i+1];
@@ -1952,7 +1955,7 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 
 				else if (CSeqNo::seqcmp(losslist[i + 1], const_cast<int32_t&>(m_iSndLastAck)) >= 0)
 				{               
-                    add_to_loss_record(const_cast<int32_t&>(m_iSndLastAck), losslist[i+1]);
+                    //add_to_loss_record(const_cast<int32_t&>(m_iSndLastAck), losslist[i+1]);
                     num = m_pSndLossList->insert(const_cast<int32_t&>(m_iSndLastAck), losslist[i + 1]);
 //				loss_record1[lossptr]=m_iSndLastAck;
 				//loss_record2[lossptr]=losslist[i+1];
@@ -1976,7 +1979,7 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
                 #ifdef DEBUG_LOSS
                     std::cout << "Inserting individual loss: " << losslist[i] << std::endl;
                 #endif
-                add_to_loss_record(losslist[i], losslist[i]);
+                //add_to_loss_record(losslist[i], losslist[i]);
 				int num = m_pSndLossList->insert(losslist[i], losslist[i]);
 //				loss_record1[lossptr]=losslist[i];
 //				loss_record2[lossptr]=losslist[i];
@@ -2162,7 +2165,7 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
                                                 //c<<"before on monitor ends"<<Mon<<" "<<rtt_value[Mon]<<" "<<rtt_count[Mon]<<endl;
                                                 //cout<<"before on monitor "<<tmp<< "ends loss is"<<total[tmp] - left[tmp]<<endl;
                         double latency_info1 = double(latency_time_end[tmp]*1000-(start_time[tmp]-1471107640000000+m_iRTT/2))/(end_transmission_time[tmp]-start_time[tmp]);
-                                                m_iRTT = rtt_value[Mon]/double(rtt_count[Mon]);
+                                                //m_iRTT = rtt_value[Mon]/double(rtt_count[Mon]);
 						last_rtt_ = m_iRTT;
 	                                        m_pCC->setRTT(m_iRTT);
                         double latency_info2 = double(latency_time_end[tmp]*1000-(start_time[tmp]-1471107400000000+m_iRTT/2))/(end_transmission_time[tmp]-start_time[tmp]);
@@ -2327,6 +2330,7 @@ int CUDT::processData(CUnit* unit)
 	if (m_pRcvBuffer->addData(unit, offset) < 0)
 		return -1;
 
+    /*
 	// Loss detection.
 	if (CSeqNo::seqcmp(packet.m_iSeqNo, CSeqNo::incseq(m_iRcvCurrSeqNo)) > 0)
 	{
@@ -2348,7 +2352,9 @@ int CUDT::processData(CUnit* unit)
 		m_iTraceRcvLoss += loss;
 		m_iRcvLossTotal += loss;
 	}
+    */
 
+    /*
 	// This is not a regular fixed size packet...
 	//an irregular sized packet usually indicates the end of a message, so send an ACK immediately
 	if (packet.getLength() != m_iPayloadSize)
@@ -2378,6 +2384,7 @@ int CUDT::processData(CUnit* unit)
         
 
 	}
+    */
 	return 0;
 }
 
@@ -2474,15 +2481,20 @@ void CUDT::checkTimers()
 	//   m_ullInterval = minint;
 
     bool above_loss_threshold = true;
-    uint64_t loss_thresh_us = 1000;
+    uint64_t loss_thresh_us = 10 * m_iRTT;
     struct timespec cur_time;
     clock_gettime(CLOCK_MONOTONIC, &cur_time);
 
+    if (packet_tracker_->HasSentPackets()) {
+        //std::cout << "loss_thresh = " << loss_thresh_us << std::endl;
+    }
     while (packet_tracker_->HasSentPackets() && above_loss_threshold) {
         int32_t seq_no = packet_tracker_->GetOldestSentSeqNo();
+        //std::cout << "Oldest sent seq no = " << seq_no << std::endl;
         if (packet_tracker_->HasSentPackets()) {
             struct timespec sent_time = packet_tracker_->GetPacketSentTime(seq_no);
             uint64_t time_since_sent = (cur_time.tv_nsec - sent_time.tv_nsec) / 1000 + (cur_time.tv_sec - sent_time.tv_sec) * 1000000;
+            //std::cout << "Time since sent = " << time_since_sent << std::endl;
             if (time_since_sent > loss_thresh_us) {
                 add_to_loss_record(seq_no, seq_no);
                 //std::cout << "Recording loss: " << seq_no << std::endl;
@@ -2538,9 +2550,9 @@ void CUDT::checkTimers()
 	// we are not sending back repeated NAK anymore and rely on the sender's EXP for retransmission
 	if ((m_pRcvLossList->getLossLength() > 0) && (currtime > m_ullNextNAKTime))
 	{
-        std::cout << "Periodic loss report" << std::endl;
+        //std::cout << "Periodic loss report" << std::endl;
 	//   // NAK timer expired, and there is loss to be reported.
-	   sendCtrl(3);
+	   //sendCtrl(3);
 	//
 	   CTimer::rdtsc(currtime);
 	   m_ullNextNAKTime = currtime + m_ullNAKInt;
@@ -2612,7 +2624,7 @@ void CUDT::checkTimers()
 		}
 		else
 		{
-			//sendCtrl(1);
+			sendCtrl(1);
 		}
 
 		++ m_iEXPCount;

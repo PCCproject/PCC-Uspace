@@ -16,7 +16,14 @@ const float kLossTolerance = 0.05f;
 const float kLossCoefficient = -1000.0f;
 // Coefficient of RTT term in utility function.
 const float kRTTCoefficient = -200.0f;
-
+// Number of microseconds per second.
+const float kMicrosecondsPerSecond = 1000000.0f;
+// Coefficienty of the latency term in the utility function.
+const float kLatencyCoefficient = 1;
+// Alpha factor in the utility function.
+const float kAlpha = 0.2;
+// An exponent in the utility function.
+const float kExponent = 1.5;
 }  // namespace
 
 MonitorInterval::MonitorInterval()
@@ -27,8 +34,9 @@ MonitorInterval::MonitorInterval()
       bytes_total(0),
       bytes_acked(0),
       bytes_lost(0),
+      end_time(0.0),
       utility(0.0),
-      end_time(0.0){}
+      n_packets(0){}
 
 MonitorInterval::MonitorInterval(float sending_rate_mbps,
                                  bool is_useful,
@@ -45,8 +53,9 @@ MonitorInterval::MonitorInterval(float sending_rate_mbps,
       bytes_lost(0),
       rtt_on_monitor_start_us(rtt_us),
       rtt_on_monitor_end_us(rtt_us),
+      end_time(end_time),
       utility(0.0),
-      end_time(end_time){}
+      n_packets(0){}
 
 void MonitorInterval::DumpMiPacketStates() {
   for (std::map<QuicPacketNumber, MiPacketState>::iterator it = pkt_state_map.begin(); it != pkt_state_map.end(); ++it) {
@@ -94,14 +103,27 @@ void PccMonitorIntervalQueue::OnPacketSent(QuicTime sent_time,
     // This is the first packet of this interval.
     monitor_intervals_.back().first_packet_sent_time = sent_time;
     monitor_intervals_.back().first_packet_number = packet_number;
+    monitor_intervals_.back().last_packet_sent_time = sent_time;
+    monitor_intervals_.back().last_packet_number = packet_number;
   }
 
   if (packet_number < monitor_intervals_.back().last_packet_number) {
+    std::cout << "Attempted to add packet " << packet_number << " but number is too low" << std::endl;
     return;
+  }
+  //std::cout << "Sending packet #" << packet_number << std::endl;
+  //std::cout << "Last packet sent: " << monitor_intervals_.back().last_packet_number << " next packet: " << packet_number << std::endl;
+  for (int i = 0; monitor_intervals_.back().last_packet_number + i + 1 < packet_number; ++i) {
+    monitor_intervals_.back().sent_times.push_back(0);
+    monitor_intervals_.back().packet_rtts.push_back(0l);
+    std::cout << "Inserting blank interval: " << i << std::endl;
   }
   monitor_intervals_.back().last_packet_sent_time = sent_time;
   monitor_intervals_.back().last_packet_number = packet_number;
   monitor_intervals_.back().bytes_total += bytes;
+  monitor_intervals_.back().sent_times.push_back(sent_time);
+  monitor_intervals_.back().packet_rtts.push_back(0l);
+  ++monitor_intervals_.back().n_packets;
 
   //monitor_intervals_.back().pkt_state_map.insert(std::make_pair(packet_number, MI_PACKET_STATE_SENT));
 #ifdef DEBUG_INTERVAL_SIZE
@@ -160,6 +182,7 @@ void PccMonitorIntervalQueue::OnCongestionEvent(
         //interval.pkt_state_map.erase(element);
         //interval.pkt_state_map.insert(std::make_pair(it->seq_no, MI_PACKET_STATE_LOST));
         interval.bytes_acked += it->acked_bytes;
+        interval.packet_rtts[it->seq_no - interval.first_packet_number] = rtt_us;
         #ifdef DEBUG_MONITOR_INTERVAL_QUEUE_ACKS
         std::cout << "\tattributed bytes to an interval" << std::endl;
         std::cout << "\tacked " << interval.bytes_acked << "/" << interval.bytes_total << std::endl;
@@ -268,28 +291,43 @@ bool PccMonitorIntervalQueue::CalculateUtility(MonitorInterval* interval) {
       kMinTransmissionTime,
       (interval->last_packet_sent_time - interval->first_packet_sent_time));
 
-  float rtt_ratio = static_cast<float>(interval->rtt_on_monitor_start_us) /
-                    static_cast<float>(interval->rtt_on_monitor_end_us);
-
-  float bytes_acked = static_cast<float>(interval->bytes_acked);
+  float mi_time = static_cast<float>(mi_duration) / kMicrosecondsPerSecond;
   float bytes_lost = static_cast<float>(interval->bytes_lost);
   float bytes_total = static_cast<float>(interval->bytes_total);
-      
-  float current_utility =
-      (bytes_acked / static_cast<float>(mi_duration) *
-           (1.0 -
-            1.0 / (1.0 + std::exp(kLossCoefficient *
-                             (bytes_lost / bytes_total - kLossTolerance)))) *
-           (1.0 - 1.0 / (1.0 + std::exp(kRTTCoefficient * (1.0 - rtt_ratio)))) -
-       bytes_lost / static_cast<float>(mi_duration)) *
-      1000.0;
-  /*
-  std::cout << "Utility = " << current_utility << " = " << bytes_acked << " / " << static_cast<float>(mi_duration) << " * "
-           << "(1.0 - 1.0 / (1.0 + e^(" << kLossCoefficient << " * (" << bytes_lost << " / " << bytes_total
-           << " - " << kLossTolerance << ")))) * (1.0 - 1.0 / (1.0 + e^( * " << kRTTCoefficient
-           << " * (1.0 - " << rtt_ratio << ")))) - " << bytes_lost << " / " << static_cast<float>(mi_duration) <<
-           ") * 1000" << std::endl;
-  */
+     
+  float avg_time = 0.0;
+  float avg_rtt = 0.0;
+  for (int i = 0; i < interval->n_packets; ++i) {
+    if (interval->packet_rtts[i] != 0l) {
+      avg_time += interval->sent_times[i];
+      avg_rtt += interval->packet_rtts[i];
+    }
+  }
+  avg_time /= interval->n_packets;
+  avg_rtt /= interval->n_packets;
+
+  float numerator = 0.0;
+  float denominator = 0.0;
+  for (int i = 0; i < interval->n_packets; ++i) {
+    if (interval->packet_rtts[i] != 0l) {
+      numerator += (interval->sent_times[i] - avg_time) * (interval->packet_rtts[i] - avg_rtt);
+      denominator += (interval->sent_times[i] - avg_time) * (interval->sent_times[i] - avg_time);
+    }
+  }
+
+  float latency_info = numerator / denominator;
+
+  float loss_rate = bytes_lost / bytes_total;
+  float rtt_penalty = int(int(latency_info * 100) / 100.0 * 100) / 2 * 2/ 100.0;
+  float loss_contribution = bytes_total * (11.35 * (pow((1 + loss_rate), 1) - 1));
+  if (loss_rate <= 0.03) {
+    loss_contribution = bytes_total * (1 * (pow((1 + loss_rate), 1) - 1));
+  }
+  float rtt_contribution = kLatencyCoefficient * 11330 * bytes_total * (pow(rtt_penalty, 1));
+
+  float current_utility = kAlpha * pow(bytes_total /1024/1024*8/mi_time, kExponent) - (1*loss_contribution +
+  rtt_contribution)*(bytes_total / static_cast<float>(interval->n_packets))/1024/1024*8/mi_time;
+  
   interval->utility = current_utility;
   return true;
 }

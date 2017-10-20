@@ -68,6 +68,10 @@ struct MonitorInterval {
   // when all sent packets are either acked or lost.
   float utility;
 
+  std::vector<QuicTime> sent_times;
+  std::vector<QuicTime> packet_rtts;
+  int n_packets;
+
   std::map<QuicPacketNumber, MiPacketState> pkt_state_map;
 };
 
