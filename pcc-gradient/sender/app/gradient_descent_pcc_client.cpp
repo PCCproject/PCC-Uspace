@@ -227,9 +227,6 @@ DWORD WINAPI monitor(LPVOID s)
          Sleep(1000);
       #endif
         i++;
-        if ( i== 60) {
-            exit(1);
-        }
       if (UDT::ERROR == UDT::perfmon(u, &perf))
       {
          cout << "perfmon: " << UDT::getlasterror().getErrorMessage() << endl;

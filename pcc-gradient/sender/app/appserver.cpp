@@ -225,9 +225,6 @@ DWORD WINAPI recv_monitor(LPVOID s)
    while (true)
    {
       ++i;
-      if (i == 60) {
-          exit(-1);
-      }
       #ifndef WIN32
          sleep(1);
       #else
@@ -269,9 +266,6 @@ DWORD WINAPI send_monitor(LPVOID s)
    while (true)
    {
       ++i;
-      if (i == 60) {
-          exit(-1);
-      }
       #ifndef WIN32
          sleep(1);
       #else
