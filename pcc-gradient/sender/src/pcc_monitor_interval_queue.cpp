@@ -3,6 +3,7 @@
 #include <iostream>
       
       
+//#define DEBUG_UTILITY_CALC
 //#define DEBUG_MONITOR_INTERVAL_QUEUE_ACKS
 //#define DEBUG_MONITOR_INTERVAL_QUEUE_LOSS
 //#define DEBUG_INTERVAL_SIZE
@@ -325,9 +326,22 @@ bool PccMonitorIntervalQueue::CalculateUtility(MonitorInterval* interval) {
   }
   float rtt_contribution = kLatencyCoefficient * 11330 * bytes_total * (pow(rtt_penalty, 1));
 
-  float current_utility = kAlpha * pow(bytes_total /1024/1024*8/mi_time, kExponent) - (1*loss_contribution +
-  rtt_contribution)*(bytes_total / static_cast<float>(interval->n_packets))/1024/1024*8/mi_time;
-  
+  float current_utility = kAlpha * pow(bytes_total/1024/1024/mi_time, kExponent) - (1*loss_contribution +
+  rtt_contribution)*(bytes_total / static_cast<float>(interval->n_packets))/1024/1024/mi_time;
+
+#ifdef DEBUG_UTILITY_CALC
+  std::cout << "Calculate utility:" << std::endl;
+  std::cout << "\tutility           = " << current_utility << std::endl;
+  std::cout << "\tn_packets         = " << interval->n_packets << std::endl;
+  std::cout << "\tsend_rate         = " << bytes_total / mi_time << std::endl;
+  std::cout << "\tthroughput        = " << (bytes_total - bytes_lost) / mi_time << std::endl;
+  std::cout << "\tavg_rtt           = " << avg_rtt << std::endl;
+  std::cout << "\tlatency_info      = " << latency_info << std::endl;
+  std::cout << "\trtt_contribution  = " << rtt_contribution << std::endl;
+  std::cout << "\tloss_rate         = " << loss_rate << std::endl;
+  std::cout << "\tloss_contribution = " << loss_contribution << std::endl;
+#endif
+
   interval->utility = current_utility;
   return true;
 }
