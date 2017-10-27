@@ -27,12 +27,14 @@ const size_t kInitialRttMicroseconds = 1 * 1000;
 const float kAverageRttWeight = 0.1;
 // Idk, something tho
 const size_t kDefaultTCPMSS = 1400;
+// Minimum number of packers per interval
+const size_t kMinimumPacketsPerInterval = 10;
 }  // namespace
 
 double ComputeMonitorDuration(double sending_rate_mbps, double rtt_us) {
-    if (1.5 * rtt_us < 30.0 * kBitsPerByte * 1456 / sending_rate_mbps) {
+    if (1.5 * rtt_us < kMinimumPacketsPerInterval * kBitsPerByte * 1456 / sending_rate_mbps) {
         //std::cout << "Duration = " << 5.0 * kBitsPerByte * 1456 << " / " << sending_rate_mbps << ", rtt_us = " << rtt_us << std::endl;
-        return 30.0 * kBitsPerByte * 1456 / sending_rate_mbps;
+        return kMinimumPacketsPerInterval * kBitsPerByte * 1456 / sending_rate_mbps;
     }
     //std::cout << "Duration = 1.5 * " << rtt_us << std::endl;
     return 1.5 * rtt_us;
