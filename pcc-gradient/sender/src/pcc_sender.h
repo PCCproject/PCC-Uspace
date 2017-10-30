@@ -5,6 +5,7 @@
 
 #include "pcc_monitor_interval_queue.h"
 #include <vector>
+#include <queue>
 
 class CUDT;
 
@@ -55,6 +56,13 @@ class PccSender {
 
   void SetRate(double rate_mbps);
 
+  float ComputeRateChange(float low_rate_utility,
+                          float high_rate_utility,
+                          float low_rate,
+                          float high_rate);
+
+  void UpdateAverageGradient(float new_gradient);
+
   // Implementation of PccMonitorIntervalQueueDelegate.
   // Called when all useful intervals' utilities are available,
   // so the sender can make a decision.
@@ -73,7 +81,7 @@ class PccSender {
   // Set the sending rate to the central rate used in PROBING mode.
   void EnterProbing();
   // Set the sending rate when entering DECISION_MADE from PROBING mode.
-  void EnterDecisionMade();
+  void EnterDecisionMade(float new_rate);
 
   // Current mode of PccSender.
   SenderMode mode_;
@@ -99,6 +107,20 @@ class PccSender {
 
   // Maximum congestion window in bits, used to cap sending rate.
   uint32_t max_cwnd_bits_;
+
+  // The current average of several gradients.
+  float avg_gradient_;
+
+  // The gradient samples that have been averaged.
+  std::queue<float> gradient_samples_;
+
+  uint32_t swing_buffer_;
+
+  uint32_t rate_change_amplifier_;
+  
+  uint32_t rate_change_proportion_allowance_;
+
+  float previous_change_;
 
     CUDT* cudt;
 
