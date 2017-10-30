@@ -24,11 +24,21 @@ const size_t kMegabit = 1024 * 1024;
 // An inital RTT value to use (10ms)
 const size_t kInitialRttMicroseconds = 1 * 1000;
 // Rtt moving average weight.
-const float kAverageRttWeight = 0.1;
-// Idk, something tho
+const float kAverageRttWeight = 0.1f;
+// Idk, something tho.
 const size_t kDefaultTCPMSS = 1400;
-// Minimum number of packers per interval
+// Minimum number of packers per interval.
 const size_t kMinimumPacketsPerInterval = 10;
+// Number of gradients to average.
+const size_t kAvgGradientSampleSize = 5;
+// The factor that converts average utility gradient to a rate change (in Mbps).
+float kUtilityGradientToRateChangeFactor = 2.0f;
+// The smallest amount that the rate can be changed by at a time.
+float kMinimumRateChange = 0.5f;
+// The initial maximum proportional rate change.
+float kInitialMaximumProportionalChange = 0.1f;
+// The additional maximum proportional change each time it is incremented.
+float kMaximumProportionalChangeStepSize = 0.07f;
 }  // namespace
 
 double ComputeMonitorDuration(double sending_rate_mbps, double rtt_us) {
@@ -51,6 +61,11 @@ PccSender::PccSender(CUDT* cudt, int32_t initial_congestion_window,
       avg_rtt_(0),
       last_rtt_(0),
       time_last_rtt_received_(0),
+      avg_gradient_(0),
+      swing_buffer_(0),
+      rate_change_amplifier_(0),
+      rate_change_proportion_allowance_(0),
+      previous_change_(0),
       max_cwnd_bits_(max_congestion_window * kDefaultTCPMSS * kBitsPerByte) {
   sending_rate_mbps_ =
       std::max(static_cast<float>(initial_congestion_window * kDefaultTCPMSS *
@@ -114,6 +129,93 @@ void PccSender::SetRate(double mbps) {
     cudt->m_pCC->m_dPktSndPeriod = (cudt->m_iMSS * 8.0) / mbps;
 }
 
+float PccSender::ComputeRateChange(float low_rate_utility, float high_rate_utility, float low_rate, float high_rate) {
+  float utility_gradient = (high_rate_utility - low_rate_utility) / (high_rate - low_rate);
+  UpdateAverageGradient(utility_gradient);
+  float change = avg_gradient_ * kUtilityGradientToRateChangeFactor;
+
+  if (change * previous_change_ < 0) {
+    rate_change_amplifier_ = 0;
+    rate_change_proportion_allowance_ = 0;
+    if (swing_buffer_ < 2) {
+      ++swing_buffer_;
+    }
+  }
+
+  if (rate_change_amplifier_ < 3) {
+    change *= rate_change_amplifier_ + 1;
+  } else if (rate_change_amplifier_ < 6) {
+    change *= 2 * rate_change_amplifier_ - 2;
+  } else if (rate_change_amplifier_ < 9) {
+    change *= 4 * rate_change_amplifier_ - 14;
+  } else {
+    change *= 9 * rate_change_amplifier_ - 50;
+  }
+
+  if (change * previous_change_ > 0) {
+    if (swing_buffer_ == 0) {
+      if (rate_change_amplifier_ < 3) {
+        rate_change_amplifier_ += 0.5;
+      } else {
+        ++rate_change_amplifier_;
+      }
+    }
+    if (swing_buffer_ > 0) {
+      --swing_buffer_;
+    }
+  }
+
+  float max_allowed_change_ratio = 
+    kInitialMaximumProportionalChange + 
+    rate_change_proportion_allowance_ * kMaximumProportionalChangeStepSize;
+    
+  float change_ratio = change / sending_rate_mbps_;
+  change_ratio = change_ratio > 0 ? change_ratio : -1 * change_ratio;
+
+  if (change_ratio > max_allowed_change_ratio) {
+    ++rate_change_proportion_allowance_;
+    if (change < 0) {
+      change = -1 * max_allowed_change_ratio * sending_rate_mbps_;
+    } else {
+      change = max_allowed_change_ratio * sending_rate_mbps_;
+    }
+  } else {
+    if (rate_change_proportion_allowance_ > 0) {
+      --rate_change_proportion_allowance_;
+    }
+  }
+
+  if (change * previous_change_ < 0) {
+    rate_change_amplifier_ = 0;
+    rate_change_proportion_allowance_ = 0;
+  }
+
+  if (change < 0 && change > -1 * kMinimumRateChange) {
+    change = -1 * kMinimumRateChange;
+  } else if (change > 0 && change < kMinimumRateChange) {
+    change = kMinimumRateChange;
+  }
+
+  previous_change_ = change;
+  return change;
+}
+
+void PccSender::UpdateAverageGradient(float new_gradient) {
+  if (gradient_samples_.empty()) {
+    avg_gradient_ = new_gradient;
+  } else if (gradient_samples_.size() < kAvgGradientSampleSize) {
+    avg_gradient_ *= gradient_samples_.size();
+    avg_gradient_ += new_gradient;
+    avg_gradient_ /= gradient_samples_.size() + 1;
+  } else {
+    float oldest_gradient = gradient_samples_.front();
+    avg_gradient_ -= oldest_gradient / kAvgGradientSampleSize;
+    avg_gradient_ += new_gradient / kAvgGradientSampleSize;
+    gradient_samples_.pop();
+  }
+  gradient_samples_.push(new_gradient);
+}
+
 void PccSender::OnUtilityAvailable(
     const std::vector<UtilityInfo>& utility_info) {
   #ifdef DEBUG_RATE_CONTROL
@@ -148,7 +250,10 @@ void PccSender::OnUtilityAvailable(
         latest_utility_ =
             std::max(utility_info[2 * kNumIntervalGroupsInProbing - 2].utility,
                      utility_info[2 * kNumIntervalGroupsInProbing - 1].utility);
-        EnterDecisionMade();
+        float rate_change = 
+            ComputeRateChange(utility_info[0].utility, utility_info[1].utility,
+                utility_info[0].sending_rate_mbps, utility_info[1].sending_rate_mbps);
+        EnterDecisionMade(sending_rate_mbps_ + rate_change);
       } else {
         //std::cout << "Staying in probing mode" << std::endl;
         // Stays in PROBING mode.
@@ -318,18 +423,7 @@ void PccSender::EnterProbing() {
   rounds_ = 1;
 }
 
-void PccSender::EnterDecisionMade() {
-
-  //std::cout << "EnterDecisionMade()" << std::endl;
-
-  // Change sending rate from central rate based on the probing rate with higher
-  // utility.
-  if (direction_ == INCREASE) {
-    sending_rate_mbps_ *= (1 + kProbingStepSize) * (1 + kDecisionMadeStepSize);
-  } else {
-    sending_rate_mbps_ *= (1 - kProbingStepSize) * (1 - kDecisionMadeStepSize);
-  }
-
+void PccSender::EnterDecisionMade(float new_rate) {
   SetRate(sending_rate_mbps_);
   mode_ = DECISION_MADE;
   rounds_ = 1;

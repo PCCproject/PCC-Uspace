@@ -42,7 +42,7 @@ DIR = $(shell pwd)
 	$(C++) $(CCFLAGS) $< -c
 
 appserver: appserver.o
-	$(C++) $^ -o $@ $(LDFLAGS) -static -Wl,--no-as-needed -lprofiler
+	$(C++) $^ -o $@ $(LDFLAGS) -static
 appclient: appclient.o
 	$(C++) $^ -o $@ $(LDFLAGS)
 sendfile: sendfile.o
@@ -52,7 +52,7 @@ recvfile: recvfile.o
 incast_client: incast_client.o
 	$(C++) $^ -o $@ $(LDFLAGS)
 gradient_descent_pcc_client: gradient_descent_pcc_client.o
-	$(C++) $^ -o $@ $(LDFLAGS) -static -Wl,--no-as-needed -lprofiler 
+	$(C++) $^ -o $@ $(LDFLAGS) -static
 exponentiated_weights_pcc_client: exponentiated_weights_pcc_client.o
 	$(C++) $^ -o $@ $(LDFLAGS)
 
