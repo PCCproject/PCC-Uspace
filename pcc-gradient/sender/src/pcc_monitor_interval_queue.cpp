@@ -329,6 +329,8 @@ bool PccMonitorIntervalQueue::CalculateUtility(MonitorInterval* interval) {
   float current_utility = kAlpha * pow(bytes_total/1024/1024/mi_time, kExponent) - (1*loss_contribution +
   rtt_contribution)*(bytes_total / static_cast<float>(interval->n_packets))/1024/1024/mi_time;
 
+  current_utility = bytes_total * (1 - loss_rate) * (1 - loss_rate) / mi_time;
+
 #ifdef DEBUG_UTILITY_CALC
   std::cout << "Calculate utility:" << std::endl;
   std::cout << "\tutility           = " << current_utility << std::endl;
