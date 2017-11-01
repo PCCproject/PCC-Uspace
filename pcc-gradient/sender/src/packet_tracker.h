@@ -12,40 +12,92 @@ namespace {
     int kArbitraryPacketLimit = 100000;
 } // namespace
 
-enum PacketState { PACKET_STATE_QUEUED, PACKET_STATE_SENT, PACKET_STATE_ACKED, PACKET_STATE_LOST };
+enum PacketState { PACKET_STATE_NONE, PACKET_STATE_QUEUED, PACKET_STATE_SENT, PACKET_STATE_ACKED, PACKET_STATE_LOST };
+
+template<typename SeqNoType, typename IdType>
+struct MessageRecord{
+    uint64_t rtt_us;
+    SeqNoType msg_no;
+    IdType packet_id;
+    struct timespec sent_time;
+};
 
 template<typename SeqNoType, typename IdType>
 class PacketRecord {
   public:
-    PacketRecord(CPacket& packet, IdType packet_id, PacketState initial_packet_state);
+    PacketRecord(CPacket& packet, PacketState initial_packet_state);
     ~PacketRecord();
-    void UpdateRecord(PacketState new_packet_state);
+    void UpdateRecord(PacketState new_packet_state, SeqNoType msg_no, IdType packet_id);
     char* GetPacketPayloadPointer() { return payload_pointer_; }
     int32_t GetPacketSize() { return packet_size_; }
-    int32_t GetPacketState() { return packet_state_; }
-    IdType GetPacketId() { return packet_id_; }
-    uint64_t GetPacketRtt() { return rtt_us_; }
-    struct timespec GetPacketSentTime() { return sent_time_; }
-    void SetPacketId(IdType new_id) { packet_id_ = new_id; }
+    SeqNoType GetPacketMostRecentMsgNo();
+    PacketState GetPacketState() { return packet_state_; }
+    IdType GetPacketId(SeqNoType seq_no);
+    uint64_t GetPacketRtt(SeqNoType msg_no);
+    struct timespec GetPacketSentTime(SeqNoType msg_no);
+    //void SetPacketId(IdType new_id) { packet_id_ = new_id; }
   private:
+    MessageRecord<SeqNoType, IdType>* SafeGetMessageRecord(SeqNoType msg_no);
+    
     PacketState packet_state_;
     char* payload_pointer_;
     int32_t packet_size_;
-    IdType packet_id_;
     SeqNoType seq_no_;
-    uint64_t rtt_us_;
-    struct timespec sent_time_;
+    std::vector<MessageRecord<SeqNoType, IdType> > msg_records_;
 };
 
 template<typename SeqNoType, typename IdType>
-PacketRecord<SeqNoType, IdType>::PacketRecord(CPacket& packet, IdType packet_id, PacketState initial_packet_state) {
+SeqNoType PacketRecord<SeqNoType, IdType>::GetPacketMostRecentMsgNo() { 
+    if (msg_records_.empty()) {
+        return 0;
+    }
+    return msg_records_.back().msg_no;
+}
+
+template<typename SeqNoType, typename IdType>
+uint64_t PacketRecord<SeqNoType, IdType>::GetPacketRtt(SeqNoType msg_no) {
+    MessageRecord<SeqNoType, IdType>* msg_record = SafeGetMessageRecord(msg_no);
+    return msg_record->rtt_us;
+}
+
+template<typename SeqNoType, typename IdType>
+IdType PacketRecord<SeqNoType, IdType>::GetPacketId(SeqNoType msg_no) {
+    MessageRecord<SeqNoType, IdType>* msg_record = SafeGetMessageRecord(msg_no);
+    return msg_record->packet_id;
+}
+
+
+template<typename SeqNoType, typename IdType>
+struct timespec PacketRecord<SeqNoType, IdType>::GetPacketSentTime(SeqNoType msg_no) {
+    MessageRecord<SeqNoType, IdType>* msg_record = SafeGetMessageRecord(msg_no);
+    return msg_record->sent_time;
+}
+
+template<typename SeqNoType, typename IdType>
+MessageRecord<SeqNoType, IdType>* PacketRecord<SeqNoType, IdType>::SafeGetMessageRecord(SeqNoType msg_no) {
+    typename std::vector<MessageRecord<SeqNoType, IdType> >::iterator msg_record_iterator = 
+        msg_records_.begin();
+
+    while (msg_record_iterator != msg_records_.end() &&
+            msg_record_iterator->msg_no != msg_no) {
+        ++msg_record_iterator;
+    }
+
+    if (msg_record_iterator == msg_records_.end()) {
+        std::cerr << "ERROR: could not find msg no " << msg_no << " for packet " << seq_no_ << std::endl;
+        exit(-1);
+    }
+
+    return &(*msg_record_iterator);
+}
+
+template<typename SeqNoType, typename IdType>
+PacketRecord<SeqNoType, IdType>::PacketRecord(CPacket& packet, PacketState initial_packet_state) {
     packet_size_ = packet.getLength();
     seq_no_ = packet.m_iSeqNo;
-    packet_id_ = packet_id;
     payload_pointer_ = new char[packet_size_];
     memcpy(payload_pointer_, packet.m_pcData, packet_size_);
     packet_state_ = initial_packet_state;
-    rtt_us_ = 0;
 }
 
 template<typename SeqNoType, typename IdType>
@@ -54,15 +106,23 @@ PacketRecord<SeqNoType, IdType>::~PacketRecord() {
 }
 
 template<typename SeqNoType, typename IdType>
-void PacketRecord<SeqNoType, IdType>::UpdateRecord(PacketState new_packet_state) {
+void PacketRecord<SeqNoType, IdType>::UpdateRecord(PacketState new_packet_state, SeqNoType msg_no, IdType packet_id) {
     if (new_packet_state == PACKET_STATE_SENT) {
-        clock_gettime(CLOCK_MONOTONIC, &sent_time_);
+        MessageRecord<SeqNoType, IdType> msg_record;
+        msg_record.rtt_us = 0;
+        clock_gettime(CLOCK_MONOTONIC, &msg_record.sent_time);
+        msg_record.msg_no = msg_no;
+        msg_record.packet_id = packet_id;
+        msg_records_.push_back(msg_record);
     } else if (new_packet_state == PACKET_STATE_ACKED) {
         struct timespec ack_time;
         clock_gettime(CLOCK_MONOTONIC, &ack_time);
-        rtt_us_ = 1000000 * (ack_time.tv_sec - sent_time_.tv_sec) + (ack_time.tv_nsec - sent_time_.tv_nsec) / 1000;
+        MessageRecord<SeqNoType, IdType>* msg_record = SafeGetMessageRecord(msg_no);
+        msg_record->rtt_us = 1000000 * (ack_time.tv_sec - msg_record->sent_time.tv_sec) + (ack_time.tv_nsec - msg_record->sent_time.tv_nsec) / 1000;
     }
-    packet_state_ = new_packet_state;
+    if (msg_no == msg_records_.back().msg_no) {
+        packet_state_ = new_packet_state;
+    }
 }
 
 class TimespecLessThan {
@@ -100,13 +160,15 @@ class PacketTracker {
     bool CanEnqueuePacket();
     void EnqueuePacket(CPacket& packet);
     void OnPacketSent(CPacket& packet);
-    void OnPacketAck(SeqNoType seq_no);
-    void OnPacketLoss(SeqNoType seq_no);
+    void OnPacketAck(SeqNoType seq_no, SeqNoType msg_no);
+    void OnPacketLoss(SeqNoType seq_no, SeqNoType msg_no);
     void DeletePacketRecord(SeqNoType seq_no);
-    IdType GetPacketId(SeqNoType seq_no);
+    IdType GetPacketId(SeqNoType seq_no, SeqNoType msg_no);
     int32_t GetPacketSize(SeqNoType seq_no);
-    uint64_t GetPacketRtt(SeqNoType seq_no);
-    struct timespec GetPacketSentTime(SeqNoType seq_no);
+    PacketState GetPacketState(SeqNoType seq_no);
+    SeqNoType GetPacketLastMsgNo(SeqNoType seq_no);
+    uint64_t GetPacketRtt(SeqNoType seq_no, SeqNoType msg_no);
+    struct timespec GetPacketSentTime(SeqNoType seq_no, SeqNoType msg_no);
     bool HasSentPackets();
     bool HasRetransmittablePackets();
     bool HasSendablePackets();
@@ -164,7 +226,7 @@ void PacketTracker<SeqNoType, IdType>::EnqueuePacket(CPacket& packet) {
         // Packet Id is not currently recorded, so we should record a new ID for it.
         //IdType packet_id = MakeNewPacketId(packet);
         //std::cout << "Enqueued packet: " << packet_id << ":" << seq_no << std::endl;
-        packet_record_map_.insert(std::make_pair(seq_no, new PacketRecord<SeqNoType, IdType>(packet, 0, PACKET_STATE_QUEUED)));
+        packet_record_map_.insert(std::make_pair(seq_no, new PacketRecord<SeqNoType, IdType>(packet, PACKET_STATE_QUEUED)));
         send_queue_.push(seq_no);
     } else {
         std::cerr << "ERROR: Attempted to enqueue packet that already has a record!" << std::endl;
@@ -177,6 +239,7 @@ void PacketTracker<SeqNoType, IdType>::EnqueuePacket(CPacket& packet) {
 template <typename SeqNoType, typename IdType>
 void PacketTracker<SeqNoType, IdType>::OnPacketSent(CPacket& packet) {
     SeqNoType seq_no = packet.m_iSeqNo;
+    //std::cerr << "Sending packet seq_no = " << seq_no << ", msg_no " << packet.m_iMsgNo << std::endl;
     std::lock_guard<std::mutex> guard(lock_);
     typename std::unordered_map<SeqNoType, PacketRecord<SeqNoType, IdType>*>::iterator packet_record_iter =
         packet_record_map_.find(seq_no);
@@ -204,26 +267,27 @@ void PacketTracker<SeqNoType, IdType>::OnPacketSent(CPacket& packet) {
                 exit(-1);
             } else {
                 retransmittable_queue_.pop();
-                //std::cout << "Removed " << seq_no << " from retransmit queue" << std::endl;
+                std::cerr << "Sent " << seq_no << " from retransmit queue" << std::endl;
             }
         }
         PacketRecord<SeqNoType, IdType>* packet_record = packet_record_iter->second;
-        packet_record->UpdateRecord(PACKET_STATE_SENT);
-        packet_record->SetPacketId(MakeNewPacketId(packet));
-        sent_queue_.push(packet_record->GetPacketSentTime());
-        sent_time_map_.insert(std::make_pair(packet_record->GetPacketSentTime(), seq_no)); 
+        //std::cout << "Updating packet record" << std::endl;
+        packet_record->UpdateRecord(PACKET_STATE_SENT, packet.m_iMsgNo, MakeNewPacketId(packet));
+        //packet_record->SetPacketId(MakeNewPacketId(packet));
+        sent_queue_.push(packet_record->GetPacketSentTime(packet.m_iMsgNo));
+        sent_time_map_.insert(std::make_pair(packet_record->GetPacketSentTime(packet.m_iMsgNo), seq_no)); 
     }
 }
 
 template <typename SeqNoType, typename IdType>
-void PacketTracker<SeqNoType, IdType>::OnPacketAck(SeqNoType seq_no) {
+void PacketTracker<SeqNoType, IdType>::OnPacketAck(SeqNoType seq_no, SeqNoType msg_no) {
     lock_.lock();
     typename std::unordered_map<SeqNoType, PacketRecord<SeqNoType, IdType>*>::iterator packet_record_iter =
         packet_record_map_.find(seq_no);
     if (packet_record_iter != packet_record_map_.end()) {
         PacketRecord<SeqNoType, IdType>* packet_record = packet_record_iter->second;
-        sent_time_map_.erase(packet_record->GetPacketSentTime());
-        packet_record->UpdateRecord(PACKET_STATE_ACKED);
+        sent_time_map_.erase(packet_record->GetPacketSentTime(msg_no));
+        packet_record->UpdateRecord(PACKET_STATE_ACKED, msg_no, 0);
     } else {
         //std::cerr << "ERROR: Packet was acked but never recorded as sent!" << std::endl;
         //std::cerr << "\t seq_no = " << seq_no << std::endl;
@@ -233,15 +297,15 @@ void PacketTracker<SeqNoType, IdType>::OnPacketAck(SeqNoType seq_no) {
 }
 
 template <typename SeqNoType, typename IdType>
-void PacketTracker<SeqNoType, IdType>::OnPacketLoss(SeqNoType seq_no) {
+void PacketTracker<SeqNoType, IdType>::OnPacketLoss(SeqNoType seq_no, SeqNoType msg_no) {
     lock_.lock();
     typename std::unordered_map<SeqNoType, PacketRecord<SeqNoType, IdType>*>::iterator packet_record_iter =
         packet_record_map_.find(seq_no);
     if (packet_record_iter != packet_record_map_.end()) {
         PacketRecord<SeqNoType, IdType>* packet_record = packet_record_iter->second;
-        sent_time_map_.erase(packet_record->GetPacketSentTime());
-        packet_record->UpdateRecord(PACKET_STATE_LOST);
-        packet_record->SetPacketId(0);
+        sent_time_map_.erase(packet_record->GetPacketSentTime(msg_no));
+        packet_record->UpdateRecord(PACKET_STATE_LOST, msg_no, 0);
+        //packet_record->SetPacketId(0);
         retransmittable_queue_.push(seq_no);
         //std::cout << "Added " << seq_no << " to retransmittable queue" << std::endl;
     } else {
@@ -276,7 +340,7 @@ void PacketTracker<SeqNoType, IdType>::DeletePacketRecord(SeqNoType seq_no) {
 }
 
 template<typename SeqNoType, typename IdType>
-struct timespec PacketTracker<SeqNoType, IdType>::GetPacketSentTime(SeqNoType seq_no) {
+struct timespec PacketTracker<SeqNoType, IdType>::GetPacketSentTime(SeqNoType seq_no, SeqNoType msg_no) {
     std::lock_guard<std::mutex> guard(lock_);
     typename std::unordered_map<SeqNoType, PacketRecord<SeqNoType, IdType>*>::iterator packet_record_iter =
         packet_record_map_.find(seq_no);
@@ -289,13 +353,13 @@ struct timespec PacketTracker<SeqNoType, IdType>::GetPacketSentTime(SeqNoType se
         //std::cerr << "\t seq_no = " << seq_no << std::endl;
         //exit(-1);
     } else {
-        struct timespec result = packet_record_iter->second->GetPacketSentTime();
+        struct timespec result = packet_record_iter->second->GetPacketSentTime(msg_no);
         return result;
     }
 }
 
 template<typename SeqNoType, typename IdType>
-IdType PacketTracker<SeqNoType, IdType>::GetPacketId(SeqNoType seq_no) {
+IdType PacketTracker<SeqNoType, IdType>::GetPacketId(SeqNoType seq_no, SeqNoType msg_no) {
     std::lock_guard<std::mutex> guard(lock_);
     typename std::unordered_map<SeqNoType, PacketRecord<SeqNoType, IdType>*>::iterator packet_record_iter =
         packet_record_map_.find(seq_no);
@@ -305,13 +369,12 @@ IdType PacketTracker<SeqNoType, IdType>::GetPacketId(SeqNoType seq_no) {
         //exit(-1);
         return 0;
     } else {
-        IdType result = packet_record_iter->second->GetPacketId();
-        return result;
+        return packet_record_iter->second->GetPacketId(msg_no);
     }
 }
 
 template<typename SeqNoType, typename IdType>
-uint64_t PacketTracker<SeqNoType, IdType>::GetPacketRtt(SeqNoType seq_no) {
+uint64_t PacketTracker<SeqNoType, IdType>::GetPacketRtt(SeqNoType seq_no, SeqNoType msg_no) {
     std::lock_guard<std::mutex> guard(lock_);
     typename std::unordered_map<SeqNoType, PacketRecord<SeqNoType, IdType>*>::iterator packet_record_iter =
         packet_record_map_.find(seq_no);
@@ -321,7 +384,22 @@ uint64_t PacketTracker<SeqNoType, IdType>::GetPacketRtt(SeqNoType seq_no) {
         //exit(-1);
         return 0;
     } else {
-        return packet_record_iter->second->GetPacketRtt();
+        return packet_record_iter->second->GetPacketRtt(msg_no);
+    }
+}
+
+template<typename SeqNoType, typename IdType>
+PacketState PacketTracker<SeqNoType, IdType>::GetPacketState(SeqNoType seq_no) {
+    std::lock_guard<std::mutex> guard(lock_);
+    typename std::unordered_map<SeqNoType, PacketRecord<SeqNoType, IdType>*>::iterator packet_record_iter =
+        packet_record_map_.find(seq_no);
+    if (packet_record_iter == packet_record_map_.end()) {
+        //std::cerr << "ERROR: Attempted to get the size of an unrecorded packet!" << std::endl;
+        //std::cerr << "\t seq_no = " << seq_no << std::endl;
+        //exit(-1);
+        return PACKET_STATE_NONE;
+    } else {
+        return packet_record_iter->second->GetPacketState();
     }
 }
 
@@ -337,6 +415,21 @@ int32_t PacketTracker<SeqNoType, IdType>::GetPacketSize(SeqNoType seq_no) {
         return 0;
     } else {
         return packet_record_iter->second->GetPacketSize();
+    }
+}
+
+template<typename SeqNoType, typename IdType>
+SeqNoType PacketTracker<SeqNoType, IdType>::GetPacketLastMsgNo(SeqNoType seq_no) {
+    std::lock_guard<std::mutex> guard(lock_);
+    typename std::unordered_map<SeqNoType, PacketRecord<SeqNoType, IdType>*>::iterator packet_record_iter =
+        packet_record_map_.find(seq_no);
+    if (packet_record_iter == packet_record_map_.end()) {
+        //std::cerr << "ERROR: Attempted to get the size of an unrecorded packet!" << std::endl;
+        //std::cerr << "\t seq_no = " << seq_no << std::endl;
+        //exit(-1);
+        return 0;
+    } else {
+        return packet_record_iter->second->GetPacketMostRecentMsgNo();
     }
 }
 

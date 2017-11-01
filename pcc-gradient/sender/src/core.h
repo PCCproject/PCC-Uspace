@@ -457,7 +457,7 @@ private: // synchronization: mutexes and conditions
    double get_min_rtt() const;
 
 private: // Generation and processing of packets
-   void SendAck(int32_t seq_no);
+   void SendAck(int32_t seq_no, int32_t msg_no);
    void sendCtrl(const int& pkttype, void* lparam = NULL, void* rparam = NULL, const int& size = 0);
    void ProcessAck(CPacket& ctrlpkt);
    void processCtrl(CPacket& ctrlpkt);

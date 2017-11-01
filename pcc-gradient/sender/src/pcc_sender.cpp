@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <algorithm>
 
-//#define DEBUG_RATE_CONTROL
+#define DEBUG_RATE_CONTROL
 
 namespace {
 // Minimum sending rate of the connection.
@@ -30,30 +30,29 @@ const size_t kDefaultTCPMSS = 1400;
 // Minimum number of packers per interval.
 const size_t kMinimumPacketsPerInterval = 10;
 // Number of gradients to average.
-const size_t kAvgGradientSampleSize = 5;
+const size_t kAvgGradientSampleSize = 2;
 // The factor that converts average utility gradient to a rate change (in Mbps).
-float kUtilityGradientToRateChangeFactor = 2.0f;
+float kUtilityGradientToRateChangeFactor = 1.0f;//2.0f;
 // The smallest amount that the rate can be changed by at a time.
 float kMinimumRateChange = 0.5f;
 // The initial maximum proportional rate change.
-float kInitialMaximumProportionalChange = 0.1f;
+float kInitialMaximumProportionalChange = 0.05f;//0.1f;
 // The additional maximum proportional change each time it is incremented.
-float kMaximumProportionalChangeStepSize = 0.07f;
+float kMaximumProportionalChangeStepSize = 0.06f;//0.07f;
 }  // namespace
 
 double ComputeMonitorDuration(double sending_rate_mbps, double rtt_us) {
     if (1.5 * rtt_us < kMinimumPacketsPerInterval * kBitsPerByte * 1456 / sending_rate_mbps) {
-        //std::cout << "Duration = " << 5.0 * kBitsPerByte * 1456 << " / " << sending_rate_mbps << ", rtt_us = " << rtt_us << std::endl;
+        //std::cerr << "Duration = " << 5.0 * kBitsPerByte * 1456 << " / " << sending_rate_mbps << ", rtt_us = " << rtt_us << std::endl;
         return kMinimumPacketsPerInterval * kBitsPerByte * 1456 / sending_rate_mbps;
     }
-    //std::cout << "Duration = 1.5 * " << rtt_us << std::endl;
+    //std::cerr << "Duration = 1.5 * " << rtt_us << std::endl;
     return 1.5 * rtt_us;
 }
 
 PccSender::PccSender(CUDT* cudt, int32_t initial_congestion_window,
                      int32_t max_congestion_window)
     : mode_(STARTING),
-      latest_utility_(0.0),
       monitor_duration_(0),
       direction_(INCREASE),
       rounds_(1),
@@ -70,8 +69,10 @@ PccSender::PccSender(CUDT* cudt, int32_t initial_congestion_window,
   sending_rate_mbps_ =
       std::max(static_cast<float>(initial_congestion_window * kDefaultTCPMSS *
                                   kBitsPerByte) /
-                   static_cast<float>(kInitialRttMicroseconds),
+                   (kMegabit * static_cast<float>(kInitialRttMicroseconds)),
                kMinSendingRate);
+  latest_utility_info_.utility = 0.0f;
+  latest_utility_info_.sending_rate_mbps = 0.0f;
   this->cudt = cudt;
   SetRate(sending_rate_mbps_);
 }
@@ -79,23 +80,23 @@ PccSender::PccSender(CUDT* cudt, int32_t initial_congestion_window,
 bool PccSender::OnPacketSent(uint64_t sent_time,
                              int32_t packet_number,
                              int32_t bytes) {
-  //std::cout << "OnPacketSent(" << packet_number << ", " << bytes << ")" << std::endl;
+  //std::cerr << "OnPacketSent(" << packet_number << ", " << bytes << ")" << std::endl;
   // Start a new monitor interval if (1) there is no useful interval in the
   // queue, or (2) it has been more than monitor_duration since the last
   // interval starts.
   if (interval_queue_.num_useful_intervals() == 0 ||
       sent_time - interval_queue_.current().first_packet_sent_time >
           monitor_duration_) {
-    //std::cout << "Num useful intervals = " << interval_queue_.num_useful_intervals() << std::endl;
+    //std::cerr << "Num useful intervals = " << interval_queue_.num_useful_intervals() << std::endl;
     MaybeSetSendingRate();
     // Set the monitor duration to be 1.5 of avg_rtt_.
     monitor_duration_ = ComputeMonitorDuration(sending_rate_mbps_, avg_rtt_); //1.5 * avg_rtt_;
 	
-    //std::cout << "Monitor duration: " << monitor_duration_ << std::endl;
+    //std::cerr << "Monitor duration: " << monitor_duration_ << std::endl;
     interval_queue_.EnqueueNewMonitorInterval(
         sending_rate_mbps_, CreateUsefulInterval(),
         avg_rtt_, sent_time + monitor_duration_);
-    //std::cout << "New num useful intervals = " << interval_queue_.num_useful_intervals() << std::endl;
+    //std::cerr << "New num useful intervals = " << interval_queue_.num_useful_intervals() << std::endl;
   }
   interval_queue_.OnPacketSent(sent_time, packet_number, bytes);
 
@@ -106,7 +107,7 @@ void PccSender::OnCongestionEvent(uint64_t event_time, uint64_t rtt,
                                   const CongestionVector& acked_packets,
                                   const CongestionVector& lost_packets) {
   if (acked_packets.size() > 0) {
-      //std::cout << "Updating RTT" << std::endl;
+      //std::cerr << "Updating RTT" << std::endl;
       if (avg_rtt_ == 0) {
         avg_rtt_ = rtt;
       } else {
@@ -114,7 +115,7 @@ void PccSender::OnCongestionEvent(uint64_t event_time, uint64_t rtt,
                         kAverageRttWeight * last_rtt_;
       }
       last_rtt_ = rtt;
-      //std::cout << "RTT = " << rtt << " avg. = " << avg_rtt_ << std::endl;
+      //std::cerr << "RTT = " << rtt << " avg. = " << avg_rtt_ << std::endl;
   }
   time_last_rtt_received_ = event_time;
 
@@ -124,13 +125,25 @@ void PccSender::OnCongestionEvent(uint64_t event_time, uint64_t rtt,
 
 void PccSender::SetRate(double mbps) {
     #ifdef DEBUG_RATE_CONTROL
-        std::cout << "SetRate(" << mbps << ")" << std::endl;
+        std::cerr << "SetRate(" << mbps << ")" << std::endl;
     #endif
     cudt->m_pCC->m_dPktSndPeriod = (cudt->m_iMSS * 8.0) / mbps;
+    cudt->m_ullInterval = (uint64_t)(cudt->m_iMSS * 8.0 * cudt->m_ullCPUFrequency) / mbps;
 }
 
-float PccSender::ComputeRateChange(float low_rate_utility, float high_rate_utility, float low_rate, float high_rate) {
-  float utility_gradient = (high_rate_utility - low_rate_utility) / (high_rate - low_rate);
+float PccSender::ComputeRateChange(
+    const UtilityInfo& utility_sample_1, 
+    const UtilityInfo& utility_sample_2) {
+
+  if (utility_sample_1.sending_rate_mbps == utility_sample_2.sending_rate_mbps) {
+    return kMinimumRateChange;
+  }
+  
+  float utility_gradient = 
+      (utility_sample_1.utility - utility_sample_2.utility) / 
+      (utility_sample_1.sending_rate_mbps - 
+          utility_sample_2.sending_rate_mbps);
+  
   UpdateAverageGradient(utility_gradient);
   float change = avg_gradient_ * kUtilityGradientToRateChangeFactor;
 
@@ -196,7 +209,16 @@ float PccSender::ComputeRateChange(float low_rate_utility, float high_rate_utili
     change = kMinimumRateChange;
   }
 
-  previous_change_ = change;
+  #ifdef DEBUG_RATE_CONTROL
+    std::cerr << "CalculateRateChange:" << std::endl;
+    std::cerr << "\tUtility 1    = " << utility_sample_1.utility << std::endl;
+    std::cerr << "\tRate 1       = " << utility_sample_1.sending_rate_mbps << "mbps" << std::endl;
+    std::cerr << "\tUtility 2    = " << utility_sample_2.utility << std::endl;
+    std::cerr << "\tRate 2       = " << utility_sample_2.sending_rate_mbps << "mbps" << std::endl;
+    std::cerr << "\tGradient     = " << utility_gradient << std::endl;
+    std::cerr << "\tAvg Gradient = " << avg_gradient_ << std::endl;
+    std::cerr << "\tRate Change  = " << change << "mbps" << std::endl;
+  #endif
   return change;
 }
 
@@ -219,16 +241,16 @@ void PccSender::UpdateAverageGradient(float new_gradient) {
 void PccSender::OnUtilityAvailable(
     const std::vector<UtilityInfo>& utility_info) {
   #ifdef DEBUG_RATE_CONTROL
-      std::cout << "OnUtilityAvailable" << std::endl;
+      std::cerr << "OnUtilityAvailable" << std::endl;
   #endif
   switch (mode_) {
     case STARTING:
-      if (utility_info[0].utility > latest_utility_) {
+      if (utility_info[0].utility > latest_utility_info_.utility) {
         // Stay in STARTING mode. Double the sending rate and update
         // latest_utility.
         sending_rate_mbps_ *= 2;
         SetRate(sending_rate_mbps_);
-        latest_utility_ = utility_info[0].utility;
+        latest_utility_info_ = utility_info[0];
         ++rounds_;
       } else {
         // Enter PROBING mode if utility decreases.
@@ -247,35 +269,40 @@ void PccSender::OnUtilityAvailable(
                              utility_info[1].sending_rate_mbps)
                                 ? DECREASE
                                 : INCREASE);
-        latest_utility_ =
-            std::max(utility_info[2 * kNumIntervalGroupsInProbing - 2].utility,
-                     utility_info[2 * kNumIntervalGroupsInProbing - 1].utility);
-        float rate_change = 
-            ComputeRateChange(utility_info[0].utility, utility_info[1].utility,
-                utility_info[0].sending_rate_mbps, utility_info[1].sending_rate_mbps);
+        latest_utility_info_ = 
+            utility_info[2 * kNumIntervalGroupsInProbing - 2].utility >
+            utility_info[2 * kNumIntervalGroupsInProbing - 1].utility ?
+            utility_info[2 * kNumIntervalGroupsInProbing - 2] :
+            utility_info[2 * kNumIntervalGroupsInProbing - 1];
+
+        float rate_change = ComputeRateChange(utility_info[0], utility_info[1]);
+        if (sending_rate_mbps_ + rate_change < kMinSendingRate) {
+            rate_change = kMinSendingRate - sending_rate_mbps_;
+        }
+        previous_change_ = rate_change;
         EnterDecisionMade(sending_rate_mbps_ + rate_change);
       } else {
-        //std::cout << "Staying in probing mode" << std::endl;
+        //std::cerr << "Staying in probing mode" << std::endl;
         // Stays in PROBING mode.
         EnterProbing();
       }
       break;
     case DECISION_MADE:
-      if (utility_info[0].utility > latest_utility_) {
+      float rate_change = 
+          ComputeRateChange(utility_info[0], latest_utility_info_);
+      if (sending_rate_mbps_ + rate_change < kMinSendingRate) {
+        rate_change = kMinSendingRate - sending_rate_mbps_;
+      }
+      // Test if we are adjusting sending rate in the same direction.
+      if (rate_change * previous_change_ > 0) {
         // Remain in DECISION_MADE mode. Keep increasing or decreasing the
         // sending rate.
-        ++rounds_;
-        if (direction_ == INCREASE) {
-          sending_rate_mbps_ *= (1 + std::min(rounds_ * kDecisionMadeStepSize,
-                                              kMaxDecisionMadeStepSize));
-        } else {
-          sending_rate_mbps_ *= (1 - std::min(rounds_ * kDecisionMadeStepSize,
-                                              kMaxDecisionMadeStepSize));
-        }
+        previous_change_ = rate_change;
+        sending_rate_mbps_ += rate_change;
         SetRate(sending_rate_mbps_);
-        latest_utility_ = utility_info[0].utility;
+        latest_utility_info_ = utility_info[0];
       } else {
-        // Enter PROBING mode if utility decreases.
+        // Enter PROBING if our old rate change is no longer best.
         EnterProbing();
       }
       break;
@@ -283,7 +310,7 @@ void PccSender::OnUtilityAvailable(
 }
 
 bool PccSender::CreateUsefulInterval() const {
-  //std::cout << "CreateUsefulInterval()" << std::endl;
+  //std::cerr << "CreateUsefulInterval()" << std::endl;
   if (avg_rtt_ == 0) {
     // Create non useful intervals upon starting a connection, until there is
     // valid rtt stats.
@@ -298,8 +325,8 @@ bool PccSender::CreateUsefulInterval() const {
 }
 
 void PccSender::MaybeSetSendingRate() {
-  //std::cout << "MaybeSetSendingRate()" << std::endl;
-  //std::cout << "mode = " << (mode_ == PROBING ? "probing" : "not probing") << std::endl;
+  //std::cerr << "MaybeSetSendingRate()" << std::endl;
+  //std::cerr << "mode = " << (mode_ == PROBING ? "probing" : "not probing") << std::endl;
   if (mode_ != PROBING || (interval_queue_.num_useful_intervals() ==
                                2 * kNumIntervalGroupsInProbing &&
                            !interval_queue_.current().is_useful)) {
@@ -345,7 +372,7 @@ void PccSender::MaybeSetSendingRate() {
 
 bool PccSender::CanMakeDecision(
     const std::vector<UtilityInfo>& utility_info) const {
-  //std::cout << "CanMakeDecision()" << std::endl;
+  //std::cerr << "CanMakeDecision()" << std::endl;
 
   // Determine whether increased or decreased probing rate has better utility.
   // Cannot make decision if number of utilities are less than
@@ -356,7 +383,7 @@ bool PccSender::CanMakeDecision(
   }
 
   for (UtilityInfo u: utility_info) {
-    //std::cout << "Utility info: u=" << u.utility << ", s=" << u.sending_rate_mbps << std::endl;
+    //std::cerr << "Utility info: u=" << u.utility << ", s=" << u.sending_rate_mbps << std::endl;
   }
 
   bool increase = false;
@@ -383,7 +410,7 @@ bool PccSender::CanMakeDecision(
 }
 
 void PccSender::EnterProbing() {
-  //std::cout << "EnterProbing()" << std::endl;
+  //std::cerr << "EnterProbing()" << std::endl;
   switch (mode_) {
     case STARTING:
       // Use half sending_rate_ as central probing rate.
@@ -424,7 +451,8 @@ void PccSender::EnterProbing() {
 }
 
 void PccSender::EnterDecisionMade(float new_rate) {
-  SetRate(sending_rate_mbps_);
+  sending_rate_mbps_ = new_rate;
+  SetRate(new_rate);
   mode_ = DECISION_MADE;
   rounds_ = 1;
 }

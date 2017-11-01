@@ -56,10 +56,8 @@ class PccSender {
 
   void SetRate(double rate_mbps);
 
-  float ComputeRateChange(float low_rate_utility,
-                          float high_rate_utility,
-                          float low_rate,
-                          float high_rate);
+  float ComputeRateChange(const UtilityInfo& utility_sample_1,
+                          const UtilityInfo& utility_sample_2);
 
   void UpdateAverageGradient(float new_gradient);
 
@@ -88,7 +86,7 @@ class PccSender {
   // Sending rate in Mbit/s for the next monitor intervals.
   float sending_rate_mbps_;
   // Most recent utility used when making the last rate change decision.
-  float latest_utility_;
+  UtilityInfo latest_utility_info_;
   // Duration of the current monitor interval.
   int32_t monitor_duration_;
   // Current direction of rate changes.

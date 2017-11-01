@@ -251,7 +251,7 @@ CUDT::CUDT()
 	m_pCC = m_pCCFactory->create();
 	m_pCache = NULL;
 
-    pcc_sender = new PccSender(this, 10, 1000);
+    pcc_sender = new PccSender(this, 10, 10);
 	packet_tracker_ = new PacketTracker<int32_t, PacketId>(&m_SendBlockCond);
 
 	// Initial status
@@ -1551,11 +1551,12 @@ void CUDT::releaseSynch()
 #endif
 }
 
-void CUDT::SendAck(int32_t seq_no) {
+void CUDT::SendAck(int32_t seq_no, int32_t msg_no) {
     CPacket ctrlpkt;
     //std::cout << "Sending ack: " << seq_no << std::endl;
     ctrlpkt.pack(2, NULL, &seq_no, 4);
     ctrlpkt.m_iID = m_PeerID;
+    ctrlpkt.m_iMsgNo = msg_no;
     m_pSndQueue->sendto(m_pPeerAddr, ctrlpkt);
 }
 
@@ -1806,7 +1807,9 @@ void CUDT::add_to_loss_record(int32_t loss1, int32_t loss2){
     //std::cerr << "Lost: getting sizes for packets between " << loss1 << " and " << loss2 << std::endl;
     pcc_sender_lock.lock();
     for (int loss = loss1; loss <= loss2; ++loss) {
-        PacketId pkt_id = packet_tracker_->GetPacketId(loss);
+        int32_t msg_no = packet_tracker_->GetPacketLastMsgNo(loss);
+        PacketId pkt_id = packet_tracker_->GetPacketId(loss, msg_no);
+        //std::cerr << "CORE: lost packet with id = " << pkt_id << ", seq_no = " << loss << ", msg_no = " << msg_no << std::endl;
         //std::cout << "Loss ID: " << pkt_id << std::endl;
         CongestionEvent loss_event;
         loss_event.seq_no = pkt_id;
@@ -1814,7 +1817,8 @@ void CUDT::add_to_loss_record(int32_t loss1, int32_t loss2){
         loss_event.lost_bytes = packet_tracker_->GetPacketSize(loss);
         loss_event.time = CTimer::getTime();
         lost_packets.push_back(loss_event);
-        packet_tracker_->OnPacketLoss(loss);
+        packet_tracker_->OnPacketLoss(loss, msg_no);
+        ++m_iSndLossTotal;
     }
     OnCongestionEvent(*pcc_sender, CTimer::getTime(), 0, acked_packets, lost_packets);
     pcc_sender_lock.unlock();
@@ -1829,27 +1833,44 @@ void CUDT::add_to_loss_record(int32_t loss1, int32_t loss2){
 
 void CUDT::ProcessAck(CPacket& ctrlpkt) {
     int32_t seq_no = *(int32_t*)ctrlpkt.m_pcData;
-    //std::cout << "Process ack, seq_no = " << seq_no << " @" << (int32_t*)ctrlpkt.m_pcData << std::endl;
+    int32_t msg_no = ctrlpkt.m_iMsgNo;
+    
     pcc_sender_lock.lock();
-    PacketId pkt_id = packet_tracker_->GetPacketId(seq_no);
-    //std::cout << "Packet acked: " << pkt_id << ":" << seq_no << std::endl;
+    int32_t latest_msg_no = packet_tracker_->GetPacketLastMsgNo(seq_no);
+    PacketId pkt_id = packet_tracker_->GetPacketId(seq_no, msg_no);
+    PacketState old_state = packet_tracker_->GetPacketState(seq_no);
+    packet_tracker_->OnPacketAck(seq_no, msg_no);
+    uint64_t rtt_us = packet_tracker_->GetPacketRtt(seq_no, msg_no);
+    m_iRTT = (7 * m_iRTT + rtt_us) / 8;
+    m_iRTTVar = (m_iRTTVar * 3.0 + abs(rtt_us - m_iRTT) * 1.0) / 4.0; 
+    //std::cerr << "CORE: packet acked " << pkt_id << ":" << seq_no << ":" << msg_no << ", rtt = " << rtt_us << std::endl;
+    int32_t size = packet_tracker_->GetPacketSize(seq_no);
+
+    if (msg_no != latest_msg_no) {
+        pcc_sender_lock.unlock();
+        return;
+    }
+
+    packet_tracker_->DeletePacketRecord(seq_no);
+    if (old_state == PACKET_STATE_LOST) {
+        pcc_sender_lock.unlock();
+        return;
+    }
+    
     if (pkt_id == 0) {
         pcc_sender_lock.unlock();
         return;
     }
-    packet_tracker_->OnPacketAck(seq_no);
+
     CongestionVector acked_packets;
     CongestionVector lost_packets;
     CongestionEvent ack_event;
     ack_event.time = CTimer::getTime();
     ack_event.seq_no = pkt_id;
-    ack_event.acked_bytes = packet_tracker_->GetPacketSize(seq_no);
+    ack_event.acked_bytes = size;
     ack_event.lost_bytes = 0;
     acked_packets.push_back(ack_event);
-    uint64_t rtt_us = packet_tracker_->GetPacketRtt(seq_no);
-    m_iRTT = (7 * m_iRTT + rtt_us) / 8;
     OnCongestionEvent(*pcc_sender, CTimer::getTime(), rtt_us, acked_packets, lost_packets);
-    packet_tracker_->DeletePacketRecord(seq_no);
     pcc_sender_lock.unlock();
     ++m_iRecvACK;
     ++m_iRecvACKTotal;
@@ -2276,9 +2297,10 @@ int CUDT::packData(CPacket& packet, uint64_t& ts)
     packet.m_iSeqNo = seq_no;
     packet.m_pcData = payload_pointer;
     //std::cout << "Calling packet tracker OnPacketSent" << std::endl;
+    int32_t msg_no = packet_tracker_->GetPacketLastMsgNo(seq_no);
+    packet.m_iMsgNo = msg_no + 1;
     packet_tracker_->OnPacketSent(packet);
-    PacketId pkt_id = packet_tracker_->GetPacketId(seq_no);
-    packet.m_iMsgNo = pkt_id;
+    PacketId pkt_id = packet_tracker_->GetPacketId(seq_no, packet.m_iMsgNo);
     //std::cout << "Sending packet " << pkt_id << ":" << seq_no << std::endl;
     //std::cout << "Calling pcc sender OnPacketSent" << std::endl;
     //std::cout << "Sending packet: " << pkt_id << std::endl;
@@ -2303,7 +2325,7 @@ int CUDT::processData(CUnit* unit)
 {
     //std::cout << "Process data" << std::endl;
     CPacket& packet = unit->m_Packet;
-    SendAck(packet.m_iSeqNo);
+    SendAck(packet.m_iSeqNo, packet.m_iMsgNo);
 	// Just heard from the peer, reset the expiration count.
 	m_iEXPCount = 1;
 	uint64_t currtime;
@@ -2482,7 +2504,7 @@ void CUDT::checkTimers()
 	//   m_ullInterval = minint;
 
     bool above_loss_threshold = true;
-    uint64_t loss_thresh_us = 10 * m_iRTT;
+    uint64_t loss_thresh_us = m_iRTT + 4 * m_iRTTVar;
     struct timespec cur_time;
     clock_gettime(CLOCK_MONOTONIC, &cur_time);
 
@@ -2493,7 +2515,8 @@ void CUDT::checkTimers()
         int32_t seq_no = packet_tracker_->GetOldestSentSeqNo();
         //std::cout << "Oldest sent seq no = " << seq_no << std::endl;
         if (packet_tracker_->HasSentPackets()) {
-            struct timespec sent_time = packet_tracker_->GetPacketSentTime(seq_no);
+            int32_t msg_no = packet_tracker_->GetPacketLastMsgNo(seq_no);
+            struct timespec sent_time = packet_tracker_->GetPacketSentTime(seq_no, msg_no);
             uint64_t time_since_sent = (cur_time.tv_nsec - sent_time.tv_nsec) / 1000 + (cur_time.tv_sec - sent_time.tv_sec) * 1000000;
             //std::cout << "Time since sent = " << time_since_sent << std::endl;
             if (time_since_sent > loss_thresh_us) {

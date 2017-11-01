@@ -46,7 +46,7 @@ all: $(APP)
 	$(C++) $(CCFLAGS) $< -c
 
 appserver: appserver.o
-	$(C++) $^ -o $@ $(LDFLAGS)
+	$(C++) $^ -o $@ $(LDFLAGS) -static
 incastserver: incastserver.o
 	$(C++) $^ -o $@ $(LDFLAGS)
 appclient: appclient.o
