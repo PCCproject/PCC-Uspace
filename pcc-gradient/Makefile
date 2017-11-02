@@ -1,4 +1,4 @@
-DIRS = sender receiver
+DIRS = core
 TARGETS = all clean install
 
 $(TARGETS): %: $(patsubst %, %.%, $(DIRS))

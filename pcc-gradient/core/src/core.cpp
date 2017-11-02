@@ -63,7 +63,6 @@ written by
 #include "queue.h"
 #include "core.h"
 #include "CongestionEvents.h"
-#include "RttTracker.h"
 #include <unordered_map>
 #include <map>
 #include <mutex>
@@ -78,7 +77,6 @@ namespace std {
 }
 using namespace std;
 
-RttTracker<PacketId> rtt_tracker = RttTracker<PacketId>(1.0);
 
 std::map<int, PacketId> pkt_num_to_id_map;
 std::mutex pkt_num_to_id_lock;
