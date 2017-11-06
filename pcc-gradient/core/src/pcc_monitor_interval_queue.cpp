@@ -7,7 +7,7 @@
 #endif
 
 #ifndef QUIC_PORT
-//#define DEBUG_UTILITY_CALC
+#define DEBUG_UTILITY_CALC
 //#define DEBUG_MONITOR_INTERVAL_QUEUE_ACKS
 //#define DEBUG_MONITOR_INTERVAL_QUEUE_LOSS
 //#define DEBUG_INTERVAL_SIZE
@@ -141,7 +141,7 @@ void PccMonitorIntervalQueue::OnPacketSent(QuicTime sent_time,
   ++monitor_intervals_.back().n_packets;
   #if ! defined(QUIC_PORT) && defined(DEBUG_INTERVAL_SIZE)
   if (monitor_intervals_.back().is_useful) {
-    std::cerr << "Added packet " << packet_number << " to monitor interval, now " << monitor_inte    rvals_.back().bytes_total << " bytes " << std::endl;
+    std::cerr << "Added packet " << packet_number << " to monitor interval, now " << monitor_intervals_.back().bytes_total << " bytes " << std::endl;
   }
   #endif
 }
@@ -151,6 +151,7 @@ void PccMonitorIntervalQueue::OnCongestionEvent(
     const LostPacketVector& lost_packets,
     int64_t rtt_us,
     uint64_t event_time) {
+  num_available_intervals_ = 0;
   if (num_useful_intervals_ == 0) {
     // Skip all the received packets if no intervals are useful.
     return;
@@ -172,7 +173,7 @@ void PccMonitorIntervalQueue::OnCongestionEvent(
     for (const LostPacket& lost_packet : lost_packets) {
       if (IntervalContainsPacket(interval, lost_packet.packet_number)) {
         interval.bytes_lost += lost_packet.bytes_lost;
-        #if ! defined(QUIC_PORT) && defined(DEBUG_INTERVAL_QUEUE_LOSS)
+        #if (! defined(QUIC_PORT)) && defined(DEBUG_MONITOR_INTERVAL_QUEUE_LOSS)
         std::cerr << "\tattributed bytes to an interval" << std::endl;
         std::cerr << "\tacked " << interval.bytes_acked << "/" << interval.bytes_total << std::endl;
         std::cerr << "\tlost " << interval.bytes_lost << "/" << interval.bytes_total << std::endl;
@@ -185,7 +186,7 @@ void PccMonitorIntervalQueue::OnCongestionEvent(
       if (IntervalContainsPacket(interval, acked_packet.packet_number)) {
         interval.bytes_acked += acked_packet.bytes_acked;
         interval.packet_rtts[acked_packet.packet_number - interval.first_packet_number] = rtt_us;
-        #if ! defined(QUIC_PORT) && defined(DEBUG_INTERVAL_QUEUE_LOSS)
+        #if (! defined(QUIC_PORT)) && defined(DEBUG_MONITOR_INTERVAL_QUEUE_ACKS)
         std::cerr << "\tattributed bytes to an interval" << std::endl;
         std::cerr << "\tacked " << interval.bytes_acked << "/" << interval.bytes_total << std::endl;
         std::cerr << "\tlost " << interval.bytes_lost << "/" << interval.bytes_total << std::endl;
@@ -206,6 +207,10 @@ void PccMonitorIntervalQueue::OnCongestionEvent(
       #endif
     }
   }
+
+#if (!defined(QUIC_PORT)) && defined(DEBUG_INTERVAL_SIZE)
+    std::cerr << "Num useful = " << num_useful_intervals_ << ", num avail = " << num_available_intervals_ << std::endl;
+#endif
 
   if (num_useful_intervals_ > num_available_intervals_ &&
       !has_invalid_utility) {

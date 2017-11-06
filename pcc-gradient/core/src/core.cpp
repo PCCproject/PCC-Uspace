@@ -562,7 +562,6 @@ void CUDT::open()
 	m_iRTT = 10 * m_iSYNInterval;
 	last_rtt_ = 10 * m_iSYNInterval;
 	//for (int i = 0; i < MAX_MONITOR; i++) m_last_rtt[i] = 5 * m_iSYNInterval;
-	m_monitor_count = 0;
 	m_iRTTVar = m_iRTT >> 1;
 	m_ullCPUFrequency = CTimer::getCPUFrequency();
 
@@ -849,18 +848,6 @@ int CUDT::connect(const CPacket& response) throw ()
 	// And, I am connected too.
 	m_bConnecting = false;
 	m_bConnected = true;
-
-	// start the first monitor
-	//   for (int i=0;i<20000;i++)
-	//   	retransmission_list[i*3+0] = 0;
-	//   max_retransmission_list = 0;
-	//   min_retransmission_list_seqNo = -1;
-	current_monitor = 0;
-	previous_monitor = 0;
-	left_monitor = 0;
-	monitor_ttl = 0;
-//	start_monitor(500000);
-
 
 	// register this socket for receiving data packets
 	m_pRNode->m_bOnList = true;
@@ -1771,10 +1758,6 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 	CTimer::rdtsc(currtime);
 	m_ullLastRspTime = currtime;
 
-	//int32_t current_time,
-	int32_t SeqNoInMonitor;
-	int monitorNo;
-
 	switch (ctrlpkt.getType())
 	{
 	case 2: //010 - Acknowledgement
@@ -1784,135 +1767,11 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 	}
 	case 6: //110 - Acknowledgement of Acknowledgement
 	{
-		int32_t ack;
-		int rtt = -1;
-
-		// update RTT
-		rtt = m_pACKWindow->acknowledge(ctrlpkt.getAckSeqNo(), ack);
-		if (rtt <= 0)
-			break;
-
-		//if increasing delay detected...
-		//   sendCtrl(4);
-
-		// RTT EWMA
-		//m_iRTTVar = (m_iRTTVar * 3 + abs(rtt - m_iRTT)) >> 2;
-		//m_iRTT = (m_iRTT * 7 + rtt) >> 3;
-
-		//m_pCC->setRTT(m_iRTT);
-
-		// update last ACK that has been received by the sender
-		if (CSeqNo::seqcmp(ack, m_iRcvLastAckAck) > 0)
-			m_iRcvLastAckAck = ack;
-
 		break;
 	}
 
 	case 3: //011 - Loss Report
 	{
-        int32_t* losslist = (int32_t *)(ctrlpkt.m_pcData);
-		m_pCC->onLoss(losslist, ctrlpkt.getLength() / 4);
-		// update CC parameters
-		m_dCongestionWindow = m_pCC->m_dCWndSize;
-                timeval t;
-                gettimeofday(&t, 0);
-		//cout<<"losshere"<<t.tv_usec<<endl;
-		bool secure = true;
-        #ifdef DEBUG_LOSS
-            std::cout << "Loss list length: " << (int)(ctrlpkt.getLength() / 4) << std::endl;
-        #endif
-
-		// decode loss list message and insert loss into the sender loss list
-		for (int i = 0, n = (int)(ctrlpkt.getLength() / 4); i < n; ++ i)
-		{
-            #ifdef DEBUG_LOSS
-                std::cerr << "\tlosslist[i] = " << (losslist[i] & 0x7FFFFFFF)
-                          << ", losslist[i + 1] = " << losslist[i + 1]
-                          << ", i = " << i 
-                          << std::endl;
-			#endif
-            if (0 != (losslist[i] & 0x80000000))
-			{
-				if ((CSeqNo::seqcmp(losslist[i] & 0x7FFFFFFF, losslist[i + 1]) > 0) || (CSeqNo::seqcmp(losslist[i + 1], const_cast<int32_t&>(m_iSndCurrSeqNo)) > 0))
-				{
-
-                    #ifdef DEBUG_LOSS
-                        if ((CSeqNo::seqcmp(losslist[i] & 0x7FFFFFFF, losslist[i + 1]) > 0)) {
-                            std::cerr << "Issue is loss list" << std::endl;
-                        }
-                    #endif
-					// seq_a must not be greater than seq_b; seq_b must not be greater than the most recent sent seq
-					secure = false;
-					break;
-				}
-
-                int num = 0;
-                #ifdef DEBUG_LOSS
-                    std::cout << "Inserting loss range: [" << (losslist[i] & 0x7FFFFFFF) << ", " << losslist[i + 1] << std::endl;
-				#endif 
-                if (CSeqNo::seqcmp(losslist[i] & 0x7FFFFFFF, const_cast<int32_t&>(m_iSndLastAck)) >= 0)
-				{   
-                    //add_to_loss_record(losslist[i]& 0x7FFFFFFF, losslist[i+1]);
-                    num = m_pSndLossList->insert(losslist[i] & 0x7FFFFFFF, losslist[i + 1]);
-//				loss_record1[lossptr]=losslist[i]& 0x7FFFFFFF;
-//				loss_record2[lossptr]=losslist[i+1];
-				//lossptr++;
-				//cout<<"L"<<lossptr<<endl;
-				}
-
-				else if (CSeqNo::seqcmp(losslist[i + 1], const_cast<int32_t&>(m_iSndLastAck)) >= 0)
-				{               
-                    //add_to_loss_record(const_cast<int32_t&>(m_iSndLastAck), losslist[i+1]);
-                    num = m_pSndLossList->insert(const_cast<int32_t&>(m_iSndLastAck), losslist[i + 1]);
-//				loss_record1[lossptr]=m_iSndLastAck;
-				//loss_record2[lossptr]=losslist[i+1];
-				//lossptr++;
-				//cout<<"L"<<lossptr<<endl;
-				}//cout<<"This is lost packet with seq. No. as "<<losslist[i]<<endl;
-				m_iTraceSndLoss += num;
-				m_iSndLossTotal += num;
-
-				++ i;
-			}
-			else if (CSeqNo::seqcmp(losslist[i], const_cast<int32_t&>(m_iSndLastAck)) >= 0)
-			{
-				if (CSeqNo::seqcmp(losslist[i], const_cast<int32_t&>(m_iSndCurrSeqNo)) > 0)
-				{
-                    //seq_a must not be greater than the most recent sent seq
-					secure = false;
-					break;
-				}
-
-                #ifdef DEBUG_LOSS
-                    std::cout << "Inserting individual loss: " << losslist[i] << std::endl;
-                #endif
-                //add_to_loss_record(losslist[i], losslist[i]);
-				int num = m_pSndLossList->insert(losslist[i], losslist[i]);
-//				loss_record1[lossptr]=losslist[i];
-//				loss_record2[lossptr]=losslist[i];
-				//lossptr++;
-				//cout<<"L"<<lossptr<<endl;
-				m_iTraceSndLoss += num;
-				m_iSndLossTotal += num;
-			}
-		}
-
-		if (!secure)
-		{
-			//this should not happen: attack or bug
-			cout<<"This is insecure!"<<endl;
-			m_bBroken = true;
-			m_iBrokenCounter = 0;
-			break;
-		}
-
-		// the lost packet (retransmission) should be sent out immediately
-		//cout<<"loss update"<<endl;
-		m_pSndQueue->m_pSndUList->update(this, false);
-
-		//++ m_iRecvNAK;
-		//++ m_iRecvNAKTotal;
-		//   cout<<m_iRecvNAKTotal<<endl;;
 		break;
 	}
 
@@ -1993,145 +1852,6 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 
 	case 32767: //0x7FFF - reserved and user defined messages
 	{
-		//m_pCC->processCustomMsg(&ctrlpkt);
-		int32_t current_time;
-		int32_t* tsn_payload = (int32_t *)(ctrlpkt.m_pcData);
-		int last_position = (int)(ctrlpkt.getLength() / 4)-1;
-		int Mon = tsn_payload[last_position]>>16;
-		rtt_count[Mon]++;
-		rtt_value[Mon]+= int(CTimer::getTime() - m_StartTime) - send_timestamp[Mon][tsn_payload[last_position]&0xFFFF];
-		rtt_trace[Mon][tsn_payload[last_position]&0xFFFF] = int(CTimer::getTime() - m_StartTime) - send_timestamp[Mon][tsn_payload[last_position]&0xFFFF];
-		if(latency_time_start[Mon] == 0){
-			latency_time_start[Mon]=ctrlpkt.m_iTimeStamp;
-			latency_seq_start[Mon] = tsn_payload[last_position] & 0xFFFF;
-		} else{
-			latency_time_end[Mon] = ctrlpkt.m_iTimeStamp;
-			latency_seq_end[Mon] = tsn_payload[last_position] & 0xFFFF;
-		}
-		for (int i = 0, n = (int)(ctrlpkt.getLength() / 4); i < n; ++ i) {
-	        lock_guard<mutex> lck(monitor_mutex_);
-			monitorNo = tsn_payload[i] >> 16;
-			SeqNoInMonitor = tsn_payload[i] & 0xFFFF;
-                //cout<<"mon is "<<monitorNo<<" "<<SeqNoInMonitor<<endl;
-			++ m_iRecvNAKTotal;
-			//cout<<monitorNo<<' '<<SeqNoInMonitor<<' '<<current_monitor<<' '<<left_monitor<<endl;
-			// recv pkt
-			left[monitorNo]++;
-            if(SeqNoInMonitor > latest_received_seq[monitorNo]) {
-                latest_received_seq[monitorNo] = SeqNoInMonitor;
-            }
-			//cout<<monitorNo<<' '<<SeqNoInMonitor<<endl;
-			recv_ack[monitorNo][SeqNoInMonitor] = true;
-			current_time = CTimer::getTime();
-            bool includeThisMonitor = false;
-            if (SeqNoInMonitor == total[monitorNo] -1) {
-                //cout<<"include this mon"<<endl;
-                includeThisMonitor = true;
-            }
-			//pkt_sending[monitorNo][SeqNoInMonitor] = ctrlpkt.m_iTimeStamp;
-			//cout<<pkt_sending[monitorNo][SeqNoInMonitor]<<endl;
-
-			if (left_monitor) {
-
-				// find out the monitor which didn't end
-
-				int tmp;
-                if(includeThisMonitor) {
-                    tmp = monitorNo;
-                } else {
-                    tmp = (monitorNo+MAX_MONITOR-1)%MAX_MONITOR;
-                }
-				int count=0;
-				//.....................
-				while (tmp!=current_monitor) {
-					if (state[tmp]==2) {
-						//cerr<<"TEST "<<current_monitor<<" "<<state[tmp]<<endl;
-						for(int i=0;i<total[tmp];i++){
-							if(recv_ack[tmp][i]){
-								//latency[tmp]+=pkt_sending[tmp][i];
-								count++;
-							}
-						}
-						if(count>0)
-							latency[tmp]/=count;
-						//cout<<latency[tmp]<<' '<<(total[tmp]-left[tmp])<<' '<<count<<endl;
-						state[tmp] = 3;
-						lost[tmp]=total[tmp]-left[tmp];
-						end_time[tmp] = current_time;
-						left_monitor--;
-						//cerr<<"Killed monitor"<<left[tmp]<<endl;
-						//cerr<<"latency info"<<" "<<double(latency_time_end[tmp]-latency_time_start[tmp])/left[tmp]/m_pCC->m_dPktSndPeriod<<endl;
-						//cerr<<"latency info"<<" "<<double(latency_time_end[tmp]-latency_time_start[tmp])/(end_transmission_time[tmp]-start_time[tmp]);
-//						cerr<<"latency info"<<" "<<latency_time_end[tmp]<<" "<<latency_time_start[tmp]<<" "<<m_pCC->m_dPktSndPeriod<<" "<<latency_seq_end[tmp]<<" "<<latency_seq_start[tmp]<<endl;
-						if(rtt_count[Mon]==0){
-                                                  //cout<<"zero "<<Mon<<endl;
-							rtt_value[Mon]=0;
-							rtt_count[Mon]=1;
-                        }
-                                                //c<<"before on monitor ends"<<Mon<<" "<<rtt_value[Mon]<<" "<<rtt_count[Mon]<<endl;
-                                                //cout<<"before on monitor "<<tmp<< "ends loss is"<<total[tmp] - left[tmp]<<endl;
-                        double latency_info1 = double(latency_time_end[tmp]*1000-(start_time[tmp]-1471107640000000+m_iRTT/2))/(end_transmission_time[tmp]-start_time[tmp]);
-                                                //m_iRTT = rtt_value[Mon]/double(rtt_count[Mon]);
-						last_rtt_ = m_iRTT;
-	                                        m_pCC->setRTT(m_iRTT);
-                        double latency_info2 = double(latency_time_end[tmp]*1000-(start_time[tmp]-1471107400000000+m_iRTT/2))/(end_transmission_time[tmp]-start_time[tmp]);
-
-                        double latency_info;
-                        if (latency_info1 > latency_info2) {
-                        latency_info = latency_info1;
-                        } else {
-                            latency_info = latency_info2;
-                        }
-                        latency_info = double(latency_time_end[tmp]*1000-(end_transmission_time[tmp]-1471555100000000))/(latency_time_start[tmp]*1000 - (start_time[tmp]-1471555100000000));
-                        latency_info = (double(latency_time_end[tmp]*1000-(end_transmission_time[tmp]-1472926800000000))-(latency_time_start[tmp]*1000 - (start_time[tmp]-1472926800000000)))/(end_transmission_time[tmp]- start_time[tmp]);
-
-                        //cout<<latency_time_end[tmp] - latency_time_start[tmp]<<" "<<end_transmission_time[tmp]-start_time[tmp]<<endl;
-                        //cout<<latency_time_end[tmp]*1000<<" "<<start_time[tmp] -1470892000000000<<endl;
-
-						m_last_rtt.push_front(last_rtt_);
-						if (m_last_rtt.size() > kRTTHistorySize) {
-							m_last_rtt.pop_back();
-						}
-vector<double> x, y;
-
-for(int i=0; i< total[tmp]; i++) {
-    if(rtt_trace[tmp][i] != 0) {
-        x.push_back(send_timestamp[tmp][i]);
-        y.push_back(rtt_trace[tmp][i]);
-    }
-}
-    double n = x.size();
-
-    double avgX = accumulate(x.begin(), x.end(), 0.0) / n;
-    double avgY = accumulate(y.begin(), y.end(), 0.0) / n;
-
-    double numerator = 0.0;
-    double denominator = 0.0;
-
-    for(int i=0; i<n; ++i){
-        numerator += (x[i] - avgX) * (y[i] - avgY);
-        denominator += (x[i] - avgX) * (x[i] - avgX);
-    }
-
-    latency_info = numerator / denominator;
-						//m_last_rtt[Mon % MAX_MONITOR] = rtt_value[Mon]/((double) rtt_count[Mon]);
-                                                //cout<<"Fill in rtt value as"<<m_last_rtt[Mon % MAX_MONITOR]<<endl;
-                                                //cerr<<"Monitor"<<tmp<<"ends at"<<CTimer::getTime()<<endl;
-
-						//m_pCC->onMonitorEnds(total[tmp],total[tmp]-left[tmp],(end_transmission_time[tmp]-start_time[tmp])/1000000,current_monitor,tmp, rtt_value[Mon]/double(rtt_count[Mon]), latency_info);
-						if (!left_monitor) break;
-					}
-					tmp = (tmp+MAX_MONITOR-1)%MAX_MONITOR;
-				}
-			}
-		}
-
-		//cout<<()<<' '<<()<<endl;
-		//cout<<tmp<<endl;
-		// update CC parameters
-
-		//   m_dCongestionWindow = m_pCC->m_dCWndSize;
-
 		break;
 	}
 	default:
@@ -2156,7 +1876,8 @@ uint64_t CUDT::GetSendingInterval() {
      * (cycles / second) * (bits / packet) * (1 / (bits / second))
      * frequency         * m_iMSS * 8      *  1 / sending_rate (in bits/second)
      */
-    return m_ullCPUFrequency * m_iMSS * 8 / pcc_sender->PacingRate(0);
+    std::cerr << m_ullCPUFrequency * m_iMSS * 8.0f / pcc_sender->PacingRate(0) << std::endl;
+    return m_ullCPUFrequency * m_iMSS * 8.0f / pcc_sender->PacingRate(0);
 }
 
 int CUDT::packData(CPacket& packet, uint64_t& ts)
@@ -2389,29 +2110,19 @@ int CUDT::listen(sockaddr* addr, CPacket& packet)
 
 void CUDT::checkTimers()
 {
-	// update CC parameters
-	m_dCongestionWindow = m_pCC->m_dCWndSize;
-	//uint64_t minint = (uint64_t)(m_ullCPUFrequency * m_pSndTimeWindow->getMinPktSndInt() * 0.9);
-
     bool above_loss_threshold = true;
     uint64_t loss_thresh_us = m_iRTT + 4 * m_iRTTVar;
     struct timespec cur_time;
     clock_gettime(CLOCK_MONOTONIC, &cur_time);
 
-    if (packet_tracker_->HasSentPackets()) {
-        //std::cout << "loss_thresh = " << loss_thresh_us << std::endl;
-    }
     while (packet_tracker_->HasSentPackets() && above_loss_threshold) {
         int32_t seq_no = packet_tracker_->GetOldestSentSeqNo();
-        //std::cout << "Oldest sent seq no = " << seq_no << std::endl;
         if (packet_tracker_->HasSentPackets()) {
             int32_t msg_no = packet_tracker_->GetPacketLastMsgNo(seq_no);
             struct timespec sent_time = packet_tracker_->GetPacketSentTime(seq_no, msg_no);
             uint64_t time_since_sent = (cur_time.tv_nsec - sent_time.tv_nsec) / 1000 + (cur_time.tv_sec - sent_time.tv_sec) * 1000000;
-            //std::cout << "Time since sent = " << time_since_sent << std::endl;
             if (time_since_sent > loss_thresh_us) {
                 add_to_loss_record(seq_no, seq_no);
-                //std::cout << "Recording loss: " << seq_no << std::endl;
             } else {
                 above_loss_threshold = false;
             }
@@ -2574,177 +2285,4 @@ void CUDT::removeEPoll(const int eid)
 	// since this happens after the epoll ID has been removed, they cannot be set again
 	s_UDTUnited.m_EPoll.disable_read(m_SocketID, m_sPollID);
 	s_UDTUnited.m_EPoll.disable_write(m_SocketID, m_sPollID);
-}
-
-double CUDT::get_min_rtt() const {
-	double min = 0;
-	if ((m_last_rtt.size()) > 0) {
-		min = *m_last_rtt.begin();
-		for (deque<double>::const_iterator it = m_last_rtt.begin(); it!=m_last_rtt.end(); ++it) {
-			if (min > *it) {
-				min = *it;
-			}
-		}
-	}
-	if (min == 0) return last_rtt_;
-	return min;
-}
-
-void CUDT::start_monitor(int length)
-{
-	lock_guard<mutex> lck(monitor_mutex_);
-	//cout << "start monitor!" << endl;
-	m_iMonitorCurrSeqNo=0;
-	previous_monitor = current_monitor;
-	current_monitor = (current_monitor+1)%MAX_MONITOR;
-
-	//int tmp = (current_monitor + 96) % MAX_MONITOR;
-	//int count = 0;
-
-	//ygi: hack here!
-    int suggested_length = 100000;
-    int mss = m_iMSS;
-    double amplifier = 0;
-	//m_pCC->onMonitorStart(current_monitor, suggested_length, mss, amplifier);
-    if(mss != m_iMSS) {
-        this->resizeMSS(mss);
-    }
-    time_interval[current_monitor] = m_pCC->m_dPktSndPeriod;
-    //double rand_factor = double(rand()%10)/100.0;
-	//if(m_iRTT*(1.2)/m_pCC->m_dPktSndPeriod>10) length = m_iRTT*(0.5 + rand_factor)/m_pCC->m_dPktSndPeriod;
-		//cout << "min RTT is " << get_min_rtt() << endl;
-		allocated_times_[current_monitor] = 1.8 * get_min_rtt();//last_rtt_;//m_iRTT;//get_min_rtt();
-                if(allocated_times_[current_monitor]> 1000000) {
-                    allocated_times_[current_monitor] = 1000000;
-                }
-				if (allocated_times_[current_monitor]< kMinTimeoutMillis) {
-                    allocated_times_[current_monitor] = kMinTimeoutMillis;
-                }
-		//cout << "m_iRTT: " << m_iRTT << ". Min RTT = " << get_min_rtt() << endl;
-		//cout << "monitor " << current_monitor << ", deadline is " << deadlines[current_monitor] << " --> " << x << endl;
-	m_monitor_count++;
-
-	//double rand_factor = (rand() %10) / 100.;
-	int send_period = 1.0*m_iRTT * amplifier; //100 * 1000; // 100 milliseconds
-	//length = send_period*(0.5 + rand_factor)/m_pCC->m_dPktSndPeriod;
-            if(send_period > 1000000) {
-               send_period = 300000;
-            }
-
-	if(send_period/m_pCC->m_dPktSndPeriod>10) {
-            length = send_period/m_pCC->m_dPktSndPeriod;
-        }
-	else {
-            //cout<<"super short length because of short sent period? send period is "<< send_period<<endl;
-            length=10;
-        }
-        if (length > 3000) {
-           length = 3000;
-        }
-       // length += (amplifier * 10);
-        //if(length < 100) {
-        //   length = 100;
-        //}
-
-        //cout<<"length of monitor is "<<length<<endl;
-    if (suggested_length < length) {
-        length = suggested_length;
-    }
-
-//#ifdef EXPERIMENTAL_FEATURE_CONTINOUS_SEND
-	//	length=50000/m_pCC->m_dPktSndPeriod;
-// length = 10;
-// #endif
-	// add the transmition time
-	//if (length > 100) length = 100;
-	deadlines[current_monitor] = CTimer::getTime() + allocated_times_[current_monitor] + length * m_pCC->m_dPktSndPeriod;
-    //cerr<<"start monitor "<<current_monitor<< " at:"<<CTimer::getTime()<<" with allocated timeout of "<<allocated_times_[current_monitor]<<" and send period of "        <<length * m_pCC->m_dPktSndPeriod<<endl;
-	state[current_monitor] = 1;
-	latency[current_monitor]=0;
-	test=1;
-
-	//	if (monitor_ttl>0)
-	//		end_monitor(false);
-	monitor_ttl = length;
-	left[current_monitor]=0;
-    rtt_count[current_monitor]=0;
-    rtt_value[current_monitor]=0;
-	latest_received_seq[current_monitor] = -1;
-
-    //cout <<"length = " << length << endl;
-
-
-
-	for (int i=0;i<length;++i)
-    {
-        recv_ack[current_monitor][i] = false;
-        send_timestamp[current_monitor][i] = 0;
-        rtt_trace[current_monitor][i] = 0;
-    }
-	lost[current_monitor] = 0;
-        latency_time_start[current_monitor] = 0;
-        latency_time_end[current_monitor] = 0;
-        latency_seq_end[current_monitor] = 0;
-        latency_seq_start[current_monitor] = 0;
-	retransmission[current_monitor] = 0;
-	total[current_monitor] = length;
-	new_transmission[current_monitor] = 0;
-	start_time[current_monitor] = CTimer::getTime();
-	end_transmission_time[current_monitor] = -1;
-	monitor = true;
-}
-
-void CUDT::init_state() {
-	current_monitor = 0;
-	loss_record1.clear();
-	loss_record2.clear();
-	for (unsigned int mon_index = 0; mon_index < MAX_MONITOR; mon_index++) {
-		state[mon_index] = 3;
-		total[mon_index] = 0;
-		lost[mon_index] = 0;
-		retransmission[mon_index] = 0;
-		new_transmission[mon_index] = 0;
-		latency[mon_index] = 0;
-		latency_seq_end[mon_index] = 0;
-		latency_time_start[mon_index] = 0;
-		latency_time_end[mon_index] = 0;
-		time_interval[mon_index] = 0;
-        latest_received_seq[mon_index] = -1;
-		rtt_count[mon_index] = 0;
-		rtt_value[mon_index] = 0;
-		deadlines[mon_index] = 0;
-		allocated_times_[mon_index] = 0;
-	}
-	monitor = true;
-	left_monitor = 0;
-	m_monitor_count = 0;
-	m_iRTT = 10 * m_iSYNInterval;
-	//return;
-	for (unsigned int i = 0; i < 5; i++) {
-		m_last_rtt[i] = 5 * m_iSYNInterval;
-	}
-	cout << "initialized " << 5 << " in the m_last_rtt to be "<< 5 * m_iSYNInterval << endl;
-
-
-	//if (m_pSndLossList) delete m_pSndLossList;
-	//m_pSndLossList = new CSndLossList(m_iFlowWindowSize * 2);
-
-	//if (m_pRcvLossList) delete m_pRcvLossList;
-	//m_pRcvLossList = new CRcvLossList(m_iFlightFlagSize);
-
-}
-
-void CUDT::save_timeout_time() {
-	cout << "saving to file" << endl;
-
-	std::ofstream outfile("/home/yossi/timeout_times.txt", std::ios_base::app);
-	outfile << "timeout at time " << time(NULL) - start_ <<  ". Last RTTs: ";
-	for(unsigned int i = 0; (i < m_last_rtt.size()) && (i < 10); i++) {
-		outfile << m_last_rtt[i] << ", ";
-	}
-	outfile << endl;
-}
-
-double CUDT::estimate_rtt_for_timedout_monitors(int monitor) {
-	return allocated_times_[monitor];
 }

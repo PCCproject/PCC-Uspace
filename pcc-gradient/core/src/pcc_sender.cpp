@@ -476,6 +476,7 @@ bool PccSender::CreateUsefulInterval() const {
     #ifdef QUIC_PORT
     QUIC_BUG_IF(mode_ != STARTING);
     #endif
+    std::cerr << "Cannot create useful interval, avg_rtt_ = 0" << std::endl;
     return false;
   }
   // In STARTING and DECISION_MADE mode, there should be at most one useful
@@ -500,14 +501,14 @@ void PccSender::MaybeSetSendingRate() {
   if (interval_queue_.num_useful_intervals() != 0) {
     // Restore central sending rate.
     if (direction_ == INCREASE) {
-      sending_rate_ = sending_rate_ * (1.0 + kProbingStepSize);
+      sending_rate_ = sending_rate_ * (1.0 / (1 + kProbingStepSize));
       #if ! defined(QUIC_PORT) && defined(DEBUG_RATE_CONTROL)
-      std::cerr << "Maybe set rate restore: " << sending_rate_ / (1.0 + kProbingStepSize) << "-->" << sending_rate_ << std::endl;
+      std::cerr << "Maybe undo increase: " << sending_rate_ * (1.0 + kProbingStepSize) << "-->" << sending_rate_ << std::endl;
       #endif
     } else {
-      sending_rate_ = sending_rate_ * (1.0 / (1.0 + kProbingStepSize));
+      sending_rate_ = sending_rate_ * (1.0 / (1 - kProbingStepSize));
       #if ! defined(QUIC_PORT) && defined(DEBUG_RATE_CONTROL)
-      std::cerr << "Maybe set rate restore: " << sending_rate_ * (1.0 + kProbingStepSize) << "-->" << sending_rate_ << std::endl;
+      std::cerr << "Maybe undo decrease: " << sending_rate_ * (1.0 - kProbingStepSize) << "-->" << sending_rate_ << std::endl;
       #endif
     }
 
