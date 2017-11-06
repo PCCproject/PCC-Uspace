@@ -2734,67 +2734,6 @@ void CUDT::init_state() {
 
 }
 
-bool CUDT::timeout_monitors() {
-        return false;
-	assert(false && "Code unreachable!");
-    lock_guard<mutex> lck(monitor_mutex_);
-	uint64_t current_time = CTimer::getTime();
-	int tmp = (current_monitor + 1) % MAX_MONITOR;
-	while (tmp != current_monitor) {
-		if ((state[tmp]==1) || (state[tmp]==2)) {
-            //if(start_time[tmp] + (latest_received_seq[tmp]+1) * time_interval[tmp] + allocated_times_[tmp] < current_time){
-			if((deadlines[tmp] < current_time) && (allocated_times_[tmp] > 0)) {
-				int count=0;
-				//cout<<"killing "<<tmp<<" at "<<current_time<<endl;
-				cout << "waited more than " << allocated_times_[tmp] <<endl;
-				m_monitor_count = 0;
-				for(int i=0;i<total[tmp];i++){
-					if(recv_ack[tmp][i]){
-						count++;
-					}
-				}
-				if(count>0) latency[tmp] /= count;
-				state[tmp] = 3;
-				lost[tmp]=total[tmp]-left[tmp];
-				end_time[tmp] = current_time;
-				left_monitor--;
-				bool isContinue = m_pCC->onTimeout(total[tmp],total[tmp]-left[tmp],(end_transmission_time[tmp]-start_time[tmp])/1000000,current_monitor,tmp, allocated_times_[tmp]/1000);
-                if(isContinue) {
-                    continue;
-                }
-				m_iRTT = allocated_times_[tmp];
-	            loss_record1.clear();
-	            loss_record2.clear();
-	            for (unsigned int mon_index = 0; mon_index < MAX_MONITOR; mon_index++) {
-	            	state[mon_index] = 3;
-	            	total[mon_index] = 0;
-	            	lost[mon_index] = 0;
-	            	retransmission[mon_index] = 0;
-	            	new_transmission[mon_index] = 0;
-	            	latency[mon_index] = 0;
-	            	latency_seq_end[mon_index] = 0;
-	            	latency_time_start[mon_index] = 0;
-	            	latency_time_end[mon_index] = 0;
-	            	time_interval[mon_index] = 0;
-                    latest_received_seq[mon_index] = -1;
-	            	rtt_count[mon_index] = 0;
-	            	rtt_value[mon_index] = 0;
-	            	deadlines[mon_index] = 0;
-	            	allocated_times_[mon_index] = 0;
-					m_last_rtt.clear();
-	            }
-
-	            monitor = true;
-	            left_monitor = 0;
-	            m_monitor_count = 0;
-                return true;
-			}
-		}
-    tmp = (tmp + 1) % MAX_MONITOR;
-	}
-    return false;
-}
-
 void CUDT::save_timeout_time() {
 	cout << "saving to file" << endl;
 

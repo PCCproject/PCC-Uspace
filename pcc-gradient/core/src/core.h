@@ -465,7 +465,6 @@ private: // Generation and processing of packets
    int processData(CUnit* unit);
    int listen(sockaddr* addr, CPacket& packet);
    void add_to_loss_record(int32_t loss1, int32_t loss2);
-   bool timeout_monitors();
    double estimate_rtt_for_timedout_monitors(int monitor);
    uint64_t deadlines[MAX_MONITOR];
    uint64_t allocated_times_[MAX_MONITOR];
