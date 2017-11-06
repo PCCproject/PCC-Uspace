@@ -19,7 +19,7 @@ DEFINE_double(max_rtt_fluctuation_tolerance_ratio_in_decision_made, 0.05,
 static float FLAGS_max_rtt_fluctuation_tolerance_ratio_in_starting = 0.3f;
 static float FLAGS_max_rtt_fluctuation_tolerance_ratio_in_decision_made = 0.05f;
 
-//#define DEBUG_RATE_CONTROL
+#define DEBUG_RATE_CONTROL
 #endif
 
 namespace {
@@ -505,9 +505,9 @@ void PccSender::MaybeSetSendingRate() {
       std::cerr << "Maybe set rate restore: " << sending_rate_ / (1.0 + kProbingStepSize) << "-->" << sending_rate_ << std::endl;
       #endif
     } else {
-      sending_rate_ = sending_rate_ * (1.0 / (1.0 - kProbingStepSize));
+      sending_rate_ = sending_rate_ * (1.0 / (1.0 + kProbingStepSize));
       #if ! defined(QUIC_PORT) && defined(DEBUG_RATE_CONTROL)
-      std::cerr << "Maybe set rate restore: " << sending_rate_ * (1.0 - kProbingStepSize) << "-->" << sending_rate_ << std::endl;
+      std::cerr << "Maybe set rate restore: " << sending_rate_ * (1.0 + kProbingStepSize) << "-->" << sending_rate_ << std::endl;
       #endif
     }
 
