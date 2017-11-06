@@ -402,7 +402,6 @@ private: // Sending related data
    CSndLossList* m_pSndLossList;                // Sender loss list
    CPktTimeWindow* m_pSndTimeWindow;            // Packet sending time window
 
-   volatile uint64_t m_ullInterval;             // Inter-packet time, in CPU clock cycles
    uint64_t m_ullTimeDiff;                      // aggregate difference in inter-packet time
 
    volatile int m_iFlowWindowSize;              // Flow control window size

@@ -950,7 +950,6 @@ int CUDT::connect(const CPacket& response) throw ()
 		m_pCC->setUserParam((char*)&(m_llMaxBW), 8);
 	m_pCC->init();
 
-	m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
 	m_dCongestionWindow = m_pCC->m_dCWndSize;
 
 	// And, I am connected too.
@@ -1064,7 +1063,6 @@ void CUDT::connect(const sockaddr* peer, CHandShake* hs)
 	if (m_llMaxBW > 0) m_pCC->setUserParam((char*)&(m_llMaxBW), 8);
 	m_pCC->init();
 
-	m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
 	m_dCongestionWindow = m_pCC->m_dCWndSize;
 
 	m_pPeerAddr = (AF_INET == m_iIPversion) ? (sockaddr*)new sockaddr_in : (sockaddr*)new sockaddr_in6;
@@ -1435,7 +1433,7 @@ void CUDT::sample(CPerfMon* perf, bool clear)
 	perf->mbpsSendRate = double(m_llTraceSent) * m_iPayloadSize * 8.0 / interval;
 	perf->mbpsRecvRate = double(m_llTraceRecv) * m_iPayloadSize * 8.0 / interval;
 
-	perf->usPktSndPeriod = m_ullInterval / double(m_ullCPUFrequency);
+	perf->usPktSndPeriod = GetSendingInterval();
 	perf->pktFlowWindow = m_iFlowWindowSize;
 	perf->pktCongestionWindow = (int)m_dCongestionWindow;
 	perf->pktFlightSize = CSeqNo::seqlen(const_cast<int32_t&>(m_iSndLastAck), CSeqNo::incseq(m_iSndCurrSeqNo)) - 1;
@@ -1921,7 +1919,6 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
         int32_t* losslist = (int32_t *)(ctrlpkt.m_pcData);
 		m_pCC->onLoss(losslist, ctrlpkt.getLength() / 4);
 		// update CC parameters
-		// m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
 		m_dCongestionWindow = m_pCC->m_dCWndSize;
                 timeval t;
                 gettimeofday(&t, 0);
@@ -2027,7 +2024,6 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 
 	case 4: //100 - Delay Warning
 		// One way packet delay is increasing, so decrease the sending rate
-		m_ullInterval = (uint64_t)ceil(m_ullInterval * 1.125);
 		m_iLastDecSeq = m_iSndCurrSeqNo;
 
 		break;
@@ -2229,7 +2225,6 @@ for(int i=0; i< total[tmp]; i++) {
                                                 //cerr<<"Monitor"<<tmp<<"ends at"<<CTimer::getTime()<<endl;
 
 						//m_pCC->onMonitorEnds(total[tmp],total[tmp]-left[tmp],(end_transmission_time[tmp]-start_time[tmp])/1000000,current_monitor,tmp, rtt_value[Mon]/double(rtt_count[Mon]), latency_info);
-						m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
 						if (!left_monitor) break;
 					}
 					tmp = (tmp+MAX_MONITOR-1)%MAX_MONITOR;
@@ -2501,11 +2496,8 @@ int CUDT::listen(sockaddr* addr, CPacket& packet)
 void CUDT::checkTimers()
 {
 	// update CC parameters
-	m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
 	m_dCongestionWindow = m_pCC->m_dCWndSize;
 	//uint64_t minint = (uint64_t)(m_ullCPUFrequency * m_pSndTimeWindow->getMinPktSndInt() * 0.9);
-	//if (m_ullInterval < minint)
-	//   m_ullInterval = minint;
 
     bool above_loss_threshold = true;
     uint64_t loss_thresh_us = m_iRTT + 4 * m_iRTTVar;
@@ -2643,7 +2635,6 @@ void CUDT::checkTimers()
 
 			m_pCC->onTimeout(1, 1, 1, 1, -1, 1);
 			// update CC parameters
-			m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
 			m_dCongestionWindow = m_pCC->m_dCWndSize;
 
 			// immediately restart transmission
@@ -2724,7 +2715,6 @@ void CUDT::start_monitor(int length)
     if(mss != m_iMSS) {
         this->resizeMSS(mss);
     }
-	m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
     time_interval[current_monitor] = m_pCC->m_dPktSndPeriod;
     //double rand_factor = double(rand()%10)/100.0;
 	//if(m_iRTT*(1.2)/m_pCC->m_dPktSndPeriod>10) length = m_iRTT*(0.5 + rand_factor)/m_pCC->m_dPktSndPeriod;
