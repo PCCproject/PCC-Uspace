@@ -7,7 +7,7 @@
 #endif
 
 #ifndef QUIC_PORT
-#define DEBUG_UTILITY_CALC
+//#define DEBUG_UTILITY_CALC
 //#define DEBUG_MONITOR_INTERVAL_QUEUE_ACKS
 //#define DEBUG_MONITOR_INTERVAL_QUEUE_LOSS
 //#define DEBUG_INTERVAL_SIZE
@@ -139,12 +139,10 @@ void PccMonitorIntervalQueue::OnPacketSent(QuicTime sent_time,
   monitor_intervals_.back().sent_times.push_back(sent_time);
   monitor_intervals_.back().packet_rtts.push_back(0l);
   ++monitor_intervals_.back().n_packets;
-  #ifndef QUIC_PORT
-  #ifdef DEBUG_INTERVAL_SIZE
+  #if ! defined(QUIC_PORT) && defined(DEBUG_INTERVAL_SIZE)
   if (monitor_intervals_.back().is_useful) {
     std::cerr << "Added packet " << packet_number << " to monitor interval, now " << monitor_inte    rvals_.back().bytes_total << " bytes " << std::endl;
   }
-  #endif
   #endif
 }
 
@@ -174,6 +172,12 @@ void PccMonitorIntervalQueue::OnCongestionEvent(
     for (const LostPacket& lost_packet : lost_packets) {
       if (IntervalContainsPacket(interval, lost_packet.packet_number)) {
         interval.bytes_lost += lost_packet.bytes_lost;
+        #if ! defined(QUIC_PORT) && defined(DEBUG_INTERVAL_QUEUE_LOSS)
+        std::cerr << "\tattributed bytes to an interval" << std::endl;
+        std::cerr << "\tacked " << interval.bytes_acked << "/" << interval.bytes_total << std::endl;
+        std::cerr << "\tlost " << interval.bytes_lost << "/" << interval.bytes_total << std::endl;
+        std::cerr << "\ttotal " << interval.bytes_lost + interval.bytes_acked << "/" << interval.bytes_total << std::endl;
+        #endif
       }
     }
 
@@ -181,6 +185,12 @@ void PccMonitorIntervalQueue::OnCongestionEvent(
       if (IntervalContainsPacket(interval, acked_packet.packet_number)) {
         interval.bytes_acked += acked_packet.bytes_acked;
         interval.packet_rtts[acked_packet.packet_number - interval.first_packet_number] = rtt_us;
+        #if ! defined(QUIC_PORT) && defined(DEBUG_INTERVAL_QUEUE_LOSS)
+        std::cerr << "\tattributed bytes to an interval" << std::endl;
+        std::cerr << "\tacked " << interval.bytes_acked << "/" << interval.bytes_total << std::endl;
+        std::cerr << "\tlost " << interval.bytes_lost << "/" << interval.bytes_total << std::endl;
+        std::cerr << "\ttotal " << interval.bytes_lost + interval.bytes_acked << "/" << interval.bytes_total << std::endl;
+        #endif
       }
     }
 
@@ -265,6 +275,9 @@ bool PccMonitorIntervalQueue::IsUtilityAvailable(
 bool PccMonitorIntervalQueue::IntervalContainsPacket(
     const MonitorInterval& interval,
     QuicPacketNumber packet_number) const {
+    #if ! defined(QUIC_PORT) && (defined(DEBUG_MONITOR_INTERVAL_QUEUE_LOSS) || defined(DEBUG_MONITOR_INTERVAL_QUEUE_ACKS))
+    std::cerr << "Checking for packet " << packet_number << " in interval: [" << interval.first_packet_number << ", " << interval.last_packet_number << "]" << std::endl;
+    #endif
   return (packet_number >= interval.first_packet_number &&
           packet_number <= interval.last_packet_number);
 }
@@ -319,6 +332,22 @@ bool PccMonitorIntervalQueue::CalculateUtility(MonitorInterval* interval) {
       (loss_contribution + rtt_contribution) *
       (8 * bytes_total / static_cast<float>(interval->n_packets)) /
         (kMegabit * mi_time);
+
+  #if !defined(QUIC_PORT) && defined(DEBUG_UTILITY_CALC)
+  std::cerr << "Calculate utility:" << std::endl;
+  std::cerr << "\tutility           = " << current_utility << std::endl;
+  std::cerr << "\tn_packets         = " << interval->n_packets << std::endl;
+  std::cerr << "\tsend_rate         = " << bytes_total * 8.0f / (mi_time * 1000000.0f) << std::endl;
+  std::cerr << "\tthroughput        = " << (bytes_total - bytes_lost) * 8.0f / (mi_time * 1000000.0f) << std::endl;
+  std::cerr << "\tthroughput factor = " << throughput_factor << std::endl;
+  std::cerr << "\tavg_rtt           = " << avg_rtt << std::endl;
+  std::cerr << "\tlatency_info      = " << latency_info << std::endl;
+  std::cerr << "\t\tnumerator       = " << numerator << std::endl;
+  std::cerr << "\t\tdenominator     = " << denominator << std::endl;
+  std::cerr << "\trtt_contribution  = " << rtt_contribution << std::endl;
+  std::cerr << "\tloss_rate         = " << loss_rate << std::endl;
+  std::cerr << "\tloss_contribution = " << loss_contribution << std::endl;
+  #endif
 
   interval->utility = current_utility;
   return true;

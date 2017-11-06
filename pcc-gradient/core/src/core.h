@@ -461,6 +461,7 @@ private: // Generation and processing of packets
    void sendCtrl(const int& pkttype, void* lparam = NULL, void* rparam = NULL, const int& size = 0);
    void ProcessAck(CPacket& ctrlpkt);
    void processCtrl(CPacket& ctrlpkt);
+   uint64_t GetSendingInterval();
    int packData(CPacket& packet, uint64_t& ts);
    int processData(CUnit* unit);
    int listen(sockaddr* addr, CPacket& packet);

@@ -52,7 +52,7 @@ const size_t kAvgGradientSampleSize = 2;
 // The factor that converts average utility gradient to a rate change (in Mbps).
 float kUtilityGradientToRateChangeFactor = 1.0f;//2.0f;
 // The smallest amount that the rate can be changed by at a time.
-float kMinimumRateChange = 0.5f;
+float kMinimumRateChange = 0.5f * kMegabit;
 // The initial maximum proportional rate change.
 float kInitialMaximumProportionalChange = 0.05f;//0.1f;
 // The additional maximum proportional change each time it is incremented.
@@ -191,6 +191,9 @@ void PccSender::OnCongestionEvent(bool rtt_updated,
     avg_rtt_us = rtt_stats_->initial_rtt_us();
     #endif
   } else {
+    #ifndef QUIC_PORT
+    avg_rtt_ = (avg_rtt_ * 3.0 + rtt) / 4.0;
+    #endif
     if (mode_ == STARTING && !interval_queue_.empty() &&
         avg_rtt_us >
             static_cast<int64_t>(
@@ -218,8 +221,9 @@ bool PccSender::CanSend(QuicByteCount bytes_in_flight) {
 #endif
 
 QuicBandwidth PccSender::PacingRate(QuicByteCount bytes_in_flight) const {
-  return interval_queue_.empty() ? sending_rate_
+  QuicBandwidth result = interval_queue_.empty() ? sending_rate_
                                  : interval_queue_.current().sending_rate;
+  return result;
 }
 
 #ifdef QUIC_PORT
@@ -348,8 +352,7 @@ float PccSender::ComputeRateChange(
     change = kMinimumRateChange;
   }
 
-  #ifndef QUIC_PORT
-  #ifdef DEBUG_RATE_CONTROL
+  #if ! defined(QUIC_PORT) && defined(DEBUG_RATE_CONTROL)
     std::cerr << "CalculateRateChange:" << std::endl;
     std::cerr << "\tUtility 1    = " << utility_sample_1.utility << std::endl;
     std::cerr << "\tRate 1       = " << utility_sample_1.sending_rate << "mbps" << std::endl    ;
@@ -358,7 +361,6 @@ float PccSender::ComputeRateChange(
     std::cerr << "\tGradient     = " << utility_gradient << std::endl;
     std::cerr << "\tAvg Gradient = " << avg_gradient_ << std::endl;
     std::cerr << "\tRate Change  = " << change << "mbps" << std::endl;
-  #endif
   #endif
 
   return change;
@@ -382,10 +384,8 @@ void PccSender::UpdateAverageGradient(float new_gradient) {
 
 void PccSender::OnUtilityAvailable(
     const std::vector<UtilityInfo>& utility_info) {
-  #ifndef QUIC_PORT
-  #ifdef DEBUG_RATE_CONTROL
+  #if ! defined(QUIC_PORT) && defined(DEBUG_RATE_CONTROL)
       std::cerr << "OnUtilityAvailable" << std::endl;
-  #endif
   #endif
   switch (mode_) {
     case STARTING:
@@ -396,6 +396,9 @@ void PccSender::OnUtilityAvailable(
         // Stay in STARTING mode. Double the sending rate and update
         // latest_utility.
         sending_rate_ *= 2;
+        #if ! defined(QUIC_PORT) && defined(DEBUG_RATE_CONTROL)
+        std::cerr << "Starting mode rate: " << sending_rate_ / 2.0 << "-->" << sending_rate_ << std::endl;
+        #endif
         latest_utility_info_ = utility_info[0];
         ++rounds_;
       } else {
@@ -450,6 +453,9 @@ void PccSender::OnUtilityAvailable(
         // sending rate.
         previous_change_ = rate_change;
         sending_rate_ += rate_change;
+        #if ! defined(QUIC_PORT) && defined(DEBUG_RATE_CONTROL)
+        std::cerr << "Decision made rate: " << sending_rate_ - rate_change << "-->" << sending_rate_ << std::endl;
+        #endif
         latest_utility_info_ = utility_info[0];
       } else {
         // Enter PROBING if our old rate change is no longer best.
@@ -495,8 +501,14 @@ void PccSender::MaybeSetSendingRate() {
     // Restore central sending rate.
     if (direction_ == INCREASE) {
       sending_rate_ = sending_rate_ * (1.0 + kProbingStepSize);
+      #if ! defined(QUIC_PORT) && defined(DEBUG_RATE_CONTROL)
+      std::cerr << "Maybe set rate restore: " << sending_rate_ / (1.0 + kProbingStepSize) << "-->" << sending_rate_ << std::endl;
+      #endif
     } else {
       sending_rate_ = sending_rate_ * (1.0 / (1.0 - kProbingStepSize));
+      #if ! defined(QUIC_PORT) && defined(DEBUG_RATE_CONTROL)
+      std::cerr << "Maybe set rate restore: " << sending_rate_ * (1.0 - kProbingStepSize) << "-->" << sending_rate_ << std::endl;
+      #endif
     }
 
     if (interval_queue_.num_useful_intervals() ==
@@ -517,8 +529,14 @@ void PccSender::MaybeSetSendingRate() {
   }
   if (direction_ == INCREASE) {
     sending_rate_ = sending_rate_ * (1 + kProbingStepSize);
+    #if ! defined(QUIC_PORT) && defined(DEBUG_RATE_CONTROL)
+    std::cerr << "Maybe probe increase: " << sending_rate_ / (1.0 + kProbingStepSize) << "-->" << sending_rate_ << std::endl;
+    #endif
   } else {
     sending_rate_ = sending_rate_ * (1 - kProbingStepSize);
+    #if ! defined(QUIC_PORT) && defined(DEBUG_RATE_CONTROL)
+    std::cerr << "Maybe probe decrease: " << sending_rate_ / (1.0 - kProbingStepSize) << "-->" << sending_rate_ << std::endl;
+    #endif
   }
 }
 
@@ -560,6 +578,9 @@ void PccSender::EnterProbing() {
     case STARTING:
       // Use half sending_rate_ as central probing rate.
       sending_rate_ = sending_rate_ * 0.5;
+      #if ! defined(QUIC_PORT) && defined(DEBUG_RATE_CONTROL)
+      std::cerr << "Probing after starting: " << sending_rate_ * 2.0 << "-->" << sending_rate_ << std::endl;
+      #endif
       break;
     case DECISION_MADE:
       // Use sending rate right before utility decreases as central probing
@@ -568,10 +589,18 @@ void PccSender::EnterProbing() {
         sending_rate_ = sending_rate_ *
                         (1.0 / (1 + std::min(rounds_ * kDecisionMadeStepSize,
                                              kMaxDecisionMadeStepSize)));
+      #if ! defined(QUIC_PORT) && defined(DEBUG_RATE_CONTROL)
+      std::cerr << "Decision made resotore: " << sending_rate_ * (1.0 + std::min(rounds_ * kDecisionMadeStepSize,
+      kMaxDecisionMadeStepSize)) << "-->" << sending_rate_ << std::endl;
+      #endif
       } else {
         sending_rate_ = sending_rate_ *
                         (1.0 / (1 - std::min(rounds_ * kDecisionMadeStepSize,
                                              kMaxDecisionMadeStepSize)));
+      #if ! defined(QUIC_PORT) && defined(DEBUG_RATE_CONTROL)
+      std::cerr << "Decision made resotore: " << sending_rate_ * (1.0 - std::min(rounds_ * kDecisionMadeStepSize,
+      kMaxDecisionMadeStepSize)) << "-->" << sending_rate_ << std::endl;
+      #endif
       }
       break;
     case PROBING:
@@ -580,8 +609,14 @@ void PccSender::EnterProbing() {
       if (interval_queue_.current().is_useful) {
         if (direction_ == INCREASE) {
           sending_rate_ = sending_rate_ * (1.0 / (1 + kProbingStepSize));
+          #if ! defined(QUIC_PORT) && defined(DEBUG_RATE_CONTROL)
+          std::cerr << "Probing restore: " << sending_rate_ * (1.0 + kProbingStepSize) << "-->" << sending_rate_ << std::endl;
+          #endif
         } else {
           sending_rate_ = sending_rate_ * (1.0 / (1 - kProbingStepSize));
+          #if ! defined(QUIC_PORT) && defined(DEBUG_RATE_CONTROL)
+          std::cerr << "Probing restore: " << sending_rate_ * (1.0 - kProbingStepSize) << "-->" << sending_rate_ << std::endl;
+          #endif
         }
       }
       break;
@@ -599,6 +634,9 @@ void PccSender::EnterProbing() {
 void PccSender::EnterDecisionMade(QuicBandwidth new_rate) {
   #ifdef QUIC_PORT
   DCHECK_EQ(PROBING, mode_);
+  #endif
+  #if ! defined(QUIC_PORT) && defined(DEBUG_RATE_CONTROL)
+  std::cerr << "Made decision: " << sending_rate_ << "-->" << new_rate << std::endl;
   #endif
   sending_rate_ = new_rate;
   mode_ = DECISION_MADE;

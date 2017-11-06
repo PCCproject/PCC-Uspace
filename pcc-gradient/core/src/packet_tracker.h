@@ -267,13 +267,10 @@ void PacketTracker<SeqNoType, IdType>::OnPacketSent(CPacket& packet) {
                 exit(-1);
             } else {
                 retransmittable_queue_.pop();
-                std::cerr << "Sent " << seq_no << " from retransmit queue" << std::endl;
             }
         }
         PacketRecord<SeqNoType, IdType>* packet_record = packet_record_iter->second;
-        //std::cout << "Updating packet record" << std::endl;
         packet_record->UpdateRecord(PACKET_STATE_SENT, packet.m_iMsgNo, MakeNewPacketId(packet));
-        //packet_record->SetPacketId(MakeNewPacketId(packet));
         sent_queue_.push(packet_record->GetPacketSentTime(packet.m_iMsgNo));
         sent_time_map_.insert(std::make_pair(packet_record->GetPacketSentTime(packet.m_iMsgNo), seq_no)); 
     }

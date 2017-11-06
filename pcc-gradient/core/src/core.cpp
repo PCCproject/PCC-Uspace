@@ -62,7 +62,6 @@ written by
 #include <iostream>
 #include "queue.h"
 #include "core.h"
-#include "CongestionEvents.h"
 #include <unordered_map>
 #include <map>
 #include <mutex>
@@ -249,7 +248,7 @@ CUDT::CUDT()
 	m_pCC = m_pCCFactory->create();
 	m_pCache = NULL;
 
-    pcc_sender = new PccSender(this, 10, 10);
+    pcc_sender = new PccSender(10000, 10, 10);
 	packet_tracker_ = new PacketTracker<int32_t, PacketId>(&m_SendBlockCond);
 
 	// Initial status
@@ -312,7 +311,7 @@ CUDT::CUDT(const CUDT& ancestor)
     }
 	m_pCC = m_pCCFactory->create();
 
-    pcc_sender = new PccSender(this, 10, 1000);
+    pcc_sender = new PccSender(10000, 10, 10);
 	packet_tracker_ = new PacketTracker<int32_t, PacketId>(&m_SendBlockCond);
 
 	// Initial status
@@ -332,8 +331,6 @@ CUDT::CUDT(const CUDT& ancestor)
 
 CUDT::~CUDT()
 {
-
-    pcc_sender->DumpIntervalPacketStates();
 
 	// release mutex/condtion variables
 	destroySynch();
@@ -1800,8 +1797,8 @@ void CUDT::sendCtrl(const int& pkttype, void* lparam, void* rparam, const int& s
 void CUDT::add_to_loss_record(int32_t loss1, int32_t loss2){
 //TODO: loss record does not have lock, this might cause problem
 
-    CongestionVector acked_packets;
-    CongestionVector lost_packets;
+    AckedPacketVector acked_packets;
+    LostPacketVector lost_packets;
     //std::cerr << "Lost: getting sizes for packets between " << loss1 << " and " << loss2 << std::endl;
     pcc_sender_lock.lock();
     for (int loss = loss1; loss <= loss2; ++loss) {
@@ -1810,15 +1807,15 @@ void CUDT::add_to_loss_record(int32_t loss1, int32_t loss2){
         //std::cerr << "CORE: lost packet with id = " << pkt_id << ", seq_no = " << loss << ", msg_no = " << msg_no << std::endl;
         //std::cout << "Loss ID: " << pkt_id << std::endl;
         CongestionEvent loss_event;
-        loss_event.seq_no = pkt_id;
-        loss_event.acked_bytes = 0;
-        loss_event.lost_bytes = packet_tracker_->GetPacketSize(loss);
+        loss_event.packet_number = pkt_id;
+        loss_event.bytes_acked = 0;
+        loss_event.bytes_lost = packet_tracker_->GetPacketSize(loss);
         loss_event.time = CTimer::getTime();
         lost_packets.push_back(loss_event);
         packet_tracker_->OnPacketLoss(loss, msg_no);
         ++m_iSndLossTotal;
     }
-    OnCongestionEvent(*pcc_sender, CTimer::getTime(), 0, acked_packets, lost_packets);
+    pcc_sender->OnCongestionEvent(true, 0, CTimer::getTime(), 0, acked_packets, lost_packets);
     pcc_sender_lock.unlock();
 		
 #ifdef EXPERIMENTAL_FEATURE_CONTINOUS_SEND
@@ -1860,15 +1857,15 @@ void CUDT::ProcessAck(CPacket& ctrlpkt) {
         return;
     }
 
-    CongestionVector acked_packets;
-    CongestionVector lost_packets;
+    AckedPacketVector acked_packets;
+    LostPacketVector lost_packets;
     CongestionEvent ack_event;
     ack_event.time = CTimer::getTime();
-    ack_event.seq_no = pkt_id;
-    ack_event.acked_bytes = size;
-    ack_event.lost_bytes = 0;
+    ack_event.packet_number = pkt_id;
+    ack_event.bytes_acked = size;
+    ack_event.bytes_lost = 0;
     acked_packets.push_back(ack_event);
-    OnCongestionEvent(*pcc_sender, CTimer::getTime(), rtt_us, acked_packets, lost_packets);
+    pcc_sender->OnCongestionEvent(true, 0, CTimer::getTime(), rtt_us, acked_packets, lost_packets);
     pcc_sender_lock.unlock();
     ++m_iRecvACK;
     ++m_iRecvACKTotal;
@@ -2264,6 +2261,15 @@ void CUDT::resizeMSS(int mss) {
     //cout<<"after resize"<<endl;
 }
 
+uint64_t CUDT::GetSendingInterval() {
+    /* Number of clock cyles to wait = (cycles / packet) =
+     *
+     * (cycles / second) * (bits / packet) * (1 / (bits / second))
+     * frequency         * m_iMSS * 8      *  1 / sending_rate (in bits/second)
+     */
+    return m_ullCPUFrequency * m_iMSS * 8 / pcc_sender->PacingRate(0);
+}
+
 int CUDT::packData(CPacket& packet, uint64_t& ts)
 {
     int payload = 0;
@@ -2302,7 +2308,7 @@ int CUDT::packData(CPacket& packet, uint64_t& ts)
     //std::cout << "Sending packet " << pkt_id << ":" << seq_no << std::endl;
     //std::cout << "Calling pcc sender OnPacketSent" << std::endl;
     //std::cout << "Sending packet: " << pkt_id << std::endl;
-    OnPacketSent(*pcc_sender, CTimer::getTime(), pkt_id, payload);
+    pcc_sender->OnPacketSent(CTimer::getTime(), 0, pkt_id, payload, false);
     pcc_sender_lock.unlock();
 
 	packet.m_iTimeStamp = int(CTimer::getTime() - m_StartTime);
@@ -2312,7 +2318,7 @@ int CUDT::packData(CPacket& packet, uint64_t& ts)
 	++m_llSentTotal;
 	++m_llTraceSent;
 
-    ts = entertime + m_ullInterval;
+    ts = entertime + GetSendingInterval();
 	m_ullTargetTime = ts;
     TotalBytes += payload;
     //std::cout << "finished packing data: " << seq_no << std::endl;
