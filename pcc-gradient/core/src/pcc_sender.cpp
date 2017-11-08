@@ -19,7 +19,7 @@ DEFINE_double(max_rtt_fluctuation_tolerance_ratio_in_decision_made, 0.05,
 static float FLAGS_max_rtt_fluctuation_tolerance_ratio_in_starting = 0.3f;
 static float FLAGS_max_rtt_fluctuation_tolerance_ratio_in_decision_made = 0.05f;
 
-#define DEBUG_RATE_CONTROL
+//#define DEBUG_RATE_CONTROL
 #endif
 
 namespace {
@@ -48,9 +48,9 @@ const size_t kDefaultTCPMSS = 1400;
 // Minimum number of packers per interval.
 const size_t kMinimumPacketsPerInterval = 10;
 // Number of gradients to average.
-const size_t kAvgGradientSampleSize = 2;
+const size_t kAvgGradientSampleSize = 1;
 // The factor that converts average utility gradient to a rate change (in Mbps).
-float kUtilityGradientToRateChangeFactor = 1.0f;//2.0f;
+float kUtilityGradientToRateChangeFactor = 1.0f * kMegabit;//2.0f;
 // The smallest amount that the rate can be changed by at a time.
 float kMinimumRateChange = 0.5f * kMegabit;
 // The initial maximum proportional rate change.
@@ -283,7 +283,7 @@ float PccSender::ComputeRateChange(
   }
   
   float utility_gradient = 
-      (utility_sample_1.utility - utility_sample_2.utility) / 
+      kMegabit * (utility_sample_1.utility - utility_sample_2.utility) / 
       (utility_sample_1.sending_rate - 
           utility_sample_2.sending_rate);
   
