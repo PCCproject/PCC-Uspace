@@ -382,13 +382,13 @@ private: // Status
 
    int m_iEXPCount;                             // Expiration counter
    int m_iBandwidth;                            // Estimated bandwidth, number of packets per second
-   int m_iRTT;                                  // RTT, in microseconds
+   double m_iRTT;                                  // RTT, in microseconds
    int last_rtt_;
    deque<double> m_last_rtt;
    static const size_t kRTTHistorySize = 100;
    //double m_last_rtt[MAX_MONITOR];
    int m_monitor_count;
-   int m_iRTTVar;                               // RTT variance
+   double m_iRTTVar;                               // RTT variance
    int m_iDeliveryRate;				// Packet arrival rate at the receiver side
 
    uint64_t m_ullLingerExpiration;		// Linger expiration time (for GC to close a socket with data in sending buffer)
@@ -402,7 +402,7 @@ private: // Sending related data
    CSndLossList* m_pSndLossList;                // Sender loss list
    CPktTimeWindow* m_pSndTimeWindow;            // Packet sending time window
 
-   uint64_t m_ullTimeDiff;                      // aggregate difference in inter-packet time
+   int64_t m_ullTimeDiff;                      // aggregate difference in inter-packet time
 
    volatile int m_iFlowWindowSize;              // Flow control window size
    volatile double m_dCongestionWindow;         // congestion window size
@@ -519,7 +519,7 @@ private: // Timers
    int m_iPktCount;				// packet counter for ACK
    int m_iLightACKCount;			// light ACK counter
 
-   uint64_t m_ullTargetTime;			// scheduled time of next packet sending
+   int64_t m_ullTargetTime;			// scheduled time of next packet sending
 
    void checkTimers();
 
