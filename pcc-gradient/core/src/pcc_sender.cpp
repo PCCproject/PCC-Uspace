@@ -476,7 +476,6 @@ bool PccSender::CreateUsefulInterval() const {
     #ifdef QUIC_PORT
     QUIC_BUG_IF(mode_ != STARTING);
     #endif
-    std::cerr << "Cannot create useful interval, avg_rtt_ = 0" << std::endl;
     return false;
   }
   // In STARTING and DECISION_MADE mode, there should be at most one useful
