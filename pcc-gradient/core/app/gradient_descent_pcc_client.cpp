@@ -12,8 +12,6 @@
 #include <udt.h>
 #include <signal.h>
 
-#include "pcc.h"
-
 using namespace std;
 
 #ifndef WIN32
@@ -22,114 +20,46 @@ void* monitor(void*);
 DWORD WINAPI monitor(LPVOID);
 #endif
 
-double rate_sum = 0;
-double rtt_sum = 0;
-double avg_loss_rate = 0;
-double base_loss = 0;
-double base_sent = 0;
-unsigned int iteration_count = 0;
-
-PCC* cchandle = NULL;
-
-double PCC::kAlpha(1);
-double PCC::kBeta(10.8);
-double PCC::kExponent(0.9);
-bool PCC::kPolyUtility(false);
-double PCC::kFactor(0.1);
-double PCC::kStep(0.05);
-double PCC::kLatencyCoefficient(0);
-double PCC::kInitialBoundary(0);
-double PCC::kBoundaryIncrement(0);
-
-extern void DumpPacketIdRecords();
-extern void DumpPacketSizeRecords();
-
 void intHandler(int dummy) {
-	if (iteration_count  > 0) {
-		cout << "Avg. rate: " <<  rate_sum / iteration_count << " loss rate = " << avg_loss_rate << " avg. RTT = " << rtt_sum / iteration_count;
-		if (cchandle != NULL) {
-			cout<< " average utility = " << cchandle->avg_utility();
-		}
-		cout << endl;
-	}
-    //DumpPacketIdRecords();
-    //DumpPacketSizeRecords();
-	exit(0);
+	//TODO (nathan jay): Print useful summary statistics.
+    exit(0);
 }
 
 
-int main(int argc, char* argv[])
-{
+int main(int argc, char* argv[]) {
+    
     if ((argc < 4) || (0 == atoi(argv[3]))) {
-        cout << "usage: " << argv[0] << " <send|recv> server_ip server_port [factor] [step] [alpha = 4] [beta = 1] [exponent = 2.5] [poly_utility = 1]" << endl;
+        cout << "usage: " << argv[0] << " <send|recv> server_ip server_port" << endl;
       return 0;
     }
 
     bool should_send = !strcmp(argv[1], "send");
     
 	signal(SIGINT, intHandler);
+   
+    // use this function to initialize the UDT library
+    UDT::startup();
 
-	double alpha = 1;
-	double beta = 10.8;
-	double exponent = 0.9;
-	bool use_poly = true;
-    double factor = 1.0;
-    double step = 0.05;
-    double latency = 0;
-    double initial_boundary = 0.05;
-    double boundary_increment = 0.06;
+    struct addrinfo hints, *local, *peer;
 
+    memset(&hints, 0, sizeof(struct addrinfo));
 
-	if (argc > 4) latency = atof(argv[4]);
-	if (argc > 5) factor = atof(argv[5]);
-	if (argc > 6) step = atof(argv[6]);
-	if (argc > 7) initial_boundary = atof(argv[7]);
-	if (argc > 8) boundary_increment = atof(argv[8]);
-	if (argc > 9) alpha = atof(argv[9]);
-	if (argc > 10) beta = atof(argv[10]);
-	if (argc > 11) exponent = atof(argv[9]);
-	PCC::set_utility_params(alpha, beta, exponent, use_poly, factor, step, latency, initial_boundary, boundary_increment);
-//sleep(1500);
-   // use this function to initialize the UDT library
-   UDT::startup();
+    hints.ai_flags = AI_PASSIVE;
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
 
-   struct addrinfo hints, *local, *peer;
+    if (0 != getaddrinfo(NULL, "9000", &hints, &local)) {
+        cout << "incorrect network address.\n" << endl;
+        return 0;
+    }
 
-   memset(&hints, 0, sizeof(struct addrinfo));
+    UDTSOCKET client = UDT::socket(local->ai_family, local->ai_socktype, local->ai_protocol);
 
-   hints.ai_flags = AI_PASSIVE;
-   hints.ai_family = AF_INET;
-   hints.ai_socktype = SOCK_STREAM;
-   //hints.ai_socktype = SOCK_DGRAM;
-
-   if (0 != getaddrinfo(NULL, "9000", &hints, &local))
-   {
-      cout << "incorrect network address.\n" << endl;
-      return 0;
-   }
-
-   UDTSOCKET client = UDT::socket(local->ai_family, local->ai_socktype, local->ai_protocol);
-
-   // UDT Options
-   UDT::setsockopt(client, 0, UDT_CC, new CCCFactory<PCC>, sizeof(CCCFactory<PCC>));
-   //UDT::setsockopt(client, 0, UDT_MSS, new int(9000), sizeof(int));
-   //UDT::setsockopt(client, 0, UDT_SNDBUF, new int(10000000), sizeof(int));
-   //UDT::setsockopt(client, 0, UDP_SNDBUF, new int(10000000), sizeof(int));
-
-   // Windows UDP issue
-   // For better performance, modify HKLM\System\CurrentControlSet\Services\Afd\Parameters\FastSendDatagramThreshold
-   #ifdef WIN32
-      UDT::setsockopt(client, 0, UDT_MSS, new int(1052), sizeof(int));
-   #endif
-
-   /*
-   UDT::setsockopt(client, 0, UDT_RENDEZVOUS, new bool(true), sizeof(bool));
-   if (UDT::ERROR == UDT::bind(client, local->ai_addr, local->ai_addrlen))
-   {
-      cout << "bind: " << UDT::getlasterror().getErrorMessage() << endl;
-      return 0;
-   }
-   */
+    // Windows UDP issue
+    // For better performance, modify HKLM\System\CurrentControlSet\Services\Afd\Parameters\FastSendDatagramThreshold
+    #ifdef WIN32
+        UDT::setsockopt(client, 0, UDT_MSS, new int(1052), sizeof(int));
+     #endif
 
    freeaddrinfo(local);
 
@@ -149,9 +79,6 @@ int main(int argc, char* argv[])
 
    // using CC method
    int temp;
-   UDT::getsockopt(client, 0, UDT_CC, &cchandle, &temp);
-//   if (NULL != cchandle)
-//      cchandle->setRate(1);
 
    int size = 100000;
    char* data = new char[size];
@@ -236,20 +163,6 @@ DWORD WINAPI monitor(LPVOID s)
            << perf.msRTT << "\t"
            <<  perf.pktSentTotal << "\t"
            << perf.pktSndLossTotal <<endl;
-    if (perf.pktSentTotal == 0) {
-		avg_loss_rate = 0;
-	} else {
-		avg_loss_rate = (1.0 * perf.pktSndLossTotal - base_loss) / (1.0 * perf.pktSentTotal - base_sent);
-	}
-
-	if (i == 10) {
-		base_loss = 1.0 * perf.pktSndLossTotal;
-		base_sent = 1.0 * perf.pktSentTotal;
-	} else if (i > 10) {
-		rate_sum += perf.mbpsSendRate;
-		rtt_sum += perf.msRTT;
-		iteration_count++;
-	}
    }
 
    #ifndef WIN32
