@@ -1876,8 +1876,8 @@ uint64_t CUDT::GetSendingInterval() {
      * (cycles / second) * (bits / packet) * (1 / (bits / second))
      * frequency         * m_iMSS * 8      *  1 / sending_rate (in bits/second)
      */
-    std::cerr << m_ullCPUFrequency * m_iMSS * 8.0f / pcc_sender->PacingRate(0) << std::endl;
-    return m_ullCPUFrequency * m_iMSS * 8.0f / pcc_sender->PacingRate(0);
+    //std::cerr << m_ullCPUFrequency * m_iMSS * 8.0f * 1000000.0f / pcc_sender->PacingRate(0) << std::endl;
+    return m_ullCPUFrequency * m_iMSS * 8.0f * 1000000.0f / pcc_sender->PacingRate(0);
 }
 
 int CUDT::packData(CPacket& packet, uint64_t& ts)
@@ -1886,6 +1886,10 @@ int CUDT::packData(CPacket& packet, uint64_t& ts)
 	uint64_t entertime;
 	CTimer::rdtsc(entertime);
     //std::cout << "packData" << std::endl;
+
+    if (m_ullTargetTime != 0 && entertime > m_ullTargetTime) {
+        m_ullTimeDiff += entertime - m_ullTargetTime;
+    }
 
     pcc_sender_lock.lock();
     int32_t seq_no;
@@ -1927,11 +1931,17 @@ int CUDT::packData(CPacket& packet, uint64_t& ts)
 
 	++m_llSentTotal;
 	++m_llTraceSent;
-
-    ts = entertime + GetSendingInterval();
+    
+    int64_t interval = GetSendingInterval();
+    if (m_ullTimeDiff >= interval) {
+        ts = entertime;
+        m_ullTimeDiff -= interval;
+    } else {
+        ts = entertime + interval - m_ullTimeDiff;
+        m_ullTimeDiff = 0;
+    }
 	m_ullTargetTime = ts;
     TotalBytes += payload;
-    //std::cout << "finished packing data: " << seq_no << std::endl;
 	return payload;
 }
 
