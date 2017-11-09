@@ -617,8 +617,6 @@ void CUDT::listen()
 void CUDT::connect(const sockaddr* serv_addr)
 {
 	std::cout << "connect" << std::endl;
-    //cout<<m_iFlowWindowSize<<"DING"<<endl;
-	//	cout<<"this is the first connection\n";
 	CGuard cg(m_ConnectionLock);
 
 	if (!m_bOpened)
@@ -655,7 +653,6 @@ void CUDT::connect(const sockaddr* serv_addr)
 	// Random Initial Sequence Number
 	srand((unsigned int)CTimer::getTime());
 	m_iISN = m_ConnReq.m_iISN = (int32_t)(CSeqNo::m_iMaxSeqNo * (double(rand()) / RAND_MAX));
-	//cout<<"Initial"<<m_iISN<<endl;
 	m_iLastDecSeq = m_iISN - 1;
 	m_iSndLastAck = m_iISN;
 	m_iSndLastDataAck = m_iISN;
@@ -1071,7 +1068,6 @@ int32_t CUDT::GetNextSeqNo() {
 
 int CUDT::send(const char* data, const int& len)
 {
-	//std::cout << "Sending " << len << " bytes" << std::endl;
     if (UDT_DGRAM == m_iSockType)
 		throw CUDTException(5, 10, 0);
 
@@ -1083,9 +1079,7 @@ int CUDT::send(const char* data, const int& len)
 
 	if (len <= 0)
 		return 0;
-        //cout<<"before acquire lock"<<endl;
 	CGuard sendguard(m_SendLock);
-        //cout<<"after send acquire lock"<<endl;
 
 	if (!packet_tracker_->CanEnqueuePacket())
 	{
@@ -1149,7 +1143,6 @@ int CUDT::send(const char* data, const int& len)
 		return 0;
 	}
 
-    //std::cout << "Starting to queue " << len << " bytes" << std::endl;
     char* data_ptr = (char*)data;
     int queued = 0;
     while (queued < len) {
@@ -1185,7 +1178,6 @@ int CUDT::send(const char* data, const int& len)
 		// write is not available any more
 		s_UDTUnited.m_EPoll.disable_write(m_SocketID, m_sPollID);
 	}
-     //   cout<<"returning"<<endl;
 
 	return size;
 }
@@ -1523,13 +1515,10 @@ void CUDT::add_to_loss_record(int32_t loss1, int32_t loss2){
 
     AckedPacketVector acked_packets;
     LostPacketVector lost_packets;
-    //std::cerr << "Lost: getting sizes for packets between " << loss1 << " and " << loss2 << std::endl;
     pcc_sender_lock.lock();
     for (int loss = loss1; loss <= loss2; ++loss) {
         int32_t msg_no = packet_tracker_->GetPacketLastMsgNo(loss);
         PacketId pkt_id = packet_tracker_->GetPacketId(loss, msg_no);
-        //std::cerr << "CORE: lost packet with id = " << pkt_id << ", seq_no = " << loss << ", msg_no = " << msg_no << std::endl;
-        //std::cout << "Loss ID: " << pkt_id << std::endl;
         CongestionEvent loss_event;
         loss_event.packet_number = pkt_id;
         loss_event.bytes_acked = 0;
@@ -1704,14 +1693,11 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 }
 
 void CUDT::resizeMSS(int mss) {
-    //cout<<"entering resize function"<<endl;
 	//CGuard sendguard(m_SendLock);
     m_iMSS = mss;
 	m_iPktSize = m_iMSS - 28;
 	m_iPayloadSize = m_iPktSize - CPacket::m_iPktHdrSize;
-    //cout<<"before resize"<<endl;
     m_pSndBuffer->resizeMSS(m_iPayloadSize);
-    //cout<<"after resize"<<endl;
 }
 
 uint64_t CUDT::GetSendingInterval() {
@@ -1797,7 +1783,6 @@ int CUDT::processData(CUnit* unit)
 	m_iEXPCount = 1;
 	uint64_t currtime;
 	CTimer::rdtsc(currtime);
-    //std::cerr << packet.m_iSeqNo << ", " << currtime - m_ullLastRspTime << std::endl;
 	m_ullLastRspTime = currtime;
 
 	m_pCC->onPktReceived(&packet);
@@ -1820,63 +1805,8 @@ int CUDT::processData(CUnit* unit)
 
 	if (m_pRcvBuffer->addData(unit, offset) < 0)
 		return -1;
-
-    /*
-	// Loss detection.
-	if (CSeqNo::seqcmp(packet.m_iSeqNo, CSeqNo::incseq(m_iRcvCurrSeqNo)) > 0)
-	{
-		// If loss found, insert them to the receiver loss list
-		m_pRcvLossList->insert(CSeqNo::incseq(m_iRcvCurrSeqNo), CSeqNo::decseq(packet.m_iSeqNo));
-
-		// pack loss list for NAK
-		int32_t lossdata[2];
-		lossdata[0] = CSeqNo::incseq(m_iRcvCurrSeqNo);
-		lossdata[1] = CSeqNo::decseq(packet.m_iSeqNo);
-
-		// Generate loss report immediately.
-        if (lossdata[0] != lossdata[1]) {
-            lossdata[0] |= 0x80000000;
-        }
-        sendCtrl(3, NULL, lossdata, (lossdata[0] == lossdata[1]) ? 1 : 2);
-
-		int loss = CSeqNo::seqlen(m_iRcvCurrSeqNo, packet.m_iSeqNo) - 2;
-		m_iTraceRcvLoss += loss;
-		m_iRcvLossTotal += loss;
-	}
-    */
-
-    /*
-	// This is not a regular fixed size packet...
-	//an irregular sized packet usually indicates the end of a message, so send an ACK immediately
-	if (packet.getLength() != m_iPayloadSize)
-		CTimer::rdtsc(m_ullNextACKTime);
-
-	// Update the current largest sequence number that has been received.
-	// Or it is a retransmitted packet, remove it from receiver loss list.
-	if (CSeqNo::seqcmp(packet.m_iSeqNo, m_iRcvCurrSeqNo) > 0)
-		m_iRcvCurrSeqNo = packet.m_iSeqNo;
-	else
-	{
-		int split=0;
-		split=m_pRcvLossList->remove(packet.m_iSeqNo);
-
-        
-		if(split>1)
-		{      
-            int32_t lossdata[2];
-            lossdata[0] = m_pRcvLossList->m_piData1[split-2];
-            lossdata[1] = m_pRcvLossList->m_piData2[split-2];
-            if (lossdata[1] != -1) {
-                lossdata[0] |= 0x80000000;
-            }
-            sendCtrl(3,NULL,lossdata,(lossdata[1] == -1) ? 1 : 2);
-
-		}
-        
-
-	}
-    */
-	return 0;
+	
+    return 0;
 }
 
 int CUDT::listen(sockaddr* addr, CPacket& packet)
@@ -1977,8 +1907,6 @@ void CUDT::checkTimers()
             uint64_t time_since_sent = (cur_time.tv_nsec - sent_time.tv_nsec) / 1000 + (cur_time.tv_sec - sent_time.tv_sec) * 1000000;
             if (time_since_sent > loss_thresh_us) {
                 add_to_loss_record(seq_no, seq_no);
-                //std::cerr << "Packet " << seq_no << " lost afer " << time_since_sent << "us" << std::endl;
-                //std::cerr << "m_iRTT = " << m_iRTT << ", m_iRTTVar = " << m_iRTTVar << std::endl;
             } else {
                 above_loss_threshold = false;
             }
@@ -1992,7 +1920,6 @@ void CUDT::checkTimers()
 	{
 		// ACK timer expired or ACK interval is reached
 
-		//sendCtrl(2);
 		CTimer::rdtsc(currtime);
 		if (m_pCC->m_iACKPeriod > 0)
 			m_ullNextACKTime = currtime + m_pCC->m_iACKPeriod * m_ullCPUFrequency;
@@ -2008,47 +1935,19 @@ void CUDT::checkTimers()
 		//sendCtrl(2, NULL, NULL, 4);
 		++ m_iLightACKCount;
 	}
-    /*
-    if ((m_pRcvLossList->getLossLength() > 0) && (currtime > m_ullNextNAKTime))
-    {
-    //   // NAK timer expired, and there is loss to be reported.
-       int locloc=m_pRcvLossList->m_iHead;
-       if(locloc==loss_head_loc)
-          {
-          sendCtrl(3);
- 
-     //      cout<<"buch"<<endl;
- 
-          }
-       loss_head_loc=m_pRcvLossList->m_iHead;
-       CTimer::rdtsc(currtime);
-       m_ullNextNAKTime = currtime + m_ullNAKInt;
-     //cout<<"Ding"<<endl;
-    }
-    */
 
-    //std::cout << "num lost: " << m_pRcvLossList->getLossLength() << " next time = " << m_ullNextNAKTime << " currtime = " << currtime << std::endl;
 	// we are not sending back repeated NAK anymore and rely on the sender's EXP for retransmission
 	if ((m_pRcvLossList->getLossLength() > 0) && (currtime > m_ullNextNAKTime))
 	{
-        //std::cout << "Periodic loss report" << std::endl;
-	//   // NAK timer expired, and there is loss to be reported.
-	   //sendCtrl(3);
-	//
 	   CTimer::rdtsc(currtime);
 	   m_ullNextNAKTime = currtime + m_ullNAKInt;
 	}
 
 	uint64_t next_exp_time;
-	//if (m_pCC->m_bUserDefinedRTO)
-	//	next_exp_time = m_ullLastRspTime + m_pCC->m_iRTO * m_ullCPUFrequency;
-	//else
-	//{
-		uint64_t exp_int = (m_iEXPCount * (m_iRTT + 4 * m_iRTTVar) + m_iSYNInterval) * m_ullCPUFrequency;
-		if (exp_int < m_iEXPCount * m_ullMinExpInt)
-			exp_int = m_iEXPCount * m_ullMinExpInt;
-		next_exp_time = m_ullLastRspTime + exp_int;
-	//}
+    uint64_t exp_int = (m_iEXPCount * (m_iRTT + 4 * m_iRTTVar) + m_iSYNInterval) * m_ullCPUFrequency;
+    if (exp_int < m_iEXPCount * m_ullMinExpInt)
+        exp_int = m_iEXPCount * m_ullMinExpInt;
+    next_exp_time = m_ullLastRspTime + exp_int;
 
 	if (currtime > next_exp_time)
 	{
