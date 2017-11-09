@@ -7,7 +7,7 @@
 #endif
 
 #ifndef QUIC_PORT
-//#define DEBUG_UTILITY_CALC
+#define DEBUG_UTILITY_CALC
 //#define DEBUG_MONITOR_INTERVAL_QUEUE_ACKS
 //#define DEBUG_MONITOR_INTERVAL_QUEUE_LOSS
 //#define DEBUG_INTERVAL_SIZE
@@ -26,7 +26,7 @@ const float kRTTCoefficient = -200.0f;
 // Number of microseconds per second.
 const float kNumMicrosPerSecond = 1000000.0f;
 // Coefficienty of the latency term in the utility function.
-const float kLatencyCoefficient = 0;
+const float kLatencyCoefficient = 1;
 // Alpha factor in the utility function.
 const float kAlpha = 1;
 // An exponent in the utility function.
@@ -297,20 +297,23 @@ bool PccMonitorIntervalQueue::CalculateUtility(MonitorInterval* interval) {
       kMinTransmissionTime,
       (interval->last_packet_sent_time - interval->first_packet_sent_time));
 
-  float mi_time = static_cast<float>(mi_duration) / kNumMicrosPerSecond;
-  float bytes_lost = static_cast<float>(interval->bytes_lost);
-  float bytes_total = static_cast<float>(interval->bytes_total);
+  double mi_time_seconds = static_cast<float>(mi_duration) / kNumMicrosPerSecond;
+  double bytes_lost = static_cast<float>(interval->bytes_lost);
+  double bytes_total = static_cast<float>(interval->bytes_total);
+  double sending_rate_bps = bytes_total * 8.0f / mi_time_seconds;
 
   double avg_time = 0.0;
   double avg_rtt = 0.0;
+  int n_valid_packet_rtts = 0;
   for (int i = 0; i < interval->n_packets; ++i) {
     if (interval->packet_rtts[i] != 0l) {
       avg_time += interval->sent_times[i];
       avg_rtt += interval->packet_rtts[i];
+      ++n_valid_packet_rtts;
     }
   }
-  avg_time /= (double)interval->n_packets;
-  avg_rtt /= (double)interval->n_packets;
+  avg_time /= (double)n_valid_packet_rtts;
+  avg_rtt /= (double)n_valid_packet_rtts;
 
   double numerator = 0.0;
   double denominator = 0.0;
@@ -331,21 +334,20 @@ bool PccMonitorIntervalQueue::CalculateUtility(MonitorInterval* interval) {
   }
   float rtt_contribution = kLatencyCoefficient * 11330 * bytes_total * (pow(rtt_penalty, 1));
 
-  float throughput_factor = kAlpha * pow(8 * bytes_total/kMegabit/mi_time, kExponent);
+  float sending_factor = kAlpha * pow(sending_rate_bps/kMegabit, kExponent);
 
-  float current_utility = throughput_factor -
+  float current_utility = sending_factor -
       (loss_contribution + rtt_contribution) *
-      (8 * bytes_total / static_cast<float>(interval->n_packets)) /
-        (kMegabit * mi_time);
+      (sending_rate_bps / kMegabit) / static_cast<float>(interval->n_packets);
 
   #if !defined(QUIC_PORT) && defined(DEBUG_UTILITY_CALC)
   std::cerr << "Calculate utility:" << std::endl;
   std::cerr << "\tutility           = " << current_utility << std::endl;
   std::cerr << "\tn_packets         = " << interval->n_packets << std::endl;
-  std::cerr << "\ttarget send_rate  = " << interval->sending_rate << std::endl;
-  std::cerr << "\tactual send_rate  = " << bytes_total * 8.0f / (mi_time * 1000000.0f) << std::endl;
-  std::cerr << "\tthroughput        = " << (bytes_total - bytes_lost) * 8.0f / (mi_time * 1000000.0f) << std::endl;
-  std::cerr << "\tthroughput factor = " << throughput_factor << std::endl;
+  std::cerr << "\ttarget send_rate  = " << interval->sending_rate / 1000000.0f << std::endl;
+  std::cerr << "\tactual send_rate  = " << bytes_total * 8.0f / (mi_time_seconds * 1000000.0f) << std::endl;
+  std::cerr << "\tthroughput        = " << (bytes_total - bytes_lost) * 8.0f / (mi_time_seconds * 1000000.0f) << std::endl;
+  std::cerr << "\tthroughput factor = " << sending_factor << std::endl;
   std::cerr << "\tavg_rtt           = " << avg_rtt << std::endl;
   std::cerr << "\tlatency_info      = " << latency_info << std::endl;
   std::cerr << "\t\tnumerator       = " << numerator << std::endl;

@@ -38,6 +38,8 @@ written by
    Yunhong Gu, last updated 05/07/2011
  *****************************************************************************/
 
+//#define DEBUG_CORE_SENDING_RATE
+
 #ifndef WIN32
 #include <assert.h>
 #include <unistd.h>
@@ -562,7 +564,7 @@ void CUDT::open()
 	m_iRTT = 10 * m_iSYNInterval;
 	last_rtt_ = 10 * m_iSYNInterval;
 	//for (int i = 0; i < MAX_MONITOR; i++) m_last_rtt[i] = 5 * m_iSYNInterval;
-	m_iRTTVar = m_iRTT >> 1;
+	m_iRTTVar = m_iRTT / 2.0;
 	m_ullCPUFrequency = CTimer::getCPUFrequency();
 
 	// set up the imers
@@ -1172,12 +1174,10 @@ int CUDT::send(const char* data, const int& len)
 	if (0 == m_pSndBuffer->getCurrBufSize())
 		m_llSndDurationCounter = CTimer::getTime();
 
-	// insert the ueser buffer into the sening list
-	//cout<<"adding to buffer"<<endl;
+	// insert the user buffer into the sending list
 	m_pSndBuffer->addBuffer(data, size);
 
 	// insert this socket to snd list if it is not on the list yet
-	//cout<<"update1"<<endl;
 	m_pSndQueue->m_pSndUList->update(this, false);
 
 	if (m_iSndBufSize <= m_pSndBuffer->getCurrBufSize())
@@ -1427,7 +1427,6 @@ void CUDT::releaseSynch()
 
 void CUDT::SendAck(int32_t seq_no, int32_t msg_no) {
     CPacket ctrlpkt;
-    //std::cout << "Sending ack: " << seq_no << std::endl;
     ctrlpkt.pack(2, NULL, &seq_no, 4);
     ctrlpkt.m_iID = m_PeerID;
     ctrlpkt.m_iMsgNo = msg_no;
@@ -1443,98 +1442,6 @@ void CUDT::sendCtrl(const int& pkttype, void* lparam, void* rparam, const int& s
 	case 2: //010 - Acknowledgement
 	{
 		assert("Deprecated sendCtrl(2, ...)" && 0);
-        int32_t ack;
-
-		// If there is no loss, the ACK is the current largest sequence number plus 1;
-		// Otherwise it is the smallest sequence number in the receiver loss list.
-		if (0 == m_pRcvLossList->getLossLength())
-			ack = CSeqNo::incseq(m_iRcvCurrSeqNo);
-		else
-			ack = m_pRcvLossList->getFirstLostSeq();
-
-		if (ack == m_iRcvLastAckAck)
-			break;
-
-		// send out a lite ACK
-		// to save time on buffer processing and bandwidth/AS measurement, a lite ACK only feeds back an ACK number
-		if (4 == size)
-		{
-			ctrlpkt.pack(pkttype, NULL, &ack, size);
-			ctrlpkt.m_iID = m_PeerID;
-			m_pSndQueue->sendto(m_pPeerAddr, ctrlpkt);
-
-			break;
-		}
-
-		uint64_t currtime;
-		CTimer::rdtsc(currtime);
-
-		// There are new received packets to acknowledge, update related information.
-		if (CSeqNo::seqcmp(ack, m_iRcvLastAck) > 0)
-		{
-			int acksize = CSeqNo::seqoff(m_iRcvLastAck, ack);
-			m_iRcvLastAck = ack;
-			m_pRcvBuffer->AckData(acksize);
-
-
-			// signal a waiting "recv" call if there is any data available
-#ifndef WIN32
-			pthread_mutex_lock(&m_RecvDataLock);
-			if (m_bSynRecving)
-				pthread_cond_signal(&m_RecvDataCond);
-			pthread_mutex_unlock(&m_RecvDataLock);
-#else
-			if (m_bSynRecving)
-				SetEvent(m_RecvDataCond);
-#endif
-
-			// acknowledge any waiting epolls to read
-			s_UDTUnited.m_EPoll.enable_read(m_SocketID, m_sPollID);
-		}
-		else if (ack == m_iRcvLastAck)
-		{
-			if ((currtime - m_ullLastAckTime) < ((m_iRTT + 4 * m_iRTTVar) * m_ullCPUFrequency))
-				break;
-		}
-		else
-			break;
-
-		// Send out the ACK only if has not been received by the sender before
-		if (CSeqNo::seqcmp(m_iRcvLastAck, m_iRcvLastAckAck) > 0)
-		{
-			int32_t data[6];
-
-			m_iAckSeqNo = CAckNo::incack(m_iAckSeqNo);
-			data[0] = m_iRcvLastAck;
-			data[1] = m_iRTT;
-			data[2] = m_iRTTVar;
-			data[3] = m_pRcvBuffer->getAvailBufSize();
-			// a minimum flow window of 2 is used, even if buffer is full, to break potential deadlock
-			if (data[3] < 2)
-				data[3] = 2;
-
-			if (currtime - m_ullLastAckTime > m_ullSYNInt)
-			{
-				data[4] = m_pRcvTimeWindow->getPktRcvSpeed();
-				data[5] = m_pRcvTimeWindow->getBandwidth();
-				ctrlpkt.pack(pkttype, &m_iAckSeqNo, data, 24);
-
-				CTimer::rdtsc(m_ullLastAckTime);
-			}
-			else
-			{
-				ctrlpkt.pack(pkttype, &m_iAckSeqNo, data, 16);
-			}
-
-			ctrlpkt.m_iID = m_PeerID;
-			m_pSndQueue->sendto(m_pPeerAddr, ctrlpkt);
-
-			m_pACKWindow->store(m_iAckSeqNo, m_iRcvLastAck);
-
-			++ m_iSentACK;
-			++ m_iSentACKTotal;
-		}
-
 		break;
 	}
 
@@ -1547,69 +1454,7 @@ void CUDT::sendCtrl(const int& pkttype, void* lparam, void* rparam, const int& s
 
 	case 3: //011 - Loss Report
 	{
-        #ifdef DEBUG_LOSS
-            std::cout << "Sending loss report: ";
-		#endif
-        if (NULL != rparam)
-		{
-			if (1 == size)
-			{
-				// only 1 loss packet
-				ctrlpkt.pack(pkttype, NULL, (int32_t *)rparam /* +1 */, 4);
-                #ifdef DEBUG_LOSS
-                    std::cout << *(int32_t *)(ctrlpkt.m_pcData) << std::endl;
-			    #endif
-            }
-			else
-			{
-				// more than 1 loss packets
-				ctrlpkt.pack(pkttype, NULL, rparam, 8);
-                int32_t * losslist = (int32_t *)(ctrlpkt.m_pcData);
-                #ifdef DEBUG_LOSS
-                    std::cout << "[" << losslist[0] << ", " << losslist[1] << "]" << std::endl;
-			    #endif
-            }
-
-			ctrlpkt.m_iID = m_PeerID;
-			m_pSndQueue->sendto(m_pPeerAddr, ctrlpkt);
-
-			++ m_iSentNAK;
-			++ m_iSentNAKTotal;
-
-		}
-		else if (m_pRcvLossList->getLossLength() > 0)
-		{
-          // this is periodically NAK report; make sure NAK cannot be sent back too often
- 
-          // read loss list from the local receiver loss list
-          int losslen;
-          int offset=0;
-          while (1)
-          {
-          int32_t* data = new int32_t[m_iPayloadSize / 4];
-          m_pRcvLossList->getLossArray(data, losslen, m_iPayloadSize / 4,offset);
-             if(0>=losslen)
-              {delete[] data; break;}
- 
-             ctrlpkt.pack(pkttype, NULL, data, losslen * 4);
-             ctrlpkt.m_iID = m_PeerID;
-             m_pSndQueue->sendto(m_pPeerAddr, ctrlpkt);
- 
-             ++ m_iSentNAK;
-             ++ m_iSentNAKTotal;
-          delete [] data;
-          }
-
-		}
-
-		// update next NAK time, which should wait enough time for the retansmission, but not too long
-		m_ullNAKInt = (m_iRTT + 4 * m_iRTTVar) * m_ullCPUFrequency;
-		int rcv_speed = m_pRcvTimeWindow->getPktRcvSpeed();
-		if (rcv_speed > 0)
-			m_ullNAKInt += (m_pRcvLossList->getLossLength() * 1000000ULL / rcv_speed) * m_ullCPUFrequency;
-		if (m_ullNAKInt < m_ullMinNakInt)
-			m_ullNAKInt = m_ullMinNakInt;
-
+        assert("Deprecated sendCtrl(3, ...)" && 0);
 		break;
 	}
 
@@ -1715,9 +1560,8 @@ void CUDT::ProcessAck(CPacket& ctrlpkt) {
     PacketState old_state = packet_tracker_->GetPacketState(seq_no);
     packet_tracker_->OnPacketAck(seq_no, msg_no);
     uint64_t rtt_us = packet_tracker_->GetPacketRtt(seq_no, msg_no);
-    m_iRTT = (7 * m_iRTT + rtt_us) / 8;
-    m_iRTTVar = (m_iRTTVar * 3.0 + abs(rtt_us - m_iRTT) * 1.0) / 4.0; 
-    //std::cerr << "CORE: packet acked " << pkt_id << ":" << seq_no << ":" << msg_no << ", rtt = " << rtt_us << std::endl;
+    m_iRTT = (7.0 * m_iRTT + (double)rtt_us) / 8.0;
+    m_iRTTVar = (m_iRTTVar * 7.0 + abs((double)rtt_us - m_iRTT) * 1.0) / 8.0;
     int32_t size = packet_tracker_->GetPacketSize(seq_no);
 
     if (msg_no != latest_msg_no) {
@@ -1752,7 +1596,7 @@ void CUDT::ProcessAck(CPacket& ctrlpkt) {
 
 void CUDT::processCtrl(CPacket& ctrlpkt)
 {
-	// Just heard from the peer, reset the expiration count.
+    // Just heard from the peer, reset the expiration count.
 	m_iEXPCount = 1;
 	uint64_t currtime;
 	CTimer::rdtsc(currtime);
@@ -1876,7 +1720,17 @@ uint64_t CUDT::GetSendingInterval() {
      * (cycles / second) * (bits / packet) * (1 / (bits / second))
      * frequency         * m_iMSS * 8      *  1 / sending_rate (in bits/second)
      */
-    //std::cerr << m_ullCPUFrequency * m_iMSS * 8.0f * 1000000.0f / pcc_sender->PacingRate(0) << std::endl;
+
+#ifdef DEBUG_CORE_SENDING_RATE
+    static double prev_rate = 0;
+    if (pcc_sender->PacingRate(0) != prev_rate) {
+        std::cerr << "Sending rate changed to " << pcc_sender->PacingRate(0) / 1000000.0f << "mbps" << std::endl;
+        std::cerr << "New clock cycle interval is " << 
+            m_ullCPUFrequency * m_iMSS * 8.0f * 1000000.0f / pcc_sender->PacingRate(0)
+            << std::endl;
+        prev_rate = pcc_sender->PacingRate(0);
+    }
+#endif
     return m_ullCPUFrequency * m_iMSS * 8.0f * 1000000.0f / pcc_sender->PacingRate(0);
 }
 
@@ -1885,43 +1739,33 @@ int CUDT::packData(CPacket& packet, uint64_t& ts)
     int payload = 0;
 	uint64_t entertime;
 	CTimer::rdtsc(entertime);
-    //std::cout << "packData" << std::endl;
 
-    if (m_ullTargetTime != 0 && entertime > m_ullTargetTime) {
-        m_ullTimeDiff += entertime - m_ullTargetTime;
+    if (m_ullTargetTime != 0) {
+        m_ullTimeDiff += (int64_t)entertime - m_ullTargetTime;
     }
 
     pcc_sender_lock.lock();
     int32_t seq_no;
     if (packet_tracker_->HasRetransmittablePackets()) {
         seq_no = packet_tracker_->GetLowestRetransmittableSeqNo();
-        //std::cout << "Retransmittable " << seq_no << "\n";
         ++m_iTraceRetrans;
 		++m_iRetransTotal;
     } else if (packet_tracker_->HasSendablePackets()) {
         seq_no = packet_tracker_->GetLowestSendableSeqNo();
-        //std::cout << "Sendable " << seq_no << "\n";
     } else {
         std::cout << "no transmittable packets" << std::endl;
         pcc_sender_lock.unlock();
         return 0;
     }
     char* payload_pointer = packet_tracker_->GetPacketPayloadPointer(seq_no);
-    //std::cout << "Getting packet size" << std::endl;
     payload = packet_tracker_->GetPacketSize(seq_no);
-    //std::cout << "Getting packet id" << std::endl;
 
-    //std::cout << "Setting packet parameters" << std::endl;
     packet.m_iSeqNo = seq_no;
     packet.m_pcData = payload_pointer;
-    //std::cout << "Calling packet tracker OnPacketSent" << std::endl;
     int32_t msg_no = packet_tracker_->GetPacketLastMsgNo(seq_no);
     packet.m_iMsgNo = msg_no + 1;
     packet_tracker_->OnPacketSent(packet);
     PacketId pkt_id = packet_tracker_->GetPacketId(seq_no, packet.m_iMsgNo);
-    //std::cout << "Sending packet " << pkt_id << ":" << seq_no << std::endl;
-    //std::cout << "Calling pcc sender OnPacketSent" << std::endl;
-    //std::cout << "Sending packet: " << pkt_id << std::endl;
     pcc_sender->OnPacketSent(CTimer::getTime(), 0, pkt_id, payload, false);
     pcc_sender_lock.unlock();
 
@@ -1947,13 +1791,13 @@ int CUDT::packData(CPacket& packet, uint64_t& ts)
 
 int CUDT::processData(CUnit* unit)
 {
-    //std::cout << "Process data" << std::endl;
     CPacket& packet = unit->m_Packet;
     SendAck(packet.m_iSeqNo, packet.m_iMsgNo);
 	// Just heard from the peer, reset the expiration count.
 	m_iEXPCount = 1;
 	uint64_t currtime;
 	CTimer::rdtsc(currtime);
+    //std::cerr << packet.m_iSeqNo << ", " << currtime - m_ullLastRspTime << std::endl;
 	m_ullLastRspTime = currtime;
 
 	m_pCC->onPktReceived(&packet);
@@ -2121,7 +1965,7 @@ int CUDT::listen(sockaddr* addr, CPacket& packet)
 void CUDT::checkTimers()
 {
     bool above_loss_threshold = true;
-    uint64_t loss_thresh_us = m_iRTT + 4 * m_iRTTVar;
+    uint64_t loss_thresh_us = 2.0 * m_iRTT + 4 * m_iRTTVar;
     struct timespec cur_time;
     clock_gettime(CLOCK_MONOTONIC, &cur_time);
 
@@ -2133,6 +1977,8 @@ void CUDT::checkTimers()
             uint64_t time_since_sent = (cur_time.tv_nsec - sent_time.tv_nsec) / 1000 + (cur_time.tv_sec - sent_time.tv_sec) * 1000000;
             if (time_since_sent > loss_thresh_us) {
                 add_to_loss_record(seq_no, seq_no);
+                //std::cerr << "Packet " << seq_no << " lost afer " << time_since_sent << "us" << std::endl;
+                //std::cerr << "m_iRTT = " << m_iRTT << ", m_iRTTVar = " << m_iRTTVar << std::endl;
             } else {
                 above_loss_threshold = false;
             }
@@ -2194,15 +2040,15 @@ void CUDT::checkTimers()
 	}
 
 	uint64_t next_exp_time;
-	if (m_pCC->m_bUserDefinedRTO)
-		next_exp_time = m_ullLastRspTime + m_pCC->m_iRTO * m_ullCPUFrequency;
-	else
-	{
+	//if (m_pCC->m_bUserDefinedRTO)
+	//	next_exp_time = m_ullLastRspTime + m_pCC->m_iRTO * m_ullCPUFrequency;
+	//else
+	//{
 		uint64_t exp_int = (m_iEXPCount * (m_iRTT + 4 * m_iRTTVar) + m_iSYNInterval) * m_ullCPUFrequency;
 		if (exp_int < m_iEXPCount * m_ullMinExpInt)
 			exp_int = m_iEXPCount * m_ullMinExpInt;
 		next_exp_time = m_ullLastRspTime + exp_int;
-	}
+	//}
 
 	if (currtime > next_exp_time)
 	{
@@ -2220,7 +2066,6 @@ void CUDT::checkTimers()
 			m_iBrokenCounter = 30;
 
 			// update snd U list to remove this socket
-			//cout<<"checktimer update"<<endl;
 			m_pSndQueue->m_pSndUList->update(this);
 
 			releaseSynch();
@@ -2234,33 +2079,7 @@ void CUDT::checkTimers()
 			return;
 		}
 
-		// sender: Insert all the packets sent after last received acknowledgement into the sender loss list.
-		// recver: Send out a keep-alive packet
-		if (m_pSndBuffer->getCurrBufSize() > 0)
-		{
-			if ((CSeqNo::incseq(m_iSndCurrSeqNo) != m_iSndLastAck) && (m_pSndLossList->getLossLength() == 0))
-			{
-				// resend all unacknowledged packets on timeout, but only if there is no packet in the loss list
-				int32_t csn = m_iSndCurrSeqNo;
-				int num = m_pSndLossList->insert(const_cast<int32_t&>(m_iSndLastAck), csn);
-				m_iTraceSndLoss += num;
-				m_iSndLossTotal += num;
-                                cout<<"insert"<<endl;
-			}
-
-			m_pCC->onTimeout(1, 1, 1, 1, -1, 1);
-			// update CC parameters
-			m_dCongestionWindow = m_pCC->m_dCWndSize;
-
-			// immediately restart transmission
-			//cout<<"retrans update"<<endl;
-			m_pSndQueue->m_pSndUList->update(this);
-		}
-		else
-		{
-			sendCtrl(1);
-		}
-
+        sendCtrl(1);
 		++ m_iEXPCount;
 		// Reset last response time since we just sent a heart-beat.
 		m_ullLastRspTime = currtime;

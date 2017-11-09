@@ -19,7 +19,7 @@ DEFINE_double(max_rtt_fluctuation_tolerance_ratio_in_decision_made, 0.05,
 static float FLAGS_max_rtt_fluctuation_tolerance_ratio_in_starting = 0.3f;
 static float FLAGS_max_rtt_fluctuation_tolerance_ratio_in_decision_made = 0.05f;
 
-//#define DEBUG_RATE_CONTROL
+#define DEBUG_RATE_CONTROL
 #endif
 
 namespace {
@@ -50,13 +50,13 @@ const size_t kMinimumPacketsPerInterval = 10;
 // Number of gradients to average.
 const size_t kAvgGradientSampleSize = 1;
 // The factor that converts average utility gradient to a rate change (in Mbps).
-float kUtilityGradientToRateChangeFactor = 1.0f * kMegabit;//2.0f;
+float kUtilityGradientToRateChangeFactor = 1.0f * kMegabit;
 // The smallest amount that the rate can be changed by at a time.
 float kMinimumRateChange = 0.5f * kMegabit;
 // The initial maximum proportional rate change.
-float kInitialMaximumProportionalChange = 0.05f;//0.1f;
+float kInitialMaximumProportionalChange = 0.05f;
 // The additional maximum proportional change each time it is incremented.
-float kMaximumProportionalChangeStepSize = 0.06f;//0.07f;
+float kMaximumProportionalChangeStepSize = 0.06f;
 }  // namespace
 
 #ifdef QUIC_PORT
@@ -134,8 +134,9 @@ void PccSender::OnPacketSent(QuicTime sent_time,
             monitor_duration_))) {
   #else
   if (interval_queue_.num_useful_intervals() == 0 ||
-      sent_time - interval_queue_.current().first_packet_sent_time >
-          monitor_duration_) {
+      (avg_rtt_ != 0 &&
+        sent_time - interval_queue_.current().first_packet_sent_time >
+            monitor_duration_)) {
   #endif
     MaybeSetSendingRate();
     // Set the monitor duration to 1.5 of smoothed rtt.
@@ -160,7 +161,7 @@ void PccSender::OnPacketSent(QuicTime sent_time,
     bool is_useful = CreateUsefulInterval();
     // Use halved sending rate for non-useful intervals.
     interval_queue_.EnqueueNewMonitorInterval(
-        is_useful ? sending_rate_ : 0.5 * sending_rate_, is_useful /*CreateUsefulInterval()*/,
+        sending_rate_, is_useful,
         rtt_fluctuation_tolerance_ratio,
     #ifdef QUIC_PORT
         rtt_stats_->smoothed_rtt().ToMicroseconds(), sent_time + monitor_duration_);
@@ -192,9 +193,14 @@ void PccSender::OnCongestionEvent(bool rtt_updated,
     #endif
   } else {
     #ifndef QUIC_PORT
-    avg_rtt_ = (avg_rtt_ * 3.0 + rtt) / 4.0;
+    if (avg_rtt_ == 0) {
+        avg_rtt_ = rtt;
+    } else {
+        avg_rtt_ = (avg_rtt_ * 3.0 + rtt) / 4.0;
+    }
     #endif
     if (mode_ == STARTING && !interval_queue_.empty() &&
+        interval_queue_.current().rtt_on_monitor_start_us != 0 &&
         avg_rtt_us >
             static_cast<int64_t>(
                 (1 + FLAGS_max_rtt_fluctuation_tolerance_ratio_in_starting) *
@@ -290,6 +296,8 @@ float PccSender::ComputeRateChange(
   UpdateAverageGradient(utility_gradient);
   float change = avg_gradient_ * kUtilityGradientToRateChangeFactor;
 
+  std::cerr << "Base change = " << change << std::endl;
+
   if (change * previous_change_ < 0) {
     rate_change_amplifier_ = 0;
     rate_change_proportion_allowance_ = 0;
@@ -320,6 +328,10 @@ float PccSender::ComputeRateChange(
       --swing_buffer_;
     }
   }
+  
+  std::cerr << "Amplifier   = " << rate_change_amplifier_ << std::endl;
+  std::cerr << "Swing Buf   = " << swing_buffer_ << std::endl;
+  std::cerr << "Ampd change = " << change << std::endl;
 
   float max_allowed_change_ratio = 
     kInitialMaximumProportionalChange + 
@@ -335,6 +347,7 @@ float PccSender::ComputeRateChange(
     } else {
       change = max_allowed_change_ratio * sending_rate_;
     }
+    std::cerr << "Rate change proportionally limited to " << max_allowed_change_ratio << std::endl;
   } else {
     if (rate_change_proportion_allowance_ > 0) {
       --rate_change_proportion_allowance_;
@@ -392,6 +405,7 @@ void PccSender::OnUtilityAvailable(
       #ifdef QUIC_PORT
       DCHECK_EQ(1u, utility_info.size());
       #endif
+      std::cerr << "First utility = " << utility_info[0].utility << ", latest = " << latest_utility_info_.utility << std::endl;
       if (utility_info[0].utility > latest_utility_info_.utility) {
         // Stay in STARTING mode. Double the sending rate and update
         // latest_utility.
