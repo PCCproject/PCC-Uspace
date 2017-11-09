@@ -19,7 +19,7 @@ DEFINE_double(max_rtt_fluctuation_tolerance_ratio_in_decision_made, 0.05,
 static float FLAGS_max_rtt_fluctuation_tolerance_ratio_in_starting = 0.3f;
 static float FLAGS_max_rtt_fluctuation_tolerance_ratio_in_decision_made = 0.05f;
 
-#define DEBUG_RATE_CONTROL
+//#define DEBUG_RATE_CONTROL
 #endif
 
 namespace {
@@ -296,8 +296,6 @@ float PccSender::ComputeRateChange(
   UpdateAverageGradient(utility_gradient);
   float change = avg_gradient_ * kUtilityGradientToRateChangeFactor;
 
-  std::cerr << "Base change = " << change << std::endl;
-
   if (change * previous_change_ < 0) {
     rate_change_amplifier_ = 0;
     rate_change_proportion_allowance_ = 0;
@@ -328,10 +326,6 @@ float PccSender::ComputeRateChange(
       --swing_buffer_;
     }
   }
-  
-  std::cerr << "Amplifier   = " << rate_change_amplifier_ << std::endl;
-  std::cerr << "Swing Buf   = " << swing_buffer_ << std::endl;
-  std::cerr << "Ampd change = " << change << std::endl;
 
   float max_allowed_change_ratio = 
     kInitialMaximumProportionalChange + 
@@ -347,7 +341,6 @@ float PccSender::ComputeRateChange(
     } else {
       change = max_allowed_change_ratio * sending_rate_;
     }
-    std::cerr << "Rate change proportionally limited to " << max_allowed_change_ratio << std::endl;
   } else {
     if (rate_change_proportion_allowance_ > 0) {
       --rate_change_proportion_allowance_;
@@ -405,7 +398,6 @@ void PccSender::OnUtilityAvailable(
       #ifdef QUIC_PORT
       DCHECK_EQ(1u, utility_info.size());
       #endif
-      std::cerr << "First utility = " << utility_info[0].utility << ", latest = " << latest_utility_info_.utility << std::endl;
       if (utility_info[0].utility > latest_utility_info_.utility) {
         // Stay in STARTING mode. Double the sending rate and update
         // latest_utility.
