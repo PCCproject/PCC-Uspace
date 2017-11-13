@@ -1,5 +1,9 @@
 #ifdef QUIC_PORT
+#ifdef QUIC_PORT_LOCAL
+#include "net/quic/core/congestion_control/pcc_sender.h"
+#else
 #include "third_party/pcc_quic/pcc_sender.h"
+#endif
 
 #include <algorithm>
 
@@ -7,10 +11,14 @@
 #include "/quic/src/core/congestion_control/rtt_stats.h"
 #include "/quic/src/net/platform/api/quic_str_cat.h"
 
+#ifndef QUIC_PORT_LOCAL
+namespace net {
 DEFINE_double(max_rtt_fluctuation_tolerance_ratio_in_starting, 0.3,
               "Ignore RTT fluctuation within 30 percent in STARTING mode");
 DEFINE_double(max_rtt_fluctuation_tolerance_ratio_in_decision_made, 0.05,
               "Ignore RTT fluctuation within 5 percent in DECISION_MADE mode");
+#endif
+namespace gfe_quic {
 #else
 #include "pcc_sender.h"
 #include <algorithm>
@@ -116,6 +124,10 @@ PccSender::PccSender(QuicTime initial_rtt_us,
   latest_utility_info_.sending_rate = 0.0f;
 }
 
+#if defined(QUIC_PORT) && defined(QUIC_PORT_LOCAL)
+PccSender::~PccSender() {}
+
+#endif
 void PccSender::OnPacketSent(QuicTime sent_time,
                              QuicByteCount bytes_in_flight,
                              QuicPacketNumber packet_number,
@@ -159,7 +171,6 @@ void PccSender::OnPacketSent(QuicTime sent_time,
     }
 
     bool is_useful = CreateUsefulInterval();
-    // Use halved sending rate for non-useful intervals.
     interval_queue_.EnqueueNewMonitorInterval(
         sending_rate_, is_useful,
         rtt_fluctuation_tolerance_ratio,
@@ -167,6 +178,13 @@ void PccSender::OnPacketSent(QuicTime sent_time,
         rtt_stats_->smoothed_rtt().ToMicroseconds(), sent_time + monitor_duration_);
     #else
         avg_rtt_, sent_time + monitor_duration_);
+    #endif
+    #if defined(QUIC_PORT) && defined(QUIC_PORT_LOCAL)
+    printf("S %d | st=%d r=%6.3lf rtt=%7ld\n",
+           is_useful, mode_,
+           interval_queue_.current().sending_rate.ToKBitsPerSecond() / 1000.0,
+           rtt_stats_->smoothed_rtt().ToMicroseconds());
+
     #endif
   }
   interval_queue_.OnPacketSent(sent_time, packet_number, bytes);
@@ -469,8 +487,20 @@ void PccSender::OnUtilityAvailable(
       }
       break;
   }
+  #if defined(QUIC_PORT) && defined(QUIC_PORT_LOCAL)
+  printf("E T | st=%d r=%6.3lf rtt=%7ld\n",
+         mode_, sending_rate_.ToKBitsPerSecond() / 1000.0,
+         rtt_stats_->smoothed_rtt().ToMicroseconds());
+  #endif
 }
 
+#if defined(QUIC_PORT) && defined(QUIC_PORT_LOCAL)
+void PccSender::SetFlag(double val) {
+  FLAGS_max_rtt_fluctuation_tolerance_ratio_in_starting = val;
+  FLAGS_max_rtt_fluctuation_tolerance_ratio_in_decision_made = val;
+}
+
+#endif
 bool PccSender::CreateUsefulInterval() const {
   #ifdef QUIC_PORT
   if (rtt_stats_->smoothed_rtt().ToMicroseconds() == 0) {

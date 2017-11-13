@@ -7,14 +7,24 @@
 #include <queue>
 
 #ifdef QUIC_PORT
+#include "base/macros.h"
+#ifdef QUIC_PORT_LOCAL
+#include "net/quic/core/congestion_control/pcc_monitor_interval_queue.h"
+
+#include "net/quic/core/congestion_control/send_algorithm_interface.h"
+#include "net/quic/core/quic_bandwidth.h"
+#include "net/quic/core/quic_connection_stats.h"
+#include "net/quic/core/quic_time.h"
+#include "net/quic/core/quic_types.h"
+#else
 #include "third_party/pcc_quic/pcc_monitor_interval_queue.h"
 
-#include "base/macros.h"
 #include "gfe/quic/core/congestion_control/send_algorithm_interface.h"
 #include "gfe/quic/core/quic_bandwidth.h"
 #include "gfe/quic/core/quic_connection_stats.h"
 #include "gfe/quic/core/quic_time.h"
 #include "gfe/quic/core/quic_types.h"
+#endif
 #else
 #include "pcc_monitor_interval_queue.h"
 #include <iostream>
@@ -24,7 +34,17 @@ typedef bool HasRetransmittableData;
 #endif
 
 #ifdef QUIC_PORT
+#ifdef QUIC_PORT_LOCAL
+namespace net {
+namespace {
+double FLAGS_max_rtt_fluctuation_tolerance_ratio_in_starting = 0.3;
+double FLAGS_max_rtt_fluctuation_tolerance_ratio_in_decision_made = 0.05;
+}
+#else
 namespace gfe_quic {
+DECLARE_double(max_rtt_fluctuation_tolerance_ratio_in_starting);
+DECLARE_double(max_rtt_fluctuation_tolerance_ratio_in_decision_made);
+#endif
 
 namespace test {
 class PccSenderPeer;
@@ -76,7 +96,11 @@ class QUIC_EXPORT_PRIVATE PccSender
   PccSender(PccSender&&) = delete;
   PccSender& operator=(PccSender&&) = delete;
   #ifdef QUIC_PORT
+  #ifdef QUIC_PORT_LOCAL
+  ~PccSender() override;
+  #else
   ~PccSender() override {}
+  #endif
   #endif
 
   #ifdef QUIC_PORT
@@ -126,6 +150,9 @@ class QUIC_EXPORT_PRIVATE PccSender
   QuicByteCount GetCongestionWindow() const override;
   QuicByteCount GetSlowStartThreshold() const override;
   CongestionControlType GetCongestionControlType() const override;
+  #if defined(QUIC_PORT) && defined(QUIC_PORT_LOCAL)
+  std::string GetDebugState() const override;
+  #endif
   string GetDebugState() const override;
   void OnApplicationLimited(QuicByteCount bytes_in_flight) override {}
 
@@ -151,6 +178,9 @@ class QUIC_EXPORT_PRIVATE PccSender
   void OnUtilityAvailable(
       const std::vector<UtilityInfo>& utility_info) ;
 
+  #if defined(QUIC_PORT) && defined(QUIC_PORT_LOCAL)
+  void SetFlag(double val);
+  #endif
  private:
   #ifdef QUIC_PORT
   friend class test::PccSenderPeer;

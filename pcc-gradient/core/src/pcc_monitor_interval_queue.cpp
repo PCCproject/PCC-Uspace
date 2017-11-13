@@ -1,6 +1,11 @@
 #ifdef QUIC_PORT
+#ifdef QUIC_PORT_LOCAL
+#include "net/quic/core/congestion_control/pcc_monitor_interval_queue.h"
+#include "net/quic/core/congestion_control/rtt_stats.h"
+#else
 #include "third_party/pcc_quic/pcc_monitor_interval_queue.h"
 #include "gfe/quic/core/congestion_control/rtt_stats.h"
+#endif
 #else
 #include "pcc_monitor_interval_queue.h"
 #include "pcc_sender.h"
@@ -8,8 +13,11 @@
 #endif
 
 #ifdef QUIC_PORT
+#ifdef QUIC_PORT_LOCAL
+namespace net {
+#else
 namespace gfe_quic {
-
+#endif
 DEFINE_bool(use_utility_version_2, false, "Use version-2 utility function");
 #endif
 
@@ -84,6 +92,37 @@ MonitorInterval::MonitorInterval()
       utility(0.0),
       n_packets(0){}
 
+#if defined(QUIC_PORT) && defined(QUIC_PORT_LOCAL)
+MonitorInterval::MonitorInterval(const MonitorInterval& interval)
+    : sending_rate(QuicBandwidth::Zero()),
+      is_useful(false),
+      rtt_fluctuation_tolerance_ratio(0.0),
+      first_packet_sent_time(QuicTime::Zero()),
+      last_packet_sent_time(QuicTime::Zero()),
+      first_packet_number(0),
+      last_packet_number(0),
+      bytes_sent(0),
+      bytes_acked(0),
+      bytes_lost(0),
+      rtt_on_monitor_start_us(0),
+      rtt_on_monitor_end_us(0),
+      utility(0.0) {
+  sending_rate = interval.sending_rate;
+  is_useful = interval.is_useful;
+  rtt_fluctuation_tolerance_ratio = interval.rtt_fluctuation_tolerance_ratio    ;
+  first_packet_sent_time = interval.first_packet_sent_time;
+  last_packet_sent_time = interval.last_packet_sent_time;
+  first_packet_number = interval.first_packet_number;
+  last_packet_number = interval.last_packet_number;
+  bytes_sent = interval.bytes_sent;
+  bytes_acked = interval.bytes_acked;
+  bytes_lost = interval.bytes_lost;
+  rtt_on_monitor_start_us = interval.rtt_on_monitor_start_us;
+  rtt_on_monitor_end_us = interval.rtt_on_monitor_end_us;
+  utility = interval.utility;
+}
+
+#endif
 MonitorInterval::MonitorInterval(QuicBandwidth sending_rate,
                                  bool is_useful,
                                  float rtt_fluctuation_tolerance_ratio,
@@ -125,6 +164,9 @@ PccMonitorIntervalQueue::PccMonitorIntervalQueue(
       num_available_intervals_(0),
       delegate_(delegate) {}
 
+#if defined(QUIC_PORT) && defined(QUIC_PORT_LOCAL)
+PccMonitorIntervalQueue::~PccMonitorIntervalQueue() {}
+#endif
 void PccMonitorIntervalQueue::EnqueueNewMonitorInterval(
     QuicBandwidth sending_rate,
     bool is_useful,
