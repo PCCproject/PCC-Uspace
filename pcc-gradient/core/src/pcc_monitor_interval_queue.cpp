@@ -1,13 +1,20 @@
 #ifdef QUIC_PORT
 #include "third_party/pcc_quic/pcc_monitor_interval_queue.h"
+#include "gfe/quic/core/congestion_control/rtt_stats.h"
 #else
 #include "pcc_monitor_interval_queue.h"
 #include "pcc_sender.h"
 #include <iostream>
 #endif
 
+#ifdef QUIC_PORT
+namespace gfe_quic {
+
+DEFINE_bool(use_utility_version_2, false, "Use version-2 utility function");
+#endif
+
 #ifndef QUIC_PORT
-//#define DEBUG_UTILITY_CALC
+#define DEBUG_UTILITY_CALC
 //#define DEBUG_MONITOR_INTERVAL_QUEUE_ACKS
 //#define DEBUG_MONITOR_INTERVAL_QUEUE_LOSS
 //#define DEBUG_INTERVAL_SIZE
@@ -34,6 +41,22 @@ const float kExponent = 0.9;
 // An exponent in the utility function.
 const size_t kMegabit = 1024 * 1024;
 }  // namespace
+
+PacketRttSample::PacketRttSample() : packet_number(0),
+#ifdef QUIC_PORT
+                                     sample_rtt(QuicTime::Delta::Zero()) {}
+#else
+                                     sample_rtt(0) {}
+#endif
+
+PacketRttSample::PacketRttSample(QuicPacketNumber packet_number,
+#ifdef QUIC_PORT
+                                 QuicTime::Delta rtt)
+#else
+                                 QuicTime rtt)
+#endif
+    : packet_number(packet_number),
+      sample_rtt(rtt) {}
 
 MonitorInterval::MonitorInterval()
     #ifdef QUIC_PORT
@@ -136,8 +159,6 @@ void PccMonitorIntervalQueue::OnPacketSent(QuicTime sent_time,
   monitor_intervals_.back().last_packet_sent_time = sent_time;
   monitor_intervals_.back().last_packet_number = packet_number;
   monitor_intervals_.back().bytes_total += bytes;
-  monitor_intervals_.back().sent_times.push_back(sent_time);
-  monitor_intervals_.back().packet_rtts.push_back(0l);
   ++monitor_intervals_.back().n_packets;
   #if ! defined(QUIC_PORT) && defined(DEBUG_INTERVAL_SIZE)
   if (monitor_intervals_.back().is_useful) {
@@ -185,7 +206,12 @@ void PccMonitorIntervalQueue::OnCongestionEvent(
     for (const AckedPacket& acked_packet : acked_packets) {
       if (IntervalContainsPacket(interval, acked_packet.packet_number)) {
         interval.bytes_acked += acked_packet.bytes_acked;
-        interval.packet_rtts[acked_packet.packet_number - interval.first_packet_number] = rtt_us;
+        interval.packet_rtt_samples.push_back(PacketRttSample(acked_packet.packet_number,
+            #ifdef QUIC_PORT
+            QuicTime::Delta::FromMicroseconds(rtt_us)));
+            #else
+            rtt_us));
+            #endif
         #if (! defined(QUIC_PORT)) && defined(DEBUG_MONITOR_INTERVAL_QUEUE_ACKS)
         std::cerr << "\tattributed bytes to an interval" << std::endl;
         std::cerr << "\tacked " << interval.bytes_acked << "/" << interval.bytes_total << std::endl;
@@ -197,7 +223,13 @@ void PccMonitorIntervalQueue::OnCongestionEvent(
 
     if (IsUtilityAvailable(interval, event_time)) {
       interval.rtt_on_monitor_end_us = rtt_us;
+      #ifdef QUIC_PORT
+      has_invalid_utility = FLAGS_use_utility_version_2
+                                ? !CalculateUtility2(&interval)
+                                : !CalculateUtility(&interval);
+      #else
       has_invalid_utility = !CalculateUtility(&interval);
+      #endif
       if (has_invalid_utility) {
         break;
       }
@@ -287,7 +319,46 @@ bool PccMonitorIntervalQueue::IntervalContainsPacket(
           packet_number <= interval.last_packet_number);
 }
 
+#ifdef QUIC_PORT
 bool PccMonitorIntervalQueue::CalculateUtility(MonitorInterval* interval) {
+  if (interval->last_packet_sent_time == interval->first_packet_sent_time) {
+    // Cannot get valid utility if interval only contains one packet.
+    return false;
+  }
+  const int64_t kMinTransmissionTime = 1l;
+  int64_t mi_duration = std::max(
+      kMinTransmissionTime,
+      (interval->last_packet_sent_time - interval->first_packet_sent_time)
+          .ToMicroseconds());
+
+  float rtt_ratio = static_cast<float>(interval->rtt_on_monitor_start_us) /
+                    static_cast<float>(interval->rtt_on_monitor_end_us);
+  if (rtt_ratio > 1.0 - interval->rtt_fluctuation_tolerance_ratio &&
+      rtt_ratio < 1.0 + interval->rtt_fluctuation_tolerance_ratio) {
+    rtt_ratio = 1.0;
+  }
+  float latency_penalty =
+      1.0 - 1.0 / (1.0 + exp(kRTTCoefficient * (1.0 - rtt_ratio)));
+
+  float bytes_acked = static_cast<float>(interval->bytes_acked);
+  float bytes_lost = static_cast<float>(interval->bytes_lost);
+  float bytes_sent = static_cast<float>(interval->bytes_sent);
+  float loss_rate = bytes_lost / bytes_sent;
+  float loss_penalty =
+      1.0 - 1.0 / (1.0 + exp(kLossCoefficient * (loss_rate - kLossTolerance)));
+
+  interval->utility = (bytes_acked / static_cast<float>(mi_duration) *
+                           loss_penalty * latency_penalty -
+                       bytes_lost / static_cast<float>(mi_duration)) *
+                      1000.0;
+
+  return true;
+}
+
+bool PccMonitorIntervalQueue::CalculateUtility2(MonitorInterval* interval) {
+#else
+bool PccMonitorIntervalQueue::CalculateUtility(MonitorInterval* interval) {
+#endif
   if (interval->last_packet_sent_time == interval->first_packet_sent_time) {
     // Cannot get valid utility if interval only contains one packet.
     return false;
@@ -302,26 +373,21 @@ bool PccMonitorIntervalQueue::CalculateUtility(MonitorInterval* interval) {
   double bytes_total = static_cast<float>(interval->bytes_total);
   double sending_rate_bps = bytes_total * 8.0f / mi_time_seconds;
 
-  double avg_time = 0.0;
-  double avg_rtt = 0.0;
-  int n_valid_packet_rtts = 0;
-  for (int i = 0; i < interval->n_packets; ++i) {
-    if (interval->packet_rtts[i] != 0l) {
-      avg_time += interval->sent_times[i];
-      avg_rtt += interval->packet_rtts[i];
-      ++n_valid_packet_rtts;
-    }
+  float avg_packet_number = 0.0;
+  float avg_rtt = 0.0;
+  float num_rtt_samples = static_cast<float>(interval->packet_rtt_samples.size());
+  for (PacketRttSample& rtt_sample : interval->packet_rtt_samples) {
+    avg_packet_number += rtt_sample.packet_number;
+    avg_rtt += rtt_sample.sample_rtt;
   }
-  avg_time /= (double)n_valid_packet_rtts;
-  avg_rtt /= (double)n_valid_packet_rtts;
+  avg_packet_number /= num_rtt_samples;
+  avg_rtt /= num_rtt_samples;
 
   double numerator = 0.0;
   double denominator = 0.0;
-  for (int i = 0; i < interval->n_packets; ++i) {
-    if (interval->packet_rtts[i] != 0l) {
-      numerator += (interval->sent_times[i] - avg_time) * (interval->packet_rtts[i] - avg_rtt);
-      denominator += (interval->sent_times[i] - avg_time) * (interval->sent_times[i] - avg_time);
-    }
+  for (PacketRttSample& rtt_sample : interval->packet_rtt_samples) {
+    numerator += (rtt_sample.packet_number - avg_packet_number) * (rtt_sample.sample_rtt - avg_rtt);
+    denominator += (rtt_sample.packet_number - avg_packet_number) * (rtt_sample.packet_number - avg_packet_number);
   }
 
   float latency_info = numerator / denominator;

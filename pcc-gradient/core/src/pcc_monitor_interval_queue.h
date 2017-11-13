@@ -40,9 +40,30 @@ typedef PccSender PccMonitorIntervalQueueDelegateInterface;
 
 #ifdef QUIC_PORT
 namespace gfe_quic {
+DECLARE_bool(use_utility_version_2);
 
 using namespace net;
 #endif
+
+// PacketRttSample, stores the packet number and its corresponding RTT
+struct PacketRttSample {
+  PacketRttSample();
+  #ifdef QUIC_PORT
+  PacketRttSample(QuicPacketNumber packet_number, QuicTime::Delta rtt);
+  #else
+  PacketRttSample(QuicPacketNumber packet_number, QuicTime rtt);
+  #endif
+  ~PacketRttSample() {}
+
+  // Packet number of the sampled packet.
+  QuicPacketNumber packet_number;
+  // RTT corresponding to the sampled packet.
+  #ifdef QUIC_PORT
+  QuicTime::Delta sample_rtt;
+  #else
+  QuicTime sample_rtt;
+  #endif
+};
 
 // MonitorInterval, as the queue's entry struct, stores the information
 // of a PCC monitor interval (MonitorInterval) that can be used to
@@ -94,10 +115,8 @@ struct MonitorInterval {
 
   // The number of packets in this monitor interval.
   int n_packets;
-  // The time that each packet was sent.
-  std::vector<QuicTime> sent_times;
-  // The rtt for each packet sent.
-  std::vector<QuicTime> packet_rtts;
+  // A sample of the RTT for each packet.
+  std::vector<PacketRttSample> packet_rtt_samples;
 };
 
 // UtilityInfo is used to store <sending_rate, utility> pairs
@@ -176,9 +195,18 @@ class PccMonitorIntervalQueue {
   bool IntervalContainsPacket(const MonitorInterval& interval,
                               QuicPacketNumber packet_number) const;
 
+  #ifdef QUIC_PORT
   // Calculates utility for |interval|. Returns true if |interval| has valid
   // utility, false otherwise.
   bool CalculateUtility(MonitorInterval* interval);
+  // Calculates utility for |interval| using version-2 utility function. Returns
+  // true if |interval| has valid utility, false otherwise.
+  bool CalculateUtility2(MonitorInterval* interval);
+  #else
+  // Calculates utility for |interval|. Returns true if |interval| has valid
+  // utility, false otherwise.
+  bool CalculateUtility(MonitorInterval* interval);
+  #endif
 
   std::deque<MonitorInterval> monitor_intervals_;
   // Number of useful intervals in the queue.
