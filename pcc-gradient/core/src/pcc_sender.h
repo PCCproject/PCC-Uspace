@@ -31,15 +31,15 @@
 #define QUIC_EXPORT_PRIVATE
 
 typedef bool HasRetransmittableData;
+//namespace {
+//double FLAGS_max_rtt_fluctuation_tolerance_ratio_in_starting = 0.3;
+//double FLAGS_max_rtt_fluctuation_tolerance_ratio_in_decision_made = 0.05;
+//}
 #endif
 
 #ifdef QUIC_PORT
 #ifdef QUIC_PORT_LOCAL
 namespace net {
-namespace {
-double FLAGS_max_rtt_fluctuation_tolerance_ratio_in_starting = 0.3;
-double FLAGS_max_rtt_fluctuation_tolerance_ratio_in_decision_made = 0.05;
-}
 #else
 namespace gfe_quic {
 DECLARE_double(max_rtt_fluctuation_tolerance_ratio_in_starting);
@@ -152,23 +152,24 @@ class QUIC_EXPORT_PRIVATE PccSender
   CongestionControlType GetCongestionControlType() const override;
   #if defined(QUIC_PORT) && defined(QUIC_PORT_LOCAL)
   std::string GetDebugState() const override;
-  #endif
+  #else
   string GetDebugState() const override;
+  #endif
   void OnApplicationLimited(QuicByteCount bytes_in_flight) override {}
 
   // End implementation of SendAlgorithmInterface.
 
   QuicTime::Delta ComputeMonitorDuration(
-      double sending_rate,
+      QuicBandwidth sending_rate,
       QuicTime::Delta rtt);
   #else
   QuicTime ComputeMonitorDuration(
-      double sending_rate,
+      QuicBandwidth sending_rate,
       QuicTime rtt);
   #endif
 
-  float ComputeRateChange(const UtilityInfo& utility_sample_1,
-                          const UtilityInfo& utility_sample_2);
+  QuicBandwidth ComputeRateChange(const UtilityInfo& utility_sample_1,
+                                  const UtilityInfo& utility_sample_2);
 
   void UpdateAverageGradient(float new_gradient);
 
@@ -176,8 +177,12 @@ class QUIC_EXPORT_PRIVATE PccSender
   // Called when all useful intervals' utilities are available,
   // so the sender can make a decision.
   void OnUtilityAvailable(
-      const std::vector<UtilityInfo>& utility_info) ;
-
+  #ifdef QUIC_PORT_LOCAL
+      const std::vector<UtilityInfo>& utility_info) override;
+  #else
+      const std::vector<UtilityInfo>& utility_info);
+  #endif
+  
   #if defined(QUIC_PORT) && defined(QUIC_PORT_LOCAL)
   void SetFlag(double val);
   #endif
@@ -234,11 +239,11 @@ class QUIC_EXPORT_PRIVATE PccSender
   // before we accelerate the rate of change.
   size_t swing_buffer_;
   // An acceleration factor for the rate of change.
-  size_t rate_change_amplifier_;
+  float rate_change_amplifier_;
   // The maximum rate change as a proportion of the current rate.
   size_t rate_change_proportion_allowance_;
   // The most recent change made to the sending rate.
-  double previous_change_;
+  QuicBandwidth previous_change_;
 };
 
 #ifdef QUIC_PORT

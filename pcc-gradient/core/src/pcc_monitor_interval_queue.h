@@ -52,8 +52,8 @@ bool FLAGS_use_utility_version_2 = true;
 }
 #else
 namespace gfe_quic {
-#endif
 DECLARE_bool(use_utility_version_2);
+#endif
 using namespace net;
 #endif
 
@@ -91,8 +91,11 @@ struct MonitorInterval {
   #if defined(QUIC_PORT) && defined(QUIC_PORT_LOCAL)
   explicit MonitorInterval(const MonitorInterval&);
   #endif
-
+  #ifdef QUIC_PORT_LOCAL
+  ~MonitorInterval();
+  #else
   ~MonitorInterval() {}
+  #endif
 
   // Sending rate.
   QuicBandwidth sending_rate;
@@ -101,7 +104,7 @@ struct MonitorInterval {
   // The tolerable rtt fluctuation ratio.
   float rtt_fluctuation_tolerance_ratio;
   // The end time for this monitor interval in microseconds.
-  uint64_t end_time;
+  QuicTime end_time;
 
   // Sent time of the first packet.
   QuicTime first_packet_sent_time;
@@ -114,7 +117,7 @@ struct MonitorInterval {
   QuicPacketNumber last_packet_number;
 
   // Number of bytes which are sent in total.
-  QuicByteCount bytes_total;
+  QuicByteCount bytes_sent;
   // Number of bytes which have been acked.
   QuicByteCount bytes_acked;
   // Number of bytes which are considered as lost.
@@ -164,7 +167,11 @@ class PccMonitorIntervalQueueDelegateInterface {
 class PccMonitorIntervalQueue {
  public:
   explicit PccMonitorIntervalQueue(
+      #ifdef QUIC_PORT
+      PccMonitorIntervalQueueDelegateInterface* delegate);
+      #else
       PccSender* delegate);
+      #endif
   PccMonitorIntervalQueue(const PccMonitorIntervalQueue&) = delete;
   PccMonitorIntervalQueue& operator=(const PccMonitorIntervalQueue&) = delete;
   PccMonitorIntervalQueue(PccMonitorIntervalQueue&&) = delete;
@@ -193,7 +200,7 @@ class PccMonitorIntervalQueue {
   void OnCongestionEvent(const AckedPacketVector& acked_packets,
                          const LostPacketVector& lost_packets,
                          int64_t rtt_us,
-                         uint64_t event_time);
+                         QuicTime event_time);
 
   // Called when RTT inflation ratio is greater than
   // max_rtt_fluctuation_tolerance_ratio_in_starting.
@@ -213,7 +220,7 @@ class PccMonitorIntervalQueue {
  private:
   // Returns true if the utility of |interval| is available, i.e.,
   // when all the interval's packets are either acked or lost.
-  bool IsUtilityAvailable(const MonitorInterval& interval, uint64_t cur_time) const;
+  bool IsUtilityAvailable(const MonitorInterval& interval, QuicTime cur_time) const;
 
   // Retruns true if |packet_number| belongs to |interval|.
   bool IntervalContainsPacket(const MonitorInterval& interval,

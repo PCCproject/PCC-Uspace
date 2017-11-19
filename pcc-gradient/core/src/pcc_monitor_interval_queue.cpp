@@ -17,8 +17,8 @@
 namespace net {
 #else
 namespace gfe_quic {
-#endif
 DEFINE_bool(use_utility_version_2, false, "Use version-2 utility function");
+#endif
 #endif
 
 #ifndef QUIC_PORT
@@ -31,15 +31,17 @@ DEFINE_bool(use_utility_version_2, false, "Use version-2 utility function");
 
 namespace {
 // Number of probing MonitorIntervals necessary for Probing.
-const size_t kRoundsPerProbing = 4;
+//const size_t kRoundsPerProbing = 4;
 // Tolerance of loss rate by utility function.
 const float kLossTolerance = 0.05f;
 // Coefficeint of the loss rate term in utility function.
 const float kLossCoefficient = -1000.0f;
 // Coefficient of RTT term in utility function.
 const float kRTTCoefficient = -200.0f;
+#ifndef QUIC_PORT_LOCAL
 // Number of microseconds per second.
 const float kNumMicrosPerSecond = 1000000.0f;
+#endif
 // Coefficienty of the latency term in the utility function.
 const float kLatencyCoefficient = 1;
 // Alpha factor in the utility function.
@@ -75,18 +77,19 @@ MonitorInterval::MonitorInterval()
       is_useful(false),
       rtt_fluctuation_tolerance_ratio(0.0),
 #ifdef QUIC_PORT
+      end_time(QuicTime::Zero()),
       first_packet_sent_time(QuicTime::Zero()),
       last_packet_sent_time(QuicTime::Zero()),
 #else
+      end_time(0),
       first_packet_sent_time(0),
       last_packet_sent_time(0),
 #endif
       first_packet_number(0),
       last_packet_number(0),
-      bytes_total(0),
+      bytes_sent(0),
       bytes_acked(0),
       bytes_lost(0),
-      end_time(0.0),
       rtt_on_monitor_start_us(),
       rtt_on_monitor_end_us(),
       utility(0.0),
@@ -97,6 +100,7 @@ MonitorInterval::MonitorInterval(const MonitorInterval& interval)
     : sending_rate(QuicBandwidth::Zero()),
       is_useful(false),
       rtt_fluctuation_tolerance_ratio(0.0),
+      end_time(QuicTime::Zero()),
       first_packet_sent_time(QuicTime::Zero()),
       last_packet_sent_time(QuicTime::Zero()),
       first_packet_number(0),
@@ -131,6 +135,7 @@ MonitorInterval::MonitorInterval(QuicBandwidth sending_rate,
     : sending_rate(sending_rate),
       is_useful(is_useful),
       rtt_fluctuation_tolerance_ratio(rtt_fluctuation_tolerance_ratio),
+      end_time(end_time),
 #ifdef QUIC_PORT
       first_packet_sent_time(QuicTime::Zero()),
       last_packet_sent_time(QuicTime::Zero()),
@@ -140,17 +145,20 @@ MonitorInterval::MonitorInterval(QuicBandwidth sending_rate,
 #endif
       first_packet_number(0),
       last_packet_number(0),
-      bytes_total(0),
+      bytes_sent(0),
       bytes_acked(0),
       bytes_lost(0),
       rtt_on_monitor_start_us(rtt_us),
       rtt_on_monitor_end_us(rtt_us),
-      end_time(end_time),
       utility(0.0),
       n_packets(0){}
 
+#if defined(QUIC_PORT) && defined(QUIC_PORT_LOCAL)
+MonitorInterval::~MonitorInterval() {}
+#endif
+
 #ifdef QUIC_PORT
-UtilityInfo::UtilityInfo() : sending_rate(QuicBandwidth::Zero), utility(0.0) {}
+UtilityInfo::UtilityInfo() : sending_rate(QuicBandwidth::Zero()), utility(0.0) {}
 #else
 UtilityInfo::UtilityInfo() : sending_rate(0.0), utility(0.0) {}
 #endif
@@ -192,7 +200,7 @@ void PccMonitorIntervalQueue::OnPacketSent(QuicTime sent_time,
     return;
   }
 
-  if (monitor_intervals_.back().bytes_total == 0) {
+  if (monitor_intervals_.back().bytes_sent == 0) {
     // This is the first packet of this interval.
     monitor_intervals_.back().first_packet_sent_time = sent_time;
     monitor_intervals_.back().first_packet_number = packet_number;
@@ -200,11 +208,11 @@ void PccMonitorIntervalQueue::OnPacketSent(QuicTime sent_time,
 
   monitor_intervals_.back().last_packet_sent_time = sent_time;
   monitor_intervals_.back().last_packet_number = packet_number;
-  monitor_intervals_.back().bytes_total += bytes;
+  monitor_intervals_.back().bytes_sent += bytes;
   ++monitor_intervals_.back().n_packets;
   #if ! defined(QUIC_PORT) && defined(DEBUG_INTERVAL_SIZE)
   if (monitor_intervals_.back().is_useful) {
-    std::cerr << "Added packet " << packet_number << " to monitor interval, now " << monitor_intervals_.back().bytes_total << " bytes " << std::endl;
+    std::cerr << "Added packet " << packet_number << " to monitor interval, now " << monitor_intervals_.back().bytes_sent << " bytes " << std::endl;
   }
   #endif
 }
@@ -213,7 +221,7 @@ void PccMonitorIntervalQueue::OnCongestionEvent(
     const AckedPacketVector& acked_packets,
     const LostPacketVector& lost_packets,
     int64_t rtt_us,
-    uint64_t event_time) {
+    QuicTime event_time) {
   num_available_intervals_ = 0;
   if (num_useful_intervals_ == 0) {
     // Skip all the received packets if no intervals are useful.
@@ -238,9 +246,9 @@ void PccMonitorIntervalQueue::OnCongestionEvent(
         interval.bytes_lost += lost_packet.bytes_lost;
         #if (! defined(QUIC_PORT)) && defined(DEBUG_MONITOR_INTERVAL_QUEUE_LOSS)
         std::cerr << "\tattributed bytes to an interval" << std::endl;
-        std::cerr << "\tacked " << interval.bytes_acked << "/" << interval.bytes_total << std::endl;
-        std::cerr << "\tlost " << interval.bytes_lost << "/" << interval.bytes_total << std::endl;
-        std::cerr << "\ttotal " << interval.bytes_lost + interval.bytes_acked << "/" << interval.bytes_total << std::endl;
+        std::cerr << "\tacked " << interval.bytes_acked << "/" << interval.bytes_sent << std::endl;
+        std::cerr << "\tlost " << interval.bytes_lost << "/" << interval.bytes_sent << std::endl;
+        std::cerr << "\ttotal " << interval.bytes_lost + interval.bytes_acked << "/" << interval.bytes_sent << std::endl;
         #endif
       }
     }
@@ -256,9 +264,9 @@ void PccMonitorIntervalQueue::OnCongestionEvent(
             #endif
         #if (! defined(QUIC_PORT)) && defined(DEBUG_MONITOR_INTERVAL_QUEUE_ACKS)
         std::cerr << "\tattributed bytes to an interval" << std::endl;
-        std::cerr << "\tacked " << interval.bytes_acked << "/" << interval.bytes_total << std::endl;
-        std::cerr << "\tlost " << interval.bytes_lost << "/" << interval.bytes_total << std::endl;
-        std::cerr << "\ttotal " << interval.bytes_lost + interval.bytes_acked << "/" << interval.bytes_total << std::endl;
+        std::cerr << "\tacked " << interval.bytes_acked << "/" << interval.bytes_sent << std::endl;
+        std::cerr << "\tlost " << interval.bytes_lost << "/" << interval.bytes_sent << std::endl;
+        std::cerr << "\ttotal " << interval.bytes_lost + interval.bytes_acked << "/" << interval.bytes_sent << std::endl;
         #endif
       }
     }
@@ -334,10 +342,12 @@ bool PccMonitorIntervalQueue::empty() const {
   return monitor_intervals_.empty();
 }
 
+#ifndef QUIC_PORT_LOCAL
 size_t PccMonitorIntervalQueue::size() const {
   return monitor_intervals_.size();
 }
 
+#endif
 void PccMonitorIntervalQueue::OnRttInflationInStarting() {
   monitor_intervals_.clear();
   num_useful_intervals_ = 0;
@@ -346,9 +356,9 @@ void PccMonitorIntervalQueue::OnRttInflationInStarting() {
 
 bool PccMonitorIntervalQueue::IsUtilityAvailable(
     const MonitorInterval& interval,
-    uint64_t event_time) const {
+    QuicTime event_time) const {
 
-    return (event_time >= interval.end_time && interval.bytes_acked + interval.bytes_lost == interval.bytes_total);
+    return (event_time >= interval.end_time && interval.bytes_acked + interval.bytes_lost == interval.bytes_sent);
 }
 
 bool PccMonitorIntervalQueue::IntervalContainsPacket(
@@ -408,42 +418,43 @@ bool PccMonitorIntervalQueue::CalculateUtility(MonitorInterval* interval) {
   const int64_t kMinTransmissionTime = 1l;
   int64_t mi_duration = std::max(
       kMinTransmissionTime,
+  #ifdef QUIC_PORT
+      (interval->last_packet_sent_time - interval->first_packet_sent_time).ToMicroseconds());
+  #else
       (interval->last_packet_sent_time - interval->first_packet_sent_time));
+  #endif
 
-  double mi_time_seconds = static_cast<float>(mi_duration) / kNumMicrosPerSecond;
-  double bytes_lost = static_cast<float>(interval->bytes_lost);
-  double bytes_total = static_cast<float>(interval->bytes_total);
-  double sending_rate_bps = bytes_total * 8.0f / mi_time_seconds;
+  float mi_time_seconds = static_cast<float>(mi_duration) / kNumMicrosPerSecond;
+  float bytes_lost = static_cast<float>(interval->bytes_lost);
+  float bytes_sent = static_cast<float>(interval->bytes_sent);
+  
+  float sending_rate_bps = bytes_sent * 8.0f / mi_time_seconds;
+  float sending_factor = kAlpha * pow(sending_rate_bps/kMegabit, kExponent);
 
-  float avg_packet_number = 0.0;
-  float avg_rtt = 0.0;
-  float num_rtt_samples = static_cast<float>(interval->packet_rtt_samples.size());
-  for (PacketRttSample& rtt_sample : interval->packet_rtt_samples) {
-    avg_packet_number += rtt_sample.packet_number;
-    avg_rtt += rtt_sample.sample_rtt;
+  // Approximate the derivative at each point by computing the slope of RTT to
+  // the following point and average these values.
+  float rtt_first_half_sum = 0.0;
+  float rtt_second_half_sum = 0.0;
+  int half_samples = interval->packet_rtt_samples.size() / 2;
+  for (int i = 0; i < half_samples; ++i) {
+    #ifdef QUIC_PORT
+    rtt_first_half_sum += static_cast<float>(interval->packet_rtt_samples[i].sample_rtt.ToMicroSeconds());
+    rtt_second_half_sum += static_cast<float>(interval->packet_rtt_samples[i + half_samples].sample_rtt.ToMicroSeconds());
+    #else
+    rtt_first_half_sum += static_cast<float>(interval->packet_rtt_samples[i].sample_rtt);
+    rtt_second_half_sum += static_cast<float>(interval->packet_rtt_samples[i + half_samples].sample_rtt);
+    #endif
   }
-  avg_packet_number /= num_rtt_samples;
-  avg_rtt /= num_rtt_samples;
+  float latency_inflation = 2.0 * (rtt_second_half_sum - rtt_first_half_sum) / (rtt_first_half_sum + rtt_second_half_sum);
 
-  double numerator = 0.0;
-  double denominator = 0.0;
-  for (PacketRttSample& rtt_sample : interval->packet_rtt_samples) {
-    numerator += (rtt_sample.packet_number - avg_packet_number) * (rtt_sample.sample_rtt - avg_rtt);
-    denominator += (rtt_sample.packet_number - avg_packet_number) * (rtt_sample.packet_number - avg_packet_number);
-  }
+  float rtt_penalty = int(int(latency_inflation * 100) / 100.0 * 100) / 2 * 2/ 100.0;
+  float rtt_contribution = kLatencyCoefficient * 11330 * bytes_sent * (pow(rtt_penalty, 1));
 
-  float latency_info = numerator / denominator;
-
-  float loss_rate = bytes_lost / bytes_total;
-  float rtt_penalty = int(int(latency_info * 100) / 100.0 * 100) / 2 * 2/ 100.0;
+  float loss_rate = bytes_lost / bytes_sent;
   float loss_contribution = interval->n_packets * (11.35 * (pow((1 + loss_rate), 1) - 1));
   if (loss_rate <= 0.03) {
     loss_contribution = interval->n_packets * (1 * (pow((1 + loss_rate), 1) - 1));
   }
-  float rtt_contribution = kLatencyCoefficient * 11330 * bytes_total * (pow(rtt_penalty, 1));
-
-  float sending_factor = kAlpha * pow(sending_rate_bps/kMegabit, kExponent);
-
   float current_utility = sending_factor -
       (loss_contribution + rtt_contribution) *
       (sending_rate_bps / kMegabit) / static_cast<float>(interval->n_packets);
@@ -453,8 +464,8 @@ bool PccMonitorIntervalQueue::CalculateUtility(MonitorInterval* interval) {
   std::cerr << "\tutility           = " << current_utility << std::endl;
   std::cerr << "\tn_packets         = " << interval->n_packets << std::endl;
   std::cerr << "\ttarget send_rate  = " << interval->sending_rate / 1000000.0f << std::endl;
-  std::cerr << "\tactual send_rate  = " << bytes_total * 8.0f / (mi_time_seconds * 1000000.0f) << std::endl;
-  std::cerr << "\tthroughput        = " << (bytes_total - bytes_lost) * 8.0f / (mi_time_seconds * 1000000.0f) << std::endl;
+  std::cerr << "\tactual send_rate  = " << bytes_sent * 8.0f / (mi_time_seconds * 1000000.0f) << std::endl;
+  std::cerr << "\tthroughput        = " << (bytes_sent - bytes_lost) * 8.0f / (mi_time_seconds * 1000000.0f) << std::endl;
   std::cerr << "\tthroughput factor = " << sending_factor << std::endl;
   std::cerr << "\tavg_rtt           = " << avg_rtt << std::endl;
   std::cerr << "\tlatency_info      = " << latency_info << std::endl;
