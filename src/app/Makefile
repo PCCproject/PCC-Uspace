@@ -8,7 +8,7 @@ ifndef arch
    arch = IA32
 endif
 
-CCFLAGS = -Wall -D$(os) -I../src -finline-functions -O3
+CCFLAGS = -Wall -D$(os) -I../core -finline-functions -O3
 
 ifeq ($(arch), IA32)
    CCFLAGS += -DIA32 #-mcpu=pentiumpro -march=pentiumpro -mmmx -msse
@@ -26,7 +26,7 @@ ifeq ($(arch), SPARC)
    CCFLAGS += -DSPARC
 endif
 
-LDFLAGS = -L../src -ludt -lstdc++ -lpthread -lm
+LDFLAGS = -L../core -ludt -lstdc++ -lpthread -lm
 
 ifeq ($(os), UNIX)
    LDFLAGS += -lsocket
@@ -41,22 +41,12 @@ DIR = $(shell pwd)
 %.o: %.cpp
 	$(C++) $(CCFLAGS) $< -c
 
-appserver: appserver.o
+pccserver: pccserver.o
 	$(C++) $^ -o $@ $(LDFLAGS) -static
-appclient: appclient.o
-	$(C++) $^ -o $@ $(LDFLAGS)
-sendfile: sendfile.o
-	$(C++) $^ -o $@ $(LDFLAGS)
-recvfile: recvfile.o
-	$(C++) $^ -o $@ $(LDFLAGS)
-incast_client: incast_client.o
-	$(C++) $^ -o $@ $(LDFLAGS)
-gradient_descent_pcc_client: gradient_descent_pcc_client.o
-	$(C++) $^ -o $@ $(LDFLAGS) -static
-exponentiated_weights_pcc_client: exponentiated_weights_pcc_client.o
+pccclient: pccclient.o
 	$(C++) $^ -o $@ $(LDFLAGS)
 
-APP = appserver gradient_descent_pcc_client
+APP = pccserver pccclient
 
 all: $(APP)
 

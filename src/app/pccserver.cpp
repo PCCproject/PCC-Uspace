@@ -9,7 +9,7 @@
    #include <wspiapi.h>
 #endif
 #include <iostream>
-#include <udt.h>
+#include "../core/udt.h"
 #include "test_util.h"
 
 using namespace std;

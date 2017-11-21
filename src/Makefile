@@ -1,4 +1,4 @@
-DIRS = src app
+DIRS = pcc core app
 TARGETS = all clean install
 
 $(TARGETS): %: $(patsubst %, %.%, $(DIRS))
