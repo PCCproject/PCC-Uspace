@@ -467,10 +467,8 @@ bool PccMonitorIntervalQueue::CalculateUtility(MonitorInterval* interval) {
   std::cerr << "\tactual send_rate  = " << bytes_sent * 8.0f / (mi_time_seconds * 1000000.0f) << std::endl;
   std::cerr << "\tthroughput        = " << (bytes_sent - bytes_lost) * 8.0f / (mi_time_seconds * 1000000.0f) << std::endl;
   std::cerr << "\tthroughput factor = " << sending_factor << std::endl;
-  std::cerr << "\tavg_rtt           = " << avg_rtt << std::endl;
-  std::cerr << "\tlatency_info      = " << latency_info << std::endl;
-  std::cerr << "\t\tnumerator       = " << numerator << std::endl;
-  std::cerr << "\t\tdenominator     = " << denominator << std::endl;
+  std::cerr << "\tavg_rtt           = " << (rtt_first_half_sum + rtt_second_half_sum) / (2 * half_samples) << std::endl;
+  std::cerr << "\tlatency_infla.    = " << latency_inflation << std::endl;
   std::cerr << "\trtt_contribution  = " << rtt_contribution << std::endl;
   std::cerr << "\tloss_rate         = " << loss_rate << std::endl;
   std::cerr << "\tloss_contribution = " << loss_contribution << std::endl;
