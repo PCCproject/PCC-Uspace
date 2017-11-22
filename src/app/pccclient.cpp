@@ -10,6 +10,7 @@
 #endif
 #include <iostream>
 #include "../core/udt.h"
+#include "../core/options.h"
 #include <signal.h>
 
 using namespace std;
@@ -32,6 +33,7 @@ int main(int argc, char* argv[]) {
         cout << "usage: " << argv[0] << " <send|recv> server_ip server_port" << endl;
       return 0;
     }
+    Options::parse(argc, argv);
 
     bool should_send = !strcmp(argv[1], "send");
     

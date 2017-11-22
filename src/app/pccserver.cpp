@@ -10,6 +10,7 @@
 #endif
 #include <iostream>
 #include "../core/udt.h"
+#include "../core/options.h"
 #include "test_util.h"
 
 using namespace std;
@@ -30,6 +31,7 @@ int main(int argc, char* argv[])
       cout << "usage: appserver <send|recv> [server_port]" << endl;
       return 0;
    }
+   Options::parse(argc, argv);
 
    bool should_recv = !strcmp(argv[1], "recv");
 
