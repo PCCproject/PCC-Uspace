@@ -44,7 +44,7 @@ DIR = $(shell pwd)
 pccserver: pccserver.o
 	$(C++) $^ -o $@ $(LDFLAGS) -static
 pccclient: pccclient.o
-	$(C++) $^ -o $@ $(LDFLAGS)
+	$(C++) $^ -o $@ $(LDFLAGS) -static
 
 APP = pccserver pccclient
 
