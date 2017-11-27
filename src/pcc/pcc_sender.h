@@ -26,6 +26,7 @@
 #include "gfe/quic/core/quic_types.h"
 #endif
 #else
+#include "../core/options.h"
 #include "pcc_monitor_interval_queue.h"
 #include <iostream>
 #define QUIC_EXPORT_PRIVATE

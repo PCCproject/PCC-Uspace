@@ -12,7 +12,7 @@
 #endif
 #else
 #include "pcc_sender.h"
-
+#include "stdlib.h"
 //#define DEBUG_RATE_CONTROL
 #endif
 
@@ -70,14 +70,38 @@ const size_t kBitsPerByte = 8;
 // Minimum number of packers per interval.
 const size_t kMinimumPacketsPerInterval = 10;
 // Number of gradients to average.
-const size_t kAvgGradientSampleSize = 1;
+size_t kAvgGradientSampleSize = 1;
 // The factor that converts average utility gradient to a rate change (in Mbps).
 float kUtilityGradientToRateChangeFactor = 1.0f * kMegabit;
 // The initial maximum proportional rate change.
 float kInitialMaximumProportionalChange = 0.05f;
 // The additional maximum proportional change each time it is incremented.
 float kMaximumProportionalChangeStepSize = 0.06f;
+// The duration of a monitor interval with respect to RTT
+float kMonitorIntervalDuration = 1.5f;
 }  // namespace
+
+static bool ReadMonitorIntervalDuration() {
+    const char* arg_dur = Options::get("-mdur=");
+    if (arg_dur != NULL) {
+        kMonitorIntervalDuration = atof(arg_dur);
+    }
+    return true;
+}
+
+static bool ReadRateControlParams() {
+    const char* arg_grad_samples = Options::get("-gsample=");
+    if (arg_grad_samples != NULL) {
+        kAvgGradientSampleSize = atoi(arg_grad_samples);
+    }
+    const char* arg_prop_change = Options::get("-propchange=");
+    if (arg_prop_change != NULL) {
+        kInitialMaximumProportionalChange = atof(arg_prop_change);
+        kMaximumProportionalChangeStepSize = 1.2 * kInitialMaximumProportionalChange;
+    }
+    
+    return true;
+}
 
 #ifdef QUIC_PORT
 QuicTime::Delta PccSender::ComputeMonitorDuration(
@@ -85,7 +109,7 @@ QuicTime::Delta PccSender::ComputeMonitorDuration(
     QuicTime::Delta rtt) {
 
   return QuicTime::Delta::FromMicroseconds(
-      std::max(1.5f * rtt.ToMicroseconds(), 
+      std::max(1.5 * rtt.ToMicroseconds(), 
                kMinimumPacketsPerInterval * kBitsPerByte * 
                    kDefaultTCPMSS / static_cast<float>(
                        sending_rate.ToBitsPerSecond())));
@@ -95,10 +119,12 @@ QuicTime PccSender::ComputeMonitorDuration(
     QuicBandwidth sending_rate, 
     QuicTime rtt) {
 
+  static bool init_monitor_interval_dur = ReadMonitorIntervalDuration();
+
   return
-      std::max(1.5 * rtt, 
+      std::max(kMonitorIntervalDuration * rtt, 
                kMinimumPacketsPerInterval * kBitsPerByte * 
-                   kDefaultTCPMSS / sending_rate);
+                   kDefaultTCPMSS / (float)sending_rate);
 }
 #endif
 
@@ -328,6 +354,8 @@ string PccSender::GetDebugState() const {
 QuicBandwidth PccSender::ComputeRateChange(
     const UtilityInfo& utility_sample_1, 
     const UtilityInfo& utility_sample_2) {
+
+  static bool init_rate_control_params = ReadRateControlParams();
 
   if (utility_sample_1.sending_rate == utility_sample_2.sending_rate) {
     return kMinimumRateChange;
