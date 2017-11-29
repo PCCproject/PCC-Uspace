@@ -543,7 +543,7 @@ void PccSender::OnUtilityAvailable(
       DCHECK_EQ(1u, utility_info.size());
       #endif
       QuicBandwidth rate_change = 
-          ComputeRateChange(utility_info[0], utility_info[1]);
+          ComputeRateChange(utility_info[0], latest_utility_info_);
       if (sending_rate_ + rate_change < kMinSendingRate) {
         rate_change = kMinSendingRate - sending_rate_;
       }
