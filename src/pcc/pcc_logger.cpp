@@ -43,8 +43,7 @@ void PccEventLogger::LogEvent(const PccLoggableEvent& event) {
     } else {
         first_line = false;
     }
-    float cur_time = ((float)(CTimer::getTime() - start_time)) / 10000000.0f;
-    //output_file_ << std::endl << "{" << std::endl << "  \"event\":\"" << event.name << "\": {";
+    float cur_time = ((float)(CTimer::getTime() - start_time)) / 1000000.0f;
     output_file_ << std::endl << "{" << std::endl << "  \"" << event.name << "\": {";
     output_file_ << std::endl << "    \"Time\": \"" << cur_time << "\"";
     bool needs_comma = true;
