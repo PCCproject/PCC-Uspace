@@ -26,12 +26,11 @@ DWORD WINAPI recvdata(LPVOID);
 
 int main(int argc, char* argv[])
 {
-   if ((strcmp(argv[1], "recv") && strcmp(argv[1], "send")) || ((2 != argc) && ((3 != argc) || (0 == atoi(argv[2])))))
-   {
+   if (strcmp(argv[1], "recv") && strcmp(argv[1], "send"))   {
       cout << "usage: appserver <send|recv> [server_port]" << endl;
       return 0;
    }
-   Options::parse(argc, argv);
+   Options::Parse(argc, argv);
 
    bool should_recv = !strcmp(argv[1], "recv");
 
@@ -49,8 +48,8 @@ int main(int argc, char* argv[])
    //hints.ai_socktype = SOCK_DGRAM;
 
    string service("9000");
-   if (argc == 3)
-      service = argv[2];
+   //if (argc == 3)
+   //   service = argv[2];
 
    if (0 != getaddrinfo(NULL, service.c_str(), &hints, &res))
    {

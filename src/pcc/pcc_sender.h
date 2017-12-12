@@ -28,6 +28,7 @@
 #else
 #include "../core/options.h"
 #include "pcc_monitor_interval_queue.h"
+#include "pcc_logger.h"
 #include <iostream>
 #define QUIC_EXPORT_PRIVATE
 
@@ -96,12 +97,10 @@ class QUIC_EXPORT_PRIVATE PccSender
   PccSender& operator=(const PccSender&) = delete;
   PccSender(PccSender&&) = delete;
   PccSender& operator=(PccSender&&) = delete;
-  #ifdef QUIC_PORT
   #ifdef QUIC_PORT_LOCAL
   ~PccSender() override;
   #else
-  ~PccSender() override {}
-  #endif
+  ~PccSender();
   #endif
 
   #ifdef QUIC_PORT
@@ -187,6 +186,10 @@ class QUIC_EXPORT_PRIVATE PccSender
   #if defined(QUIC_PORT) && defined(QUIC_PORT_LOCAL)
   void SetFlag(double val);
   #endif
+  
+  #ifndef QUIC_PORT
+  PccEventLogger* log;
+  #endif
  private:
   #ifdef QUIC_PORT
   friend class test::PccSenderPeer;
@@ -245,6 +248,7 @@ class QUIC_EXPORT_PRIVATE PccSender
   size_t rate_change_proportion_allowance_;
   // The most recent change made to the sending rate.
   QuicBandwidth previous_change_;
+
 };
 
 #ifdef QUIC_PORT

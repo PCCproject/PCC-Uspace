@@ -455,23 +455,26 @@ bool PccMonitorIntervalQueue::CalculateUtility(MonitorInterval* interval) {
   if (loss_rate <= 0.03) {
     loss_contribution = interval->n_packets * (1 * (pow((1 + loss_rate), 1) - 1));
   }
-  float current_utility = sending_factor -
-      (loss_contribution + rtt_contribution) *
+  loss_contribution *= -1.0 *
       (sending_rate_bps / kMegabit) / static_cast<float>(interval->n_packets);
+  rtt_contribution *= -1.0 *
+      (sending_rate_bps / kMegabit) / static_cast<float>(interval->n_packets);
+  float current_utility = sending_factor + loss_contribution + rtt_contribution;
 
   #if !defined(QUIC_PORT) && defined(DEBUG_UTILITY_CALC)
-  std::cerr << "Calculate utility:" << std::endl;
-  std::cerr << "\tutility           = " << current_utility << std::endl;
-  std::cerr << "\tn_packets         = " << interval->n_packets << std::endl;
-  std::cerr << "\ttarget send_rate  = " << interval->sending_rate / 1000000.0f << std::endl;
-  std::cerr << "\tactual send_rate  = " << bytes_sent * 8.0f / (mi_time_seconds * 1000000.0f) << std::endl;
-  std::cerr << "\tthroughput        = " << (bytes_sent - bytes_lost) * 8.0f / (mi_time_seconds * 1000000.0f) << std::endl;
-  std::cerr << "\tthroughput factor = " << sending_factor << std::endl;
-  std::cerr << "\tavg_rtt           = " << (rtt_first_half_sum + rtt_second_half_sum) / (2 * half_samples) << std::endl;
-  std::cerr << "\tlatency_infla.    = " << latency_inflation << std::endl;
-  std::cerr << "\trtt_contribution  = " << rtt_contribution << std::endl;
-  std::cerr << "\tloss_rate         = " << loss_rate << std::endl;
-  std::cerr << "\tloss_contribution = " << loss_contribution << std::endl;
+    PccLoggableEvent event("Calculate Utility", "-DEBUG_UTILITY_CALC");
+    event.AddValue("Utility", current_utility);
+    event.AddValue("Number of Packets", interval->n_packets);
+    event.AddValue("Target Rate", interval->sending_rate);
+    event.AddValue("Actual Rate", bytes_sent * 8.0f / mi_time_seconds);
+    event.AddValue("Loss Rate", loss_rate);
+    event.AddValue("Throughput", (bytes_sent - bytes_lost) * 8.0f / mi_time_seconds);
+    event.AddValue("Avg RTT", (rtt_first_half_sum + rtt_second_half_sum) / (2.0 * half_samples));
+    event.AddValue("Latency Inflation", latency_inflation);
+    event.AddValue("Throughput Utility", sending_factor);
+    event.AddValue("RTT Utility", rtt_contribution);
+    event.AddValue("Loss Rate Utility", loss_contribution);
+    delegate_->log->LogEvent(event);
   #endif
 
   interval->utility = current_utility;

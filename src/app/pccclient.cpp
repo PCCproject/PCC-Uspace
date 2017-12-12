@@ -21,11 +21,13 @@ void* monitor(void*);
 DWORD WINAPI monitor(LPVOID);
 #endif
 
-void intHandler(int dummy) {
-	//TODO (nathan jay): Print useful summary statistics.
-    exit(0);
-}
+UDTSOCKET client;
+bool stop = false;
 
+
+void intHandler(int dummy) {
+    stop = true;
+}
 
 int main(int argc, char* argv[]) {
     
@@ -33,7 +35,7 @@ int main(int argc, char* argv[]) {
         cout << "usage: " << argv[0] << " <send|recv> server_ip server_port" << endl;
       return 0;
     }
-    Options::parse(argc, argv);
+    Options::Parse(argc, argv);
 
     bool should_send = !strcmp(argv[1], "send");
     
@@ -55,7 +57,7 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 
-    UDTSOCKET client = UDT::socket(local->ai_family, local->ai_socktype, local->ai_protocol);
+    client = UDT::socket(local->ai_family, local->ai_socktype, local->ai_protocol);
 
     // Windows UDP issue
     // For better performance, modify HKLM\System\CurrentControlSet\Services\Afd\Parameters\FastSendDatagramThreshold
@@ -93,10 +95,10 @@ int main(int argc, char* argv[]) {
    #endif
 
     if (should_send) {
-        while (true) {
+        while (!stop) {
             int ssize = 0;
             int ss;
-            while (ssize < size) {
+            while (!stop && ssize < size) {
                 if (UDT::ERROR == (ss = UDT::send(client, data + ssize, size - ssize, 0))) {
                     cout << "send:" << UDT::getlasterror().getErrorMessage() << endl;
                     break;
@@ -109,10 +111,10 @@ int main(int argc, char* argv[]) {
                 break;
         }
     } else {
-        while (true) {
+        while (!stop) {
             int rsize = 0;
             int rs;
-            while (rsize < size) {
+            while (!stop && rsize < size) {
                 if (UDT::ERROR == (rs = UDT::recv(client, data + rsize, size - rsize, 0))) {
                     cout << "recv:" << UDT::getlasterror().getErrorMessage() << endl;
                     break;
@@ -126,14 +128,14 @@ int main(int argc, char* argv[]) {
         }
     }
 
-   UDT::close(client);
+    UDT::close(client);
 
-   delete [] data;
+    delete [] data;
 
-   // use this function to release the UDT library
-   UDT::cleanup();
+    // use this function to release the UDT library
+    UDT::cleanup();
 
-   return 1;
+    return 1;
 }
 
 #ifndef WIN32

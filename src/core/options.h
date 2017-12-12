@@ -30,18 +30,18 @@ namespace Options {
      * Make global copies of argc and argv for use
      * by get().
      */
-    void parse(int argc, char** argv);
+    void Parse(int argc, char** argv);
 
     /**
      * Get the argument that starts with str. Returns
      * the argument on success, NULL on failure.
      */
-    const char* get(const char* str);
+    const char* Get(const char* str);
 
     /**
      * Deallocates memory allocated by parse().
      */
-    void destroy();
+    void Destroy();
 }
 
 #endif

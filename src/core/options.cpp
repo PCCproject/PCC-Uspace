@@ -25,7 +25,7 @@ namespace Options {
     static char** argv = NULL;
 }
 
-void Options::parse(int argc, char** argv) {
+void Options::Parse(int argc, char** argv) {
     assert(!Options::argv);
 
     /* Make a global copy of argc and argv */
@@ -42,7 +42,7 @@ void Options::parse(int argc, char** argv) {
 
 }
 
-const char* Options::get(const char* str) {
+const char* Options::Get(const char* str) {
     assert(argv); /* parse must be called first */
 
     for (int i = 0; i < argc; i++) {
@@ -54,7 +54,7 @@ const char* Options::get(const char* str) {
     return NULL;
 }
 
-void Options::destroy()
+void Options::Destroy()
 {
     for (int i = 0;i < Options::argc;i++)
         delete [] argv[i];

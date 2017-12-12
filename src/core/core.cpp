@@ -126,7 +126,7 @@ CUDT::CUDT()
 	m_iFlightFlagSize = 1000000;
 	m_iSndBufSize =100000;
 	m_iRcvBufSize = 1000000; //Rcv buffer MUST NOT be bigger than Flight Flag size
-	m_Linger.l_onoff = 1;
+	m_Linger.l_onoff = 0; //TODO (njay): original value was 1;
 	m_Linger.l_linger = 180;
 	m_iUDPSndBufSize = 100000;
 	m_iUDPRcvBufSize = m_iRcvBufSize * m_iMSS;
@@ -977,7 +977,7 @@ void CUDT::close()
 
 		while (!m_bBroken && m_bConnected && (m_pSndBuffer->getCurrBufSize() > 0) && (CTimer::getTime() - entertime < m_Linger.l_linger * 1000000ULL))
 		{
-			// linger has been checked by previous close() call and has expired
+            // linger has been checked by previous close() call and has expired
 			if (m_ullLingerExpiration >= entertime)
 				break;
 
