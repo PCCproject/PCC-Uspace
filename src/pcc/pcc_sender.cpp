@@ -47,7 +47,7 @@ const QuicBandwidth kMinSendingRate = QuicBandwidth::FromKBitsPerSecond(2000);
 const QuicBandwidth kMinimumRateChange = QuicBandwidth::FromBitsPerSecond(
     static_cast<int64_t>(0.5f * kMegabit));
 #else
-const QuicBandwidth kMinSendingRate = 2.0f * kMegabit;
+QuicBandwidth kMinSendingRate = 2.0f * kMegabit;
 // The smallest amount that the rate can be changed by at a time.
 QuicBandwidth kMinimumRateChange = (int64_t)(0.5f * kMegabit);
 // Number of microseconds per second.
@@ -64,7 +64,7 @@ size_t kNumIntervalGroupsInProbing = 2;
 // Number of bits per byte.
 const size_t kBitsPerByte = 8;
 // Minimum number of packers per interval.
-const size_t kMinimumPacketsPerInterval = 10;
+size_t kMinimumPacketsPerInterval = 10;
 // Number of gradients to average.
 size_t kAvgGradientSampleSize = 1;
 // The factor that converts average utility gradient to a rate change (in Mbps).
@@ -77,15 +77,11 @@ float kMaximumProportionalChangeStepSize = 0.06f;
 float kMonitorIntervalDuration = 1.5f;
 }  // namespace
 
-static bool ReadMonitorIntervalDuration() {
+bool PccSender::ReadRateControlParams() {
     const char* arg_dur = Options::Get("-mdur=");
     if (arg_dur != NULL) {
         kMonitorIntervalDuration = atof(arg_dur);
     }
-    return true;
-}
-
-static bool ReadRateControlParams() {
     const char* arg_grad_samples = Options::Get("-gsample=");
     if (arg_grad_samples != NULL) {
         kAvgGradientSampleSize = atoi(arg_grad_samples);
@@ -116,11 +112,31 @@ static bool ReadRateControlParams() {
         kProbingStepSize *= scale;
         kMinimumRateChange *= scale; 
     }
-    
     const char* arg_intervals = Options::Get("-intervals=");
     if (arg_intervals != NULL) {
         kNumIntervalGroupsInProbing = atoi(arg_intervals);
     }
+    const char* arg_min_pkts = Options::Get("-minpkt=");
+    if (arg_min_pkts != NULL) {
+        kMinimumPacketsPerInterval = atoi(arg_min_pkts);
+    }
+    const char* arg_min_rate = Options::Get("-minrate=");
+    if (arg_min_rate != NULL) {
+        kMinSendingRate = atoi(arg_min_rate);
+    }
+
+    PccLoggableEvent event("Rate Control Parameters", "-LOG_RATE_CONTROL_PARAMS");
+    event.AddValue("Monitor Interval Duration", kMonitorIntervalDuration);
+    event.AddValue("Average Gradient Sample Size", kAvgGradientSampleSize);
+    event.AddValue("Initial Maximum Rate Change Proportion", kInitialMaximumProportionalChange);
+    event.AddValue("Maximum Rate Change Proportion Step Size", kMaximumProportionalChangeStepSize);
+    event.AddValue("Utility Gradient To Rate Change Factor", kUtilityGradientToRateChangeFactor);
+    event.AddValue("Probing Step Size", kProbingStepSize);
+    event.AddValue("Minimum Rate Change", kMinimumRateChange);
+    event.AddValue("Number Of Interval Groups In Probing", kNumIntervalGroupsInProbing);
+    event.AddValue("Minimum Packets Per Interval", kMinimumPacketsPerInterval);
+    event.AddValue("Minimum Sending Rate", kMinSendingRate);
+    this->log->LogEvent(event);
     
     return true;
 }
@@ -140,9 +156,7 @@ QuicTime::Delta PccSender::ComputeMonitorDuration(
 QuicTime PccSender::ComputeMonitorDuration(
     QuicBandwidth sending_rate, 
     QuicTime rtt) {
-
-  static bool init_monitor_interval_dur = ReadMonitorIntervalDuration();
-
+  
   return
       std::max(kMonitorIntervalDuration * rtt, 
                kMinimumPacketsPerInterval * kBitsPerByte * 
@@ -197,6 +211,7 @@ PccSender::PccSender(QuicTime initial_rtt_us,
     log = new PccEventLogger(Options::Get("-log="));    
   }
   latest_utility_info_.sending_rate = 0;
+  ReadRateControlParams();
   #endif
 }
 
@@ -387,8 +402,6 @@ string PccSender::GetDebugState() const {
 QuicBandwidth PccSender::ComputeRateChange(
     const UtilityInfo& utility_sample_1, 
     const UtilityInfo& utility_sample_2) {
-
-  static bool init_rate_control_params = ReadRateControlParams();
 
   if (utility_sample_1.sending_rate == utility_sample_2.sending_rate) {
     return kMinimumRateChange;

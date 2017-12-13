@@ -188,6 +188,7 @@ class QUIC_EXPORT_PRIVATE PccSender
   #endif
   
   #ifndef QUIC_PORT
+  bool ReadRateControlParams();
   PccEventLogger* log;
   #endif
  private:
