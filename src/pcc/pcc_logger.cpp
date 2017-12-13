@@ -28,7 +28,7 @@ PccEventLogger::PccEventLogger(const std::string& filename) {
     first_line = true;
     output_file_.open(filename);
     start_time = CTimer::getTime();
-    output_file_ << "{\"events\":[";
+    output_file_ << "{\n\"log version\":\"njay-1\",\n\"events\":[";
 }
 PccEventLogger::~PccEventLogger() {
     output_file_ << "\n]}" << std::endl;
