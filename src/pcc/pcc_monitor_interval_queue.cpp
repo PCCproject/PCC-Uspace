@@ -22,7 +22,7 @@ DEFINE_bool(use_utility_version_2, false, "Use version-2 utility function");
 #endif
 
 #ifndef QUIC_PORT
-#define DEBUG_UTILITY_CALC
+//#define DEBUG_UTILITY_CALC
 //#define DEBUG_MONITOR_INTERVAL_QUEUE_ACKS
 //#define DEBUG_MONITOR_INTERVAL_QUEUE_LOSS
 //#define DEBUG_INTERVAL_SIZE
