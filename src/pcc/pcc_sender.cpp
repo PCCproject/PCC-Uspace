@@ -260,7 +260,7 @@ void PccSender::OnPacketSent(QuicTime sent_time,
     #else
                                                avg_rtt_);
     #endif
-
+    std::cout << "Monitor duration = " << monitor_duration_ << std::endl;
     float rtt_fluctuation_tolerance_ratio = 0.0;
     // No rtt fluctuation tolerance no during PROBING.
     if (mode_ == STARTING) {
@@ -273,6 +273,7 @@ void PccSender::OnPacketSent(QuicTime sent_time,
     }
 
     bool is_useful = CreateUsefulInterval();
+    std::cout << "is_useful = " << is_useful << std::endl;
     interval_queue_.EnqueueNewMonitorInterval(
         sending_rate_, is_useful,
         rtt_fluctuation_tolerance_ratio,
@@ -304,7 +305,6 @@ void PccSender::OnCongestionEvent(bool rtt_updated,
   int64_t avg_rtt_us = rtt_stats_->smoothed_rtt().ToMicroseconds();
   #else
   int64_t avg_rtt_us = rtt;
-  if (py_helper == NULL) {
   #endif
 
   if (avg_rtt_us == 0) {
@@ -329,15 +329,13 @@ void PccSender::OnCongestionEvent(bool rtt_updated,
                     interval_queue_.current().rtt_on_monitor_start_us))) {
       // Directly enter PROBING when rtt inflation already exceeds the tolerance
       // ratio, so as to reduce packet losses and mitigate rtt inflation.
-      interval_queue_.OnRttInflationInStarting();
-      EnterProbing();
-      return;
+      if (py_helper == NULL) {
+        interval_queue_.OnRttInflationInStarting();
+        EnterProbing();
+        return;
+      }
     }
   }
-
-  #ifndef QUIC_PORT
-  }
-  #endif
 
   interval_queue_.OnCongestionEvent(acked_packets, 
                                     lost_packets,

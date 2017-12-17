@@ -5,6 +5,7 @@ PccPythonHelper::PccPythonHelper(const std::string& python_filename) {
     std::cout << "Initializing python\n";
     Py_Initialize();
     PyRun_SimpleString("import sys");
+    PyRun_SimpleString("sys.path.append(\"/users/njay2\")");
     PyRun_SimpleString("sys.path.append(\"/home/njay2/PCC/clean_ppc2/pcc/src\")");
     std::cout << "Getting module name\n";
     PyObject* module_name = PyString_FromString(python_filename.c_str());
@@ -36,6 +37,7 @@ PccPythonHelper::~PccPythonHelper() {
 }
 
 void PccPythonHelper::GiveSample(double sending_rate, double latency, double loss_rate) {
+    std::cout << "PccPythonHelper::GiveSample\n";
     PyObject* args = PyTuple_New(3);
     PyObject* sending_rate_value = PyFloat_FromDouble(sending_rate);
     PyObject* latency_value = PyFloat_FromDouble(latency);
@@ -52,6 +54,7 @@ void PccPythonHelper::GiveSample(double sending_rate, double latency, double los
 }
 
 double PccPythonHelper::GetRateChange() {
+    std::cout << "PccPythonHelper::GetRateChange\n";
     PyObject* result = PyObject_CallObject(get_rate_change_func, NULL);
     double result_double = PyFloat_AS_DOUBLE(result);
     Py_DECREF(result);
