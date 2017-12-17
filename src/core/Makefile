@@ -30,7 +30,7 @@ ifeq ($(arch), AMD64)
    CCFLAGS += -DAMD64
 endif
 
-OBJS = options.o ../pcc/pcc_logger.o ../pcc/pcc_monitor_interval_queue.o ../pcc/pcc_sender.o md5.o common.o window.o list.o buffer.o packet.o channel.o queue.o ccc.o cache.o core.o epoll.o api.o
+OBJS = options.o ../pcc/pcc_python_helper.o ../pcc/pcc_logger.o ../pcc/pcc_monitor_interval_queue.o ../pcc/pcc_sender.o md5.o common.o window.o list.o buffer.o packet.o channel.o queue.o ccc.o cache.o core.o epoll.o api.o
 DIR = $(shell pwd)
 
 all: libudt.so libudt.a udt
@@ -40,9 +40,9 @@ all: libudt.so libudt.a udt
 
 libudt.so: $(OBJS)
 ifneq ($(os), OSX)
-	$(C++) -shared -o $@ $^
+	$(C++) -shared -o $@ $^ -lpython2.7
 else
-	$(C++) -dynamiclib -o libudt.dylib -lstdc++ -lpthread -lm $^
+	$(C++) -dynamiclib -o libudt.dylib -lstdc++ -lpthread -lm $^ -lpython2.7 
 endif
 
 libudt.a: $(OBJS)

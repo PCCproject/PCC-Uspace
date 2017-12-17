@@ -29,6 +29,7 @@
 #include "../core/options.h"
 #include "pcc_monitor_interval_queue.h"
 #include "pcc_logger.h"
+#include "pcc_python_helper.h"
 #include <iostream>
 #define QUIC_EXPORT_PRIVATE
 
@@ -190,6 +191,7 @@ class QUIC_EXPORT_PRIVATE PccSender
   #ifndef QUIC_PORT
   bool ReadRateControlParams();
   PccEventLogger* log;
+  PccPythonHelper* py_helper;
   #endif
  private:
   #ifdef QUIC_PORT

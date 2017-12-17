@@ -26,7 +26,7 @@ ifeq ($(arch), SPARC)
    CCFLAGS += -DSPARC
 endif
 
-LDFLAGS = -L../core -ludt -lstdc++ -lpthread -lm
+LDFLAGS = -L../core -lpython2.7 -ludt -lstdc++ -lpthread -lm
 
 ifeq ($(os), UNIX)
    LDFLAGS += -lsocket
@@ -42,9 +42,9 @@ DIR = $(shell pwd)
 	$(C++) $(CCFLAGS) $< -c
 
 pccserver: pccserver.o
-	$(C++) $^ -o $@ $(LDFLAGS) -static
+	$(C++) $^ -o $@ $(LDFLAGS)
 pccclient: pccclient.o
-	$(C++) $^ -o $@ $(LDFLAGS) -static
+	$(C++) $^ -o $@ $(LDFLAGS)
 
 APP = pccserver pccclient
 

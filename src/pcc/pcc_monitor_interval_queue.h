@@ -132,6 +132,9 @@ struct MonitorInterval {
   // when all sent packets are either acked or lost.
   float utility;
 
+  float rtt;
+  float loss_rate;
+
   // The number of packets in this monitor interval.
   int n_packets;
   // A sample of the RTT for each packet.
@@ -141,10 +144,12 @@ struct MonitorInterval {
 // UtilityInfo is used to store <sending_rate, utility> pairs
 struct UtilityInfo {
   UtilityInfo();
-  UtilityInfo(QuicBandwidth rate, float utility);
+  UtilityInfo(QuicBandwidth rate, float rtt, float loss_rate, float utility);
   ~UtilityInfo() {}
 
   QuicBandwidth sending_rate;
+  float rtt;
+  float loss_rate;
   float utility;
 };
 

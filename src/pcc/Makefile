@@ -30,13 +30,13 @@ ifeq ($(arch), AMD64)
    CCFLAGS += -DAMD64
 endif
 
-OBJS = pcc_monitor_interval_queue.o pcc_sender.o pcc_logger.o
+OBJS = pcc_monitor_interval_queue.o pcc_sender.o pcc_logger.o pcc_python_helper.o
 DIR = $(shell pwd)
 
 all: $(OBJS)
 
 %.o: %.cpp %.h
-	$(C++) $(CCFLAGS) $< -c
+	$(C++) $(CCFLAGS) -I/usr/include/python2.7 $< -c -lpython2.7 -static
 
 clean:
 	rm -f *.o

@@ -3,6 +3,7 @@
 *.a
 *server
 *client
+*.pyc
 sendfile
 recvfile
 udt

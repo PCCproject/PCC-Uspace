@@ -212,6 +212,11 @@ PccSender::PccSender(QuicTime initial_rtt_us,
   }
   latest_utility_info_.sending_rate = 0;
   ReadRateControlParams();
+  py_helper = NULL;
+  const char* py_helper_name = Options::Get("-pyhelper=");
+  if (py_helper_name != NULL) {
+    py_helper = new PccPythonHelper(py_helper_name);
+  }
   #endif
 }
 
@@ -299,6 +304,7 @@ void PccSender::OnCongestionEvent(bool rtt_updated,
   int64_t avg_rtt_us = rtt_stats_->smoothed_rtt().ToMicroseconds();
   #else
   int64_t avg_rtt_us = rtt;
+  if (py_helper == NULL) {
   #endif
 
   if (avg_rtt_us == 0) {
@@ -328,6 +334,10 @@ void PccSender::OnCongestionEvent(bool rtt_updated,
       return;
     }
   }
+
+  #ifndef QUIC_PORT
+  }
+  #endif
 
   interval_queue_.OnCongestionEvent(acked_packets, 
                                     lost_packets,
@@ -565,6 +575,12 @@ void PccSender::OnUtilityAvailable(
     PccLoggableEvent event("Utility Available", "-DEBUG_RATE_CONTROL");
     event.AddValue("Number of Samples", utility_info.size());
     log->LogEvent(event);
+    if (py_helper != NULL) {
+      const UtilityInfo& uinfo = utility_info[0];
+      py_helper->GiveSample(uinfo.sending_rate, uinfo.rtt, uinfo.loss_rate);
+      sending_rate_ += py_helper->GetRateChange();
+      return;
+    }
   #endif
   switch (mode_) {
     case STARTING:
@@ -673,10 +689,20 @@ bool PccSender::CreateUsefulInterval() const {
   // 2 * kNumIntervalGroupsInProbing.
   size_t max_num_useful =
       (mode_ == PROBING) ? 2 * kNumIntervalGroupsInProbing : 1;
+  #ifndef QUIC_PORT
+  if (py_helper != NULL) {
+    max_num_useful = 1;
+  }
+  #endif
   return interval_queue_.num_useful_intervals() < max_num_useful;
 }
 
 void PccSender::MaybeSetSendingRate() {
+  #ifndef QUIC_PORT
+    if (py_helper != NULL) {
+      return;
+    }
+  #endif
   if (mode_ != PROBING || (interval_queue_.num_useful_intervals() ==
                                2 * kNumIntervalGroupsInProbing &&
                            !interval_queue_.current().is_useful)) {
