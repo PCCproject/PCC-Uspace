@@ -260,7 +260,6 @@ void PccSender::OnPacketSent(QuicTime sent_time,
     #else
                                                avg_rtt_);
     #endif
-    std::cout << "Monitor duration = " << monitor_duration_ << std::endl;
     float rtt_fluctuation_tolerance_ratio = 0.0;
     // No rtt fluctuation tolerance no during PROBING.
     if (mode_ == STARTING) {
@@ -273,7 +272,6 @@ void PccSender::OnPacketSent(QuicTime sent_time,
     }
 
     bool is_useful = CreateUsefulInterval();
-    std::cout << "is_useful = " << is_useful << std::endl;
     interval_queue_.EnqueueNewMonitorInterval(
         sending_rate_, is_useful,
         rtt_fluctuation_tolerance_ratio,
