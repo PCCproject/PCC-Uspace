@@ -163,8 +163,8 @@ UtilityInfo::UtilityInfo() : sending_rate(QuicBandwidth::Zero()), utility(0.0) {
 UtilityInfo::UtilityInfo() : sending_rate(0.0), utility(0.0) {}
 #endif
 
-UtilityInfo::UtilityInfo(QuicBandwidth rate, float rtt, float loss_rate, float utility)
-    : sending_rate(rate), rtt(rtt), loss_rate(loss_rate), utility(utility) {}
+UtilityInfo::UtilityInfo(QuicBandwidth rate, float rtt, float loss_rate, float latency_inflation, float utility)
+    : sending_rate(rate), rtt(rtt), loss_rate(loss_rate), latency_inflation(latency_inflation), utility(utility) {}
 
 PccMonitorIntervalQueue::PccMonitorIntervalQueue(
     PccMonitorIntervalQueueDelegateInterface* delegate)
@@ -311,7 +311,7 @@ void PccMonitorIntervalQueue::OnCongestionEvent(
       }
       // All the useful intervals should have available utilities now.
       utility_info.push_back(
-          UtilityInfo(interval.sending_rate, interval.rtt, interval.loss_rate, interval.utility));
+          UtilityInfo(interval.sending_rate, interval.rtt, interval.loss_rate, interval.latency_inflation, interval.utility));
     }
     #ifdef QUIC_PORT
     DCHECK_EQ(num_available_intervals_, utility_info.size());
@@ -461,7 +461,7 @@ bool PccMonitorIntervalQueue::CalculateUtility(MonitorInterval* interval) {
       (sending_rate_bps / kMegabit) / static_cast<float>(interval->n_packets);
   float current_utility = sending_factor + loss_contribution + rtt_contribution;
 
-  #if !defined(QUIC_PORT) && defined(DEBUG_UTILITY_CALC)
+  #if !defined(QUIC_PORT)
     PccLoggableEvent event("Calculate Utility", "-DEBUG_UTILITY_CALC");
     event.AddValue("Utility", current_utility);
     event.AddValue("Number of Packets", interval->n_packets);
@@ -480,6 +480,7 @@ bool PccMonitorIntervalQueue::CalculateUtility(MonitorInterval* interval) {
   interval->utility = current_utility;
   interval->rtt = (rtt_first_half_sum + rtt_second_half_sum) / (2.0 * half_samples);
   interval->loss_rate = loss_rate;
+  interval->latency_inflation = latency_inflation;
   return true;
 }
 

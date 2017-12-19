@@ -134,6 +134,7 @@ struct MonitorInterval {
 
   float rtt;
   float loss_rate;
+  float latency_inflation;
 
   // The number of packets in this monitor interval.
   int n_packets;
@@ -144,12 +145,13 @@ struct MonitorInterval {
 // UtilityInfo is used to store <sending_rate, utility> pairs
 struct UtilityInfo {
   UtilityInfo();
-  UtilityInfo(QuicBandwidth rate, float rtt, float loss_rate, float utility);
+  UtilityInfo(QuicBandwidth rate, float rtt, float loss_rate, float latency_inflation, float utility);
   ~UtilityInfo() {}
 
   QuicBandwidth sending_rate;
   float rtt;
   float loss_rate;
+  float latency_inflation;
   float utility;
 };
 

@@ -20,10 +20,8 @@
 #include "options.h"
 
 /* Global definitions for argc and argv */
-namespace Options {
-    static int argc = 0;
-    static char** argv = NULL;
-}
+int Options::argc = 0;
+char** Options::argv = NULL;
 
 void Options::Parse(int argc, char** argv) {
     assert(!Options::argv);

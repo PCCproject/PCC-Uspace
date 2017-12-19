@@ -42,6 +42,9 @@ namespace Options {
      * Deallocates memory allocated by parse().
      */
     void Destroy();
+
+    extern int argc;
+    extern char** argv;
 }
 
 #endif

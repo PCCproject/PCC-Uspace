@@ -573,8 +573,12 @@ void PccSender::OnUtilityAvailable(
     log->LogEvent(event);
     if (py_helper != NULL) {
       const UtilityInfo& uinfo = utility_info[0];
-      py_helper->GiveSample(uinfo.sending_rate, uinfo.rtt, uinfo.loss_rate);
-      sending_rate_ += py_helper->GetRateChange();
+      py_helper->GiveSample(uinfo.sending_rate, uinfo.rtt, uinfo.loss_rate, uinfo.latency_inflation, uinfo.utility);
+      QuicBandwidth new_rate = py_helper->GetRate();
+      if (new_rate < kMinSendingRate) {
+          new_rate = kMinSendingRate;
+      }
+      sending_rate_ = new_rate;
       return;
     }
   #endif
