@@ -5,8 +5,15 @@ PccPythonHelper::PccPythonHelper(const std::string& python_filename) {
     Py_Initialize();
     PySys_SetArgv(Options::argc, Options::argv);
     PyRun_SimpleString("import sys");
-    PyRun_SimpleString("sys.path.append(\"/users/njay2\")");
-    PyRun_SimpleString("sys.path.append(\"/home/njay2/PCC/clean_ppc2/pcc/src\")");
+    const char* python_path_arg = Options::Get("-pypath="); // The location in which the pcc_addon.py file can be found.
+    if (python_path_arg != NULL) {
+        int python_path_arg_len = strlen(python_path_arg);
+        char python_path_cmd_buf[python_path_arg_len + 50];
+        sprintf(&python_path_cmd_buf[0], "sys.path.append(\"%s\")", python_path_arg);
+        PyRun_SimpleString(&python_path_cmd_buf[0]);
+    }
+    //PyRun_SimpleString("sys.path.append(\"/users/njay2\")");
+    //PyRun_SimpleString("sys.path.append(\"/home/njay2/PCC/clean_ppc2/pcc/src\")");
     PyObject* module_name = PyString_FromString(python_filename.c_str());
     module = PyImport_Import(module_name);
     if (module == NULL) {

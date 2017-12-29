@@ -87,7 +87,7 @@ def get_rate():
     best_utility = possible_utilities[0]
     best_rate = possible_rates[0]
     for i in range(1, len(possible_rates)):
-        #print "Rate: " + str(possible_rates[i]) + ", Utility: " + str(possible_utilities[i])
+        print "Rate: " + str(possible_rates[i]) + ", Utility: " + str(possible_utilities[i])
         if (possible_utilities[i] > best_utility):
             best_utility = possible_utilities[i]
             best_rate = possible_rates[i]
