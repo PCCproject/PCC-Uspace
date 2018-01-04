@@ -28,7 +28,55 @@ PccEventLogger::PccEventLogger(const std::string& filename) {
     first_line = true;
     output_file_.open(filename);
     start_time = CTimer::getTime();
-    output_file_ << "{\n\"log version\":\"njay-1\",\n\"events\":[";
+    output_file_ << "{\n\"log version\":\"njay-1\",\n";
+    output_file_ << "\"Experiment Parameters\":{";
+    bool needs_comma = false;
+    const char* arg_experiment = Options::Get("-experiment=");
+    if (arg_experiment != NULL) {
+        output_file_ << "\n  \"Experiment\":\"" << arg_experiment << "\"";
+        needs_comma = true;
+    }
+    const char* arg_npairs = Options::Get("-npairs=");
+    if (arg_npairs != NULL) {
+        if (needs_comma) {
+            output_file_ << ",";
+        }
+        output_file_ << "\n  \"Number of Pairs\":\"" << arg_npairs << "\"";
+        needs_comma = true;
+    }
+    const char* arg_bandwidth = Options::Get("-bandwidth=");
+    if (arg_bandwidth != NULL) {
+        if (needs_comma) {
+            output_file_ << ",";
+        }
+        output_file_ << "\n  \"Bandwidth\":\"" << arg_bandwidth << "\"";
+        needs_comma = true;
+    }
+    const char* arg_queue = Options::Get("-queue=");
+    if (arg_queue != NULL) {
+        if (needs_comma) {
+            output_file_ << ",";
+        }
+        output_file_ << "\n  \"Queue Length\":\"" << arg_queue << "\"";
+        needs_comma = true;
+    }
+    const char* arg_delay = Options::Get("-delay=");
+    if (arg_delay != NULL) {
+        if (needs_comma) {
+            output_file_ << ",";
+        }
+        output_file_ << "\n  \"Latency\":\"" << arg_delay << "\"";
+        needs_comma = true;
+    }
+    const char* arg_loss = Options::Get("-loss=");
+    if (arg_loss != NULL) {
+        if (needs_comma) {
+            output_file_ << ",";
+        }
+        output_file_ << "\n  \"Loss Rate\":\"" << arg_loss << "\"";
+        needs_comma = true;
+    }
+    output_file_ << "\n},\n\"events\":[";
 }
 PccEventLogger::~PccEventLogger() {
     output_file_ << "\n]}" << std::endl;
