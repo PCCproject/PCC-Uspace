@@ -37,9 +37,9 @@ opt = tf.train.AdamOptimizer().minimize(mse)
 #print "Starting session"
 net = tf.Session()
 
-if os.path.isfile("~/pcc_model.nn.meta"):
+if os.path.isfile("./pcc_model.nn.meta"):
     print "Restoring session..."
-    tf.train.Saver().restore(net, "~/pcc_model.nn")
+    tf.train.Saver().restore(net, "./pcc_model.nn")
     print "Loaded session:"
     out_weights = W_out.eval(session=net)
     print out_weights
@@ -55,6 +55,7 @@ loss = 0.0
 lat_infl = 0.0
 
 def give_reward(sending_rate, latency, loss_rate, latency_inflation, new_sending_rate, utility):
+    print "rate=" + str(sending_rate / 1000000.0) + ", lat=" + str(latency) + ", loss=" + str(loss_rate) + ", " + str(new_sending_rate / 1000000.0) + ", util=" + str(utility)
     net.run(opt, feed_dict={inputs: [[sending_rate / 1000000.0, latency, loss_rate, latency_inflation, new_sending_rate / 1000000.0]], output: [utility]})
 
 def give_sample(sending_rate, latency, loss_rate, latency_inflation, utility, auto_reward=True):
@@ -80,7 +81,7 @@ def predict_utility(new_sending_rate):
 def get_rate():
     possible_rates = []
     possible_utilities = []
-    for i in range(-2, 3):
+    for i in range(-3, 3):
         possible_rates.append(rate * (1.0 + 0.1 * i))
     for possible_rate in possible_rates:
         possible_utilities.append(predict_utility(possible_rate))
@@ -94,7 +95,7 @@ def get_rate():
     return best_rate * 1000000.0
 
 def save_model():
-    tf.train.Saver().save(net, "~/pcc_model.nn")
+    tf.train.Saver().save(net, "./pcc_model.nn")
 
 # Sanity checking code below
 def sanity_check():

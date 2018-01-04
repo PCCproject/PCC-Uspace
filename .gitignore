@@ -1,6 +1,7 @@
 *.o
 *.so
 *.a
+*.nn.*
 *server
 *client
 *.pyc

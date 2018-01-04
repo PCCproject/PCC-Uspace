@@ -6,7 +6,11 @@ import json
 training_event_type = "Calculate Utility"
 
 if (len(sys.argv) == 1):
-    print "usage: pcc_grapher.py [options] \"<pcc_log_file> [<pcc_log_file_2>, ...]\"" 
+    print "usage: pcc_grapher.py \"<pcc_log_file> [<pcc_log_file_2>, ...]\" [iterations]" 
+
+iterations = 1
+if (len(sys.argv) == 3):
+    iterations = int(sys.argv[2])
 
 log_files = sys.argv[1].split()
 log_data = []
@@ -28,8 +32,10 @@ def train_on_log_file(filename):
         if event_name == training_event_type:
             train_on_event(event[event_name])
 
-for filename in log_files:
-    train_on_log_file(filename)
+for i in range(0, iterations):
+    for filename in log_files:
+        train_on_log_file(filename)
 
+pcc_addon.give_sample(80000000.0, 30000.0, 0.0, 0.0, 80.0, False)
 pcc_addon.get_rate()
 pcc_addon.save_model()
