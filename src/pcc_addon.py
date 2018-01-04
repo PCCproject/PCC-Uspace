@@ -38,11 +38,11 @@ opt = tf.train.AdamOptimizer().minimize(mse)
 net = tf.Session()
 
 if os.path.isfile("./pcc_model.nn.meta"):
-    print "Restoring session..."
+    #print "Restoring session..."
     tf.train.Saver().restore(net, "./pcc_model.nn")
-    print "Loaded session:"
+    #print "Loaded session:"
     out_weights = W_out.eval(session=net)
-    print out_weights
+    #print out_weights
 else:
     #print "Running network"
     net.run(tf.global_variables_initializer())
@@ -55,7 +55,7 @@ loss = 0.0
 lat_infl = 0.0
 
 def give_reward(sending_rate, latency, loss_rate, latency_inflation, new_sending_rate, utility):
-    print "rate=" + str(sending_rate / 1000000.0) + ", lat=" + str(latency) + ", loss=" + str(loss_rate) + ", " + str(new_sending_rate / 1000000.0) + ", util=" + str(utility)
+    #print "rate=" + str(sending_rate / 1000000.0) + ", lat=" + str(latency) + ", loss=" + str(loss_rate) + ", " + str(new_sending_rate / 1000000.0) + ", util=" + str(utility)
     net.run(opt, feed_dict={inputs: [[sending_rate / 1000000.0, latency, loss_rate, latency_inflation, new_sending_rate / 1000000.0]], output: [utility]})
 
 def give_sample(sending_rate, latency, loss_rate, latency_inflation, utility, auto_reward=True):
@@ -88,7 +88,7 @@ def get_rate():
     best_utility = possible_utilities[0]
     best_rate = possible_rates[0]
     for i in range(1, len(possible_rates)):
-        print "Rate: " + str(possible_rates[i]) + ", Utility: " + str(possible_utilities[i])
+        #print "Rate: " + str(possible_rates[i]) + ", Utility: " + str(possible_utilities[i])
         if (possible_utilities[i] > best_utility):
             best_utility = possible_utilities[i]
             best_rate = possible_rates[i]
@@ -112,12 +112,12 @@ def sanity_check():
     give_sample(99000000.0, 30000.0, 0.0, 0.0, 99.0, False)
     print "Chosen rate is:" + str(get_rate())
     start_time = time.time()
-    for i in range(0, 1000):
-        #get_rate()
+    for i in range(0, 100):
+        get_rate()
         pass
     end_time = time.time()
     total_time = end_time - start_time
-    print "Time elapsed = " + str(total_time) + ", time per reward = " + str(total_time / 1000.0)
+    print "Time elapsed = " + str(total_time) + ", time per rate decision = " + str(total_time / 100.0)
     out_weights = W_out.eval(session=net)
     print out_weights
     save_model()
