@@ -22,7 +22,7 @@ def train(env_id, num_timesteps, seed):
 
     workerseed = seed + 10000 * MPI.COMM_WORLD.Get_rank()
     set_global_seeds(workerseed)
-    env = make_pcc(env_id) # Need to be changed from Atari - currently should be running the Atari
+    env = make_pcc(env_id) # Need to be changed from Atari, so we need to register with Gym and get the if NHR
 
     def policy_fn(name, ob_space, ac_space): #pylint: disable=W0613
         return CnnPolicy(name=name, ob_space=env.observation_space, ac_space=env.action_space) ## Here's the neural network! NHR
@@ -40,7 +40,7 @@ def train(env_id, num_timesteps, seed):
 def main():
     import argparse
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--env', help='environment ID', default='PongNoFrameskip-v4')
+    parser.add_argument('--env', help='environment ID', default='PongNoFrameskip-v4') ## Here we need to change to an id for PCC environemnt - need to register, follow https://github.com/openai/gym/wiki/Environments
     parser.add_argument('--seed', help='RNG seed', type=int, default=0)
     parser.add_argument('--num-timesteps', type=int, default=int(10e6))
     args = parser.parse_args()
