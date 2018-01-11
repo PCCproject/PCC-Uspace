@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 import argparse
-from experiments import PccStaticExperiment
+from experiments import PccExperiment
 
 if __name__ == "__main__":
   parser = argparse.ArgumentParser()
@@ -16,22 +16,43 @@ if __name__ == "__main__":
                       default=2)
   parser.add_argument("-t", help="duration per connection (sec)", type=int,
                       default=60)
+  parser.add_argument("-g", help="Time gap between starting two connections",
+                      type=int, default=30)
+
+  parser.add_argument("--skip-install", "-ski", help="Skip dependency install",
+                      action="store_true")
+  parser.add_argument("--skip-copy", "-skc", help="Skip remote file copy",
+                      action="store_true")
+  parser.add_argument("--skip-build", "-skb", help="Skip PCC code make",
+                      action="store_true")
 
   # Emulab bridge node setups
-  parser.add_argument("--bandwidth", "-b", help="Bottleneck bandwidth (Mbps)",
-                      type=float, default=100)
-  parser.add_argument("--delay", "-d", help="Bottleneck RTT (ms)", type=float,
-                      default=30)
-  parser.add_argument("--queue-size", "-q", help="Bottleneck buffer (KB)",
-                      type=float, default=75)
-  parser.add_argument("--loss-rate", "-l", help="Bottleneck random loss rate",
-                      type=float, default=0)
+  parser.add_argument("--l-bandwidth", "-lb", help="Lower bound for uniform \
+                      bottleneck bandwidth (Mbps)", type=float, default=100)
+  parser.add_argument("--r-bandwidth", "-rb", help="Upper bound for uniform \
+                      bottleneck bandwidth (Mbps)", type=float, default=100)
+  parser.add_argument("--l-delay", "-ld", help="Lower bound for uniform \
+                      bottleneck RTT (ms)", type=float, default=30)
+  parser.add_argument("--r-delay", "-rd", help="Upper bound for uniform \
+                      bottleneck RTT (ms)", type=float, default=30)
+  parser.add_argument("--l-queue-size", "-lq", help="Lower bound for uniform \
+                      bottleneck queue (KB)", type=float, default=75)
+  parser.add_argument("--r-queue-size", "-rq", help="Upper bound for uniform \
+                      bottleneck queue (KB)", type=float, default=75)
+  parser.add_argument("--l-loss-rate", "-ll", help="Lower bound for uniform \
+                      bottleneck random loss rate", type=float, default=0)
+  parser.add_argument("--r-loss-rate", "-rl", help="Upper bound for uniform \
+                      bottleneck random loss rate", type=float, default=0)
+  parser.add_argument("--interval", "-i", help="Uniformly change bottleneck \
+                      setup every INTERVAL (sec)", type=int, default=0)
+  parser.add_argument("--random-seed", "-s", help="Random seed for bottleneck",
+                      type=int, default=1)
   #TODO: necessary for changing network conditions
   #parser.add_argument("--bridge-script", "-bs", help="Bridge node setup script",
   #                    default="")
   args = parser.parse_args()
 
-  expr = PccStaticExperiment(args)
-  #expr.prepare()
+  expr = PccExperiment(args)
+  expr.prepare()
   expr.run()
   expr.finish()

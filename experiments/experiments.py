@@ -19,6 +19,10 @@ def remote_call(remote_host, cmd) :
   print ("ssh " + remote_host + " \"" + cmd + "\"")
   os.system("ssh " + remote_host + " \"" + cmd + "\"")
 
+def remote_call_background(remote_host, cmd) :
+  print ("ssh " + remote_host + " \"" + cmd + "\" &")
+  os.system("ssh " + remote_host + " \"" + cmd + "\" &")
+
 def remote_copy(path1, path2) :
   print ("scp -r " + path1 + " " + path2)
   os.system("scp -r " + path1 + " " + path2)
@@ -44,21 +48,37 @@ def prepare_other_setup(n_pair, username, expr, proj) :
     remote_receiver = get_hostname("receiver" + str(i), username, expr, proj)
     remote_call(remote_sender, remote_path + "/run_prepare.sh")
     remote_call(remote_receiver, remote_path + "/run_prepare.sh")
-  # Initialize bridge setup (remember to modify pipe before experiment)
-  remote_call(get_hostname("bridge0", username, expr, proj),
-              remote_path + "/run_bridge_setup.sh " + str(n_pair))
+
+def prepare_file_copy(n_pair, username, expr, proj) :
+  copy_path = os.path.dirname(os.path.realpath(__file__)) + "/../*"
+  remote_path = dir_expr_home + username + dir_expr_folder
+  remote_host = get_hostname("sender1", username, expr, proj)
+  remote_call(remote_host, "mkdir -p " + remote_path)
+  remote_copy(copy_path, remote_host + ":" + remote_path)
 
 
 # Experiment classes
 
-class PccStaticExperiment:
+class PccExperiment:
 
   def __init__(self, args):
+    # TODO: check args validity, e.g., bottleneck parameters should be positive
     print "Using %s@%s.%s.emulab.net" % (args.u, args.e, args.p)
-    print "Simple experiment with %d node pair(s), repeated for %d times" % \
+    print "Experiment with %d node pair(s), repeated for %d times" % \
           (args.n, args.r)
-    print "Bridge pipe: bw %.2fMbit/s delay %.2fms queue %.2fKB plr %.3f" % \
-          (args.bandwidth, args.delay, args.queue_size, args.loss_rate)
+    print "Per-node concurrency is %d" % args.c
+    print "Inter-connection time gap is %d second(s)" % args.g
+    print "Bridge pipe: "
+    if args.interval :
+      print "  bw    [%.2f, %.2f]Mbit/s" % (args.l_bandwidth, args.r_bandwidth)
+      print "  delay [%.2f, %.2f]ms" % (args.l_delay, args.r_delay)
+      print "  queue [%.2f, %.2f]KB" % (args.l_queue_size, args.r_queue_size)
+      print "  plr   [%.2f, %.2f]" % (args.l_loss_rate, args.r_loss_rate)
+      print "pipe changes every %d second(s), using random seed %d" % \
+          (args.interval, args.random_seed)
+    else :
+      print "  bw %.2fMbit/s delay %.2fms queue %.2f KB plr %.2f" % \
+          (args.l_bandwidth, args.l_delay, args.l_queue_size, args.l_loss_rate)
 
     self.emulab_user = args.u
     self.emulab_expr = args.e
@@ -67,24 +87,28 @@ class PccStaticExperiment:
     self.expr_concurrency = args.c
     self.expr_replica = args.r
     self.expr_duration = args.t
-    self.bridge_bw = args.bandwidth
-    self.bridge_dl = args.delay
-    self.bridge_qs = args.queue_size
-    self.bridge_lr = args.loss_rate
-    #self.bridge_bs = args.bridge_script
+    self.expr_connection_gap = args.g
 
-    self.sender_args = "send 10.1.1.3 9000 -DEBUG_RATE_CONTROL -DEBUG_UTILITY_CALC -LOG_RATE_CONTROL_PARAMS"
-    self.receiver_args = "recv 9000"
+    self.skip_install = args.skip_install
+    self.skip_copy = args.skip_copy
+    self.skip_build = args.skip_build
+
+    self.bridge_lbw = args.l_bandwidth
+    self.bridge_rbw = args.r_bandwidth
+    self.bridge_ldl = args.l_delay
+    self.bridge_rdl = args.r_delay
+    self.bridge_lqs = args.l_queue_size
+    self.bridge_rqs = args.r_queue_size
+    self.bridge_llr = args.l_loss_rate
+    self.bridge_rlr = args.r_loss_rate
+    self.bridge_intvl = args.interval
+    self.seed = args.random_seed
 
   def prepare_build_pcc(self) :
     # only build PCC code once on node sender1, and then copy to other nodes
-    copy_path = os.path.dirname(os.path.realpath(__file__)) + "/../*"
     remote_path = dir_expr_home + self.emulab_user + dir_expr_folder
-    remote_host = get_hostname("sender1", self.emulab_user, self.emulab_expr,
-                               self.emulab_project)
-    remote_call(remote_host, "mkdir -p " + remote_path)
-    remote_copy(copy_path, remote_host + ":" + remote_path)
-    remote_call(remote_host,
+    remote_call(get_hostname("sender1", self.emulab_user, self.emulab_expr,
+                             self.emulab_project),
                 "cd " + remote_path + "/src" + " && make clean && make")
     lib_path = dir_expr_path + "/src/core"
     lib_path_env = "setenv LD_LIBRARY_PATH \\\"" + lib_path + "\\\""
@@ -103,6 +127,18 @@ class PccStaticExperiment:
         remote_call(remote_sender, cmd)
         remote_call(remote_receiver, cmd)
 
+  def clean_obsolete(self) :
+    remote_call(get_hostname("bridge0", self.emulab_user, self.emulab_expr,
+                             self.emulab_project),
+                "sudo killall bash")
+    for i in range(1, self.expr_node_pair + 1) :
+      remote_call(get_hostname("sender" + str(i), self.emulab_user,
+                               self.emulab_expr, self.emulab_project),
+                  "sudo killall pccclient")
+      remote_call(get_hostname("receiver" + str(i), self.emulab_user,
+                               self.emulab_expr, self.emulab_project),
+                  "sudo killall pccserver")
+
   def run_receiver(self, remote_host) :
       executable = dir_expr_path + "/src/app/pccserver"
       remote_call(remote_host,
@@ -119,42 +155,31 @@ class PccStaticExperiment:
     remote_call(remote_host,
                   "cd " + dir_expr_root + dir_expr_bash +
                       " && chmod a+x ./run_sender.sh")
-    remote_call(remote_host,
+    remote_call_background(remote_host,
                 dir_expr_root + dir_expr_bash + "/run_sender.sh " + executable +
                 " " + receiver_ip + " " + dir_expr_path + " " +
-                str(self.expr_node_pair) + " " + str(self.bridge_bw) + " " +
-                str(self.bridge_dl) + " " + str(self.bridge_qs) + " " +
-                str(self.bridge_lr) + " /dev/null /dev/null " +
+                str(self.expr_node_pair) + " " + str(self.bridge_lbw) + " " +
+                str(self.bridge_ldl) + " " + str(self.bridge_lqs) + " " +
+                str(self.bridge_llr) + " /dev/null /dev/null " +
                 str(duration) + " &")
 
   def prepare(self) :
-    prepare_install_dependencies(self.expr_node_pair, self.emulab_user,
-                                 self.emulab_expr, self.emulab_project)
-    prepare_other_setup(self.expr_node_pair, self.emulab_user, self.emulab_expr,
+    if not self.skip_install :
+      prepare_install_dependencies(self.expr_node_pair, self.emulab_user,
+                                   self.emulab_expr, self.emulab_project)
+      prepare_other_setup(self.expr_node_pair, self.emulab_user,
+                          self.emulab_expr, self.emulab_project)
+    if not self.skip_copy :
+      prepare_file_copy(self.expr_node_pair, self.emulab_user, self.emulab_expr,
                         self.emulab_project)
-    self.prepare_build_pcc()
+    if not self.skip_build :
+      self.prepare_build_pcc()
 
   def run(self) :
     print "Kill old processes, if there's any still running"
-    for i in range(1, self.expr_node_pair + 1) :
-      remote_call(get_hostname("sender" + str(i), self.emulab_user,
-                               self.emulab_expr, self.emulab_project),
-                  "sudo killall pccclient")
-      remote_call(get_hostname("receiver" + str(i), self.emulab_user,
-                               self.emulab_expr, self.emulab_project),
-                  "sudo killall pccserver")
+    self.clean_obsolete()
 
     print "Start experiment now ..."
-    print "Setup bridge node"
-    remote_call(get_hostname("bridge0", self.emulab_user, self.emulab_expr,
-                             self.emulab_project),
-                "sudo ipfw pipe 100 config bw " + str(self.bridge_bw) +
-                    "Mbit/s delay " + str(self.bridge_dl) + "ms queue " +
-                    str(self.bridge_qs) + "KB plr " + str(self.bridge_lr))
-    time.sleep(1)
-
-    # interval between starting multiple connections
-    interval = 30
     for itr in range(0, self.expr_replica) :
       print "[repitition %d]" % itr
       print "Start receiver nodes"
@@ -162,13 +187,28 @@ class PccStaticExperiment:
         self.run_receiver(get_hostname("receiver" + str(i), self.emulab_user,
                                        self.emulab_expr, self.emulab_project))
       time.sleep(2)
+
+      print "Setup bridge node"
+      remote_call_background(get_hostname("bridge0", self.emulab_user, self.emulab_expr,
+                               self.emulab_project),
+                  dir_expr_home + self.emulab_user + dir_expr_bash +
+                      "/run_bridge_setup.sh " + str(self.expr_node_pair) +
+                      " " + str(self.bridge_intvl) + " " + str(self.seed) +
+                      " " + str(self.bridge_lbw) + " " + str(self.bridge_rbw) +
+                      " " + str(self.bridge_ldl) + " " + str(self.bridge_rdl) +
+                      " " + str(self.bridge_lqs) + " " + str(self.bridge_rqs) +
+                      " " + str(self.bridge_llr) + " " + str(self.bridge_rlr) +
+                      " " + self.emulab_user + " &")
+      # sleep for a short period to account for the ssh delay
+      time.sleep(1)
+
       # Each sender node initiates self.expr_concurrency connections
       print "Start sender nodes (per-node concurrency = %d) ..." % \
           self.expr_concurrency
       for concur in range(0, self.expr_concurrency) :
         for i in range(1, self.expr_node_pair + 1) :
           if i > 1 or concur > 0 :
-            time.sleep(interval)
+            time.sleep(self.expr_connection_gap)
           receiver_ip = "10.1.1." + str(i + 2)
           print "-> sender %d in round %d" % (i, concur)
           self.run_sender(get_hostname("sender" + str(i), self.emulab_user,
@@ -176,11 +216,12 @@ class PccStaticExperiment:
                           receiver_ip, self.expr_duration)
       time.sleep(self.expr_duration)
 
-      print "Terminate receiver nodes"
-      for i in range(1, self.expr_node_pair + 1) :
-        remote_call(get_hostname("receiver" + str(i), self.emulab_user,
-                                 self.emulab_expr, self.emulab_project),
-                    "sudo killall pccserver")
+      self.clean_obsolete()
+      print "Copy bridge setup changing traces"
+      remote_call(get_hostname("sender1", self.emulab_user, self.emulab_expr,
+                               self.emulab_project),
+                  "mv /users/" + self.emulab_user + "/pcc_log_bridge_* " +
+                      dir_expr_path)
       print "[repitition %d finished]" % itr
 
     print "Experiment Finished!"
