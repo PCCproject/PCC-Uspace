@@ -447,6 +447,8 @@ bool PccMonitorIntervalQueue::CalculateUtility(MonitorInterval* interval) {
   }
   float latency_inflation = 2.0 * (rtt_second_half_sum - rtt_first_half_sum) / (rtt_first_half_sum + rtt_second_half_sum);
 
+  float avg_rtt = (rtt_first_half_sum + rtt_second_half_sum) / (2.0 * half_samples);
+
   float rtt_penalty = int(int(latency_inflation * 100) / 100.0 * 100) / 2 * 2/ 100.0;
   float rtt_contribution = kLatencyCoefficient * 11330 * bytes_sent * (pow(rtt_penalty, 1));
 
@@ -459,17 +461,50 @@ bool PccMonitorIntervalQueue::CalculateUtility(MonitorInterval* interval) {
       (sending_rate_bps / kMegabit) / static_cast<float>(interval->n_packets);
   rtt_contribution *= -1.0 *
       (sending_rate_bps / kMegabit) / static_cast<float>(interval->n_packets);
-  float current_utility = sending_factor + loss_contribution + rtt_contribution;
+  
+  float vivace_latency_utility = sending_factor + loss_contribution + rtt_contribution;
+  float vivace_loss_const = 11.35;
+  float vivace_loss_utility = sending_rate_bps - vivace_loss_const * (1.0 / (1.0 - loss_rate) - 1.0);
+  float cubed_loss_utility = sending_rate_bps * (1.0 - loss_rate) * (1.0 - loss_rate) * (1.0 - loss_rate);
+  float alpha = 1.0 / 30000.0;
+  float latency_sensitivity = 1.0;
+  const char* latency_sensitivity_arg = Options::Get("--latency-sensitivity=");
+  if (latency_sensitivity_arg != NULL) {
+    latency_sensitivity = atof(latency_sensitivity_arg);
+  }
+  alpha *= latency_sensitivity;
+  float beta = 20.0;
+  float inverted_exponent_utility = sending_rate_bps / (exp(alpha * avg_rtt + beta * loss_rate));
+  float pccv1_const = 11.35;
+  float pccv1_utility = sending_rate_bps * (1.0 - loss_rate) * (1.0 / (1.0 + exp(pccv1_const * (loss_rate - 0.05)))) - sending_rate_bps * loss_rate;
+
+  float current_utility = 0.0;
+  if (Options::Get("--cubed-loss-utility")) {
+    current_utility = cubed_loss_utility;
+  } else if (Options::Get("--inverted-exponent-utility")) {
+    current_utility = inverted_exponent_utility;
+  } else if (Options::Get("--vivace-loss-utility")) {
+    current_utility = vivace_loss_utility;
+  } else if (Options::Get("--pccv1-utility")) {
+    current_utility = pccv1_utility;
+  } else {
+    current_utility = vivace_latency_utility;
+  }
 
   #if !defined(QUIC_PORT)
     PccLoggableEvent event("Calculate Utility", "-DEBUG_UTILITY_CALC");
+    event.AddValue("Vivace Latency Utility", vivace_latency_utility);
+    event.AddValue("Vivace Loss Utility", vivace_loss_utility);
+    event.AddValue("Cubed Loss Utility", cubed_loss_utility);
+    event.AddValue("Inverted Exponent Utility", inverted_exponent_utility);
+    event.AddValue("Pccv1 Utility", pccv1_utility);
     event.AddValue("Utility", current_utility);
     event.AddValue("Number of Packets", interval->n_packets);
     event.AddValue("Target Rate", interval->sending_rate);
     event.AddValue("Actual Rate", bytes_sent * 8.0f / mi_time_seconds);
     event.AddValue("Loss Rate", loss_rate);
     event.AddValue("Throughput", (bytes_sent - bytes_lost) * 8.0f / mi_time_seconds);
-    event.AddValue("Avg RTT", (rtt_first_half_sum + rtt_second_half_sum) / (2.0 * half_samples));
+    event.AddValue("Avg RTT", avg_rtt);
     event.AddValue("Latency Inflation", latency_inflation);
     event.AddValue("Throughput Utility", sending_factor);
     event.AddValue("RTT Utility", rtt_contribution);
