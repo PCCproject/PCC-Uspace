@@ -39,3 +39,4 @@ for i in range(0, iterations):
 pcc_addon.give_sample(80000000.0, 30000.0, 0.0, 0.0, 80.0, False)
 pcc_addon.get_rate()
 pcc_addon.save_model()
+pcc_addon.save_context_table()
