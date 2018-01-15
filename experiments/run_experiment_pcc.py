@@ -28,17 +28,17 @@ if __name__ == "__main__":
 
   # Emulab bridge node setups
   parser.add_argument("--l-bandwidth", "-lb", help="Lower bound for uniform \
-                      bottleneck bandwidth (Mbps)", type=float, default=100)
+                      bottleneck bandwidth (Mbps)", type=int, default=100)
   parser.add_argument("--r-bandwidth", "-rb", help="Upper bound for uniform \
-                      bottleneck bandwidth (Mbps)", type=float, default=100)
+                      bottleneck bandwidth (Mbps)", type=int, default=100)
   parser.add_argument("--l-delay", "-ld", help="Lower bound for uniform \
-                      bottleneck RTT (ms)", type=float, default=30)
+                      bottleneck RTT (ms)", type=int, default=30)
   parser.add_argument("--r-delay", "-rd", help="Upper bound for uniform \
-                      bottleneck RTT (ms)", type=float, default=30)
+                      bottleneck RTT (ms)", type=int, default=30)
   parser.add_argument("--l-queue-size", "-lq", help="Lower bound for uniform \
-                      bottleneck queue (KB)", type=float, default=75)
+                      bottleneck queue (KB)", type=int, default=75)
   parser.add_argument("--r-queue-size", "-rq", help="Upper bound for uniform \
-                      bottleneck queue (KB)", type=float, default=75)
+                      bottleneck queue (KB)", type=int, default=75)
   parser.add_argument("--l-loss-rate", "-ll", help="Lower bound for uniform \
                       bottleneck random loss rate", type=float, default=0)
   parser.add_argument("--r-loss-rate", "-rl", help="Upper bound for uniform \
