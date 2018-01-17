@@ -24,11 +24,75 @@ def to_ram(ale):
 
 
 class PccEnv(gym.Env, utils.EzPickle):
+
+    # And set the following attributes:
+    #
+    #     action_space: The Space object corresponding to valid actions
+    #     observation_space: The Space object corresponding to valid observations
+    #     reward_range: A tuple corresponding to the min and max possible rewards
+    #
+    # Note: a default reward range set to [-inf,+inf] already exists. Set it if you want a narrower range.
     ## Here we need to get the log somehow
-    def __init__(self, log_file):
+    def __init__(self, log_file, epsilon, k):
         # self._action_set = [prev_rate+epsilon, prev_rate-epsilon] ### Maybe we need a general rate range?
-        # self.action_space = [] ## what?
-        print ("log file is: ", log_file)
+        # self.action_space = spaces.Box(low=-epsilon, high=epsilon, shape=(1,))
+        self.action_space = spaces.Discrete(2)
+        print("DEBUG:: log file is: ", log_file, ", epsilon is", epsilon, "action space low: ", self.action_space)
+        self.observation_space = spaces.Tuple((
+            spaces.Box(0, 150.0, k),  # Sending rates
+            spaces.Box(0, 100.0, k),  # Loss rates
+            spaces.Box(0, -5, k),  # Latency
+            spaces.Box(-1, 1, k),  # Loss gradient
+            spaces.Box(-1.0, 1.0, k),  # Latency gradient
+            ))
+        print(self.observation_space)
+
+
+    def _seed(self, seed=None):
+        self.np_random, seed1 = seeding.np_random(seed)
+        # Derive a random seed. This gets passed as a uint, but gets
+        # checked as an int elsewhere, so we need to keep it below
+        # 2**31.
+        seed2 = seeding.hash_seed(seed1 + 1) % 2**31
+        # Empirically, we need to seed before loading the ROM.
+        # self.ale.setInt(b'random_seed', seed2)
+        # self.ale.loadROM(self.game_path)
+        return [seed1, seed2]
+
+    def _step(self, a):
+        action = self._action_set[a]
+
+        ### Now, run the rate, and get the reward - Nathan, can you fill that part in?
+        reward = 0.0
+        ob = self._get_obs()
+
+        return ob, reward
+
+    # return: (states, observations)
+    def _reset(self):
+        self.ale.reset_game()
+        return self._get_obs()
+
+    # Do we need to override this one?
+    def _render(self, mode='human', close=False):
+        pass
+        # if close:
+        #     if self.viewer is not None:
+        #         self.viewer.close()
+        #         self.viewer = None
+        #     return
+        # img = self._get_image()
+        # if mode == 'rgb_array':
+        #     return img
+        # elif mode == 'human':
+        #     from gym.envs.classic_control import rendering
+        #     if self.viewer is None:
+        #         self.viewer = rendering.SimpleImageViewer()
+        #     self.viewer.imshow(img)
+
+        # Do we need to override this one?
+        # def _close(self):
+        #     pass
 
 
 class AtariEnv(gym.Env, utils.EzPickle):
