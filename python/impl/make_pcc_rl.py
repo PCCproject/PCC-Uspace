@@ -186,8 +186,9 @@ class LazyFrames(object):
         return out
 
 def make_pcc(env_id):
+    ### This is where we need to start reading the log
     env = gym.make(env_id)
-    assert 'NoFrameskip' in env.spec.id
+    # assert 'NoFrameskip' in env.spec.id
     env = NoopResetEnv(env, noop_max=30)
     env = MaxAndSkipEnv(env, skip=4)
     return env

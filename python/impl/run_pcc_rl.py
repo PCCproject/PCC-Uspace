@@ -40,7 +40,8 @@ def train(env_id, num_timesteps, seed):
 def main():
     import argparse
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--env', help='environment ID', default='PongNoFrameskip-v4') ## Here we need to change to an id for PCC environemnt - need to register, follow https://github.com/openai/gym/wiki/Environments
+    # parser.add_argument('--env', help='environment ID', default='PongNoFrameskip-v4') ## Here we need to change to an id for PCC environemnt - need to register, follow https://github.com/openai/gym/wiki/Environments
+    parser.add_argument('--env', help='environment ID', default='PCCEnv-v0')
     parser.add_argument('--seed', help='RNG seed', type=int, default=0)
     parser.add_argument('--num-timesteps', type=int, default=int(10e6))
     args = parser.parse_args()

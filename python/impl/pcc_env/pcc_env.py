@@ -23,10 +23,12 @@ def to_ram(ale):
     return ram
 
 
-class PccEnv(gym.Env, utils.EzPickle): #Do we need this?
-    def __init__(self, prev_rate, epsilon):
-        self._action_set = [prev_rate+epsilon, prev_rate-epsilon] ### Maybe we need a general rate range?
-        self.action_space = [] ## what?
+class PccEnv(gym.Env, utils.EzPickle):
+    ## Here we need to get the log somehow
+    def __init__(self, log_file):
+        # self._action_set = [prev_rate+epsilon, prev_rate-epsilon] ### Maybe we need a general rate range?
+        # self.action_space = [] ## what?
+        print ("log file is: ", log_file)
 
 
 class AtariEnv(gym.Env, utils.EzPickle):
