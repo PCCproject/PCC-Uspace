@@ -3,7 +3,7 @@
 import os, time
 
 # Global path variables
-dir_expr_root = "/local/"
+dir_expr_root = "/tmp/"
 dir_expr_folder = "/pcc_expr"
 dir_expr_path = dir_expr_root + "/pcc_expr/"
 dir_expr_bash = "/pcc_expr/experiments/bash/"
@@ -17,11 +17,11 @@ def get_hostname(node_id, username, expr, proj) :
 
 def remote_call(remote_host, cmd) :
   print ("ssh " + remote_host + " \"" + cmd + "\"")
-  os.system("ssh " + remote_host + " \"" + cmd + "\"")
+  os.system("ssh -o StrictHostKeyChecking=no " + remote_host + " \"" + cmd + "\"")
 
 def remote_call_background(remote_host, cmd) :
   print ("ssh " + remote_host + " \"" + cmd + "\" &")
-  os.system("ssh " + remote_host + " \"" + cmd + "\" &")
+  os.system("ssh -o StrictHostKeyChecking=no " + remote_host + " \"" + cmd + "\" &")
 
 def remote_copy(path1, path2) :
   print ("scp -r " + path1 + " " + path2)
@@ -42,7 +42,7 @@ def prepare_install_dependencies(n_pair, username, expr, proj) :
       remote_call(remote_receiver, cmd)
 
 def prepare_other_setup(n_pair, username, expr, proj) :
-  remote_path = dir_expr_home + username + dir_expr_bash
+  remote_path = dir_expr_root + dir_expr_bash
   for i in range(1, n_pair + 1) :
     remote_sender = get_hostname("sender" + str(i), username, expr, proj)
     remote_receiver = get_hostname("receiver" + str(i), username, expr, proj)
@@ -50,11 +50,20 @@ def prepare_other_setup(n_pair, username, expr, proj) :
     remote_call(remote_receiver, remote_path + "/run_prepare.sh")
 
 def prepare_file_copy(n_pair, username, expr, proj) :
-  copy_path = os.path.dirname(os.path.realpath(__file__)) + "/../*"
-  remote_path = dir_expr_home + username + dir_expr_folder
-  remote_host = get_hostname("sender1", username, expr, proj)
+  cur_path = os.path.dirname(os.path.realpath(__file__))
+  copy_path = cur_path + "/../*"
+  #copy_path = "!(" + cur_path + "/../results/*) " + cur_path + "/../*"
+  remote_path = dir_expr_root + dir_expr_folder
+  remote_host = get_hostname("bridge0", username, expr, proj)
   remote_call(remote_host, "mkdir -p " + remote_path)
   remote_copy(copy_path, remote_host + ":" + remote_path)
+  for i in range(1, n_pair + 1):
+      remote_host = get_hostname("sender" + str(i), username, expr, proj)
+      remote_call(remote_host, "mkdir -p " + remote_path)
+      remote_copy(copy_path, remote_host + ":" + remote_path)
+      remote_host = get_hostname("receiver" + str(i), username, expr, proj)
+      remote_call(remote_host, "mkdir -p " + remote_path)
+      remote_copy(copy_path, remote_host + ":" + remote_path)
 
 
 # Experiment classes
@@ -103,18 +112,15 @@ class PccExperiment:
     self.bridge_rlr = args.r_loss_rate
     self.bridge_intvl = args.interval
     self.seed = args.random_seed
+    self.sender_args = args.args
 
   def prepare_build_pcc(self) :
     # only build PCC code once on node sender1, and then copy to other nodes
-    remote_path = dir_expr_home + self.emulab_user + dir_expr_folder
-    remote_call(get_hostname("sender1", self.emulab_user, self.emulab_expr,
-                             self.emulab_project),
-                "cd " + remote_path + "/src" + " && make clean && make")
+    remote_path = dir_expr_root + dir_expr_folder
     lib_path = dir_expr_path + "/src/core"
     lib_path_env = "setenv LD_LIBRARY_PATH \\\"" + lib_path + "\\\""
     cmds = []
-    cmds.append("sudo chown -R " + self.emulab_user + ":" +
-                    self.emulab_project + " " + dir_expr_root)
+    cmds.append("cd " + remote_path + "/src" + " && make clean && make")
     cmds.append("cp -r " + remote_path + " " + dir_expr_root)
     cmds.append("grep -q -F \'" + lib_path_env + "\' ~/.cshrc || echo \'" +
                     lib_path_env + "\' >> ~/.cshrc")
@@ -148,7 +154,7 @@ class PccExperiment:
                   dir_expr_root + dir_expr_bash + "/run_receiver.sh " +
                       executable)
 
-  def run_sender(self, remote_host, receiver_ip, duration) :
+  def run_sender(self, remote_host, receiver_ip, duration, flow_id, timeshift) :
     # FIXME: timestamp here is local time, not emulab node time
     time_ms = int(round(time.time() * 1000))
     executable = dir_expr_path + "/src/app/pccclient"
@@ -161,7 +167,9 @@ class PccExperiment:
                 str(self.expr_node_pair) + " " + str(self.bridge_lbw) + " " +
                 str(self.bridge_ldl) + " " + str(self.bridge_lqs) + " " +
                 str(self.bridge_llr) + " /dev/null /dev/null " +
-                str(duration) + " &")
+                str(duration) + 
+                " " + str(self.sender_args) + " -flowid=" + str(flow_id) + " -timeshift=" +
+                str(timeshift) + " &")
 
   def prepare(self) :
     if not self.skip_install :
@@ -191,7 +199,7 @@ class PccExperiment:
       print "Setup bridge node"
       remote_call_background(get_hostname("bridge0", self.emulab_user, self.emulab_expr,
                                self.emulab_project),
-                  dir_expr_home + self.emulab_user + dir_expr_bash +
+                  dir_expr_root + dir_expr_bash +
                       "/run_bridge_setup.sh " + str(self.expr_node_pair) +
                       " " + str(self.bridge_intvl) + " " + str(self.seed) +
                       " " + str(self.bridge_lbw) + " " + str(self.bridge_rbw) +
@@ -202,6 +210,7 @@ class PccExperiment:
       # sleep for a short period to account for the ssh delay
       time.sleep(1)
 
+      start_time = time.time()
       # Each sender node initiates self.expr_concurrency connections
       print "Start sender nodes (per-node concurrency = %d) ..." % \
           self.expr_concurrency
@@ -213,8 +222,8 @@ class PccExperiment:
           print "-> sender %d in round %d" % (i, concur)
           self.run_sender(get_hostname("sender" + str(i), self.emulab_user,
                                        self.emulab_expr, self.emulab_project),
-                          receiver_ip, self.expr_duration)
-      time.sleep(self.expr_duration)
+                          receiver_ip, self.expr_duration, i, time.time() - start_time)
+      time.sleep(self.expr_duration - (time.time() - start_time))
 
       self.clean_obsolete()
       print "Copy bridge setup changing traces"
@@ -227,10 +236,13 @@ class PccExperiment:
     print "Experiment Finished!"
 
   def finish(self) :
+    pass
+    """
     os.system("mkdir -p results")
     for i in range(1, self.expr_node_pair + 1) :
       remote_copy(get_hostname("sender" + str(i), self.emulab_user,
                                self.emulab_expr, self.emulab_project) + ":" +
                       dir_expr_path + "/pcc_log_*",
                   "./results/")
+    """
 
