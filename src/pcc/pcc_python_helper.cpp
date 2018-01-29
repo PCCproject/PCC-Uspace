@@ -12,8 +12,6 @@ PccPythonHelper::PccPythonHelper(const std::string& python_filename) {
         sprintf(&python_path_cmd_buf[0], "sys.path.append(\"%s\")", python_path_arg);
         PyRun_SimpleString(&python_path_cmd_buf[0]);
     }
-    //PyRun_SimpleString("sys.path.append(\"/users/njay2\")");
-    //PyRun_SimpleString("sys.path.append(\"/home/njay2/PCC/clean_ppc2/pcc/src\")");
     PyObject* module_name = PyString_FromString(python_filename.c_str());
     module = PyImport_Import(module_name);
     if (module == NULL) {

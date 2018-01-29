@@ -11,12 +11,14 @@
 # $9: std out destination
 # $10: std err destination
 # $11: connection duration
+# $12+: remaining pcc arguments
 
-time_ms=$(date +%s)
+time_ms=$(date +%s%N | cut -b1-13)
 echo "Timestamp: ${time_ms}"
 
 # TODO: implement changing network experiment in addition to "Simple"
-$1 send $2 9000 --inverted-exponent-utility -DEBUG_RATE_CONTROL -DEBUG_UTILITY_CALC -LOG_RATE_CONTROL_PARAMS -log=$3/pcc_log_${time_ms}.txt -experiments=Simple -npairs=$4 -bandwidth=$5 -delay=$6 -queue=$7 -loss=$8 1>$9 2>${10} & PID=$!
+echo " $1 send $2 9000 -DEBUG_RATE_CONTROL -DEBUG_UTILITY_CALC -LOG_RATE_CONTROL_PARAMS -log=$3/pcc_log_${time_ms}.txt -npairs=$4 -bandwidth=$5 -delay=$6 -queue=$7 -loss=$8 ${@:12} 1>$9 2>${10} & PID=$!  "
+$1 send $2 9000 -DEBUG_RATE_CONTROL -DEBUG_UTILITY_CALC -LOG_RATE_CONTROL_PARAMS -log=$3/pcc_log_${time_ms}.txt -npairs=$4 -bandwidth=$5 -delay=$6 -queue=$7 -loss=$8 ${@:12} 1>$9 2>${10} & PID=$!
 
 sleep ${11}
 sudo kill -2 $PID

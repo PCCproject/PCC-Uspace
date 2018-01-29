@@ -17,7 +17,7 @@ if __name__ == "__main__":
   parser.add_argument("-t", help="duration per connection (sec)", type=int,
                       default=60)
   parser.add_argument("-g", help="Time gap between starting two connections",
-                      type=int, default=30)
+                      type=int, default=15)
 
   parser.add_argument("--skip-install", "-ski", help="Skip dependency install",
                       action="store_true")
@@ -47,6 +47,9 @@ if __name__ == "__main__":
                       setup every INTERVAL (sec)", type=int, default=0)
   parser.add_argument("--random-seed", "-s", help="Random seed for bottleneck",
                       type=int, default=1)
+
+  parser.add_argument("--args", "-a", help="PCC sender arguments",
+                      type=str, default="")
   #TODO: necessary for changing network conditions
   #parser.add_argument("--bridge-script", "-bs", help="Bridge node setup script",
   #                    default="")

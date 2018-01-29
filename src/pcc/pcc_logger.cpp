@@ -31,6 +31,12 @@ PccEventLogger::PccEventLogger(const std::string& filename) {
     output_file_ << "{\n\"log version\":\"njay-1\",\n";
     output_file_ << "\"Experiment Parameters\":{";
     bool needs_comma = false;
+    output_file_ << "\n  \"PCC Args\":\"";
+    for (int i = 0; i < Options::argc; ++i) {
+        output_file_ << Options::argv[i] << " ";
+    }
+    output_file_ << "\"";
+    needs_comma = true;
     const char* arg_experiment = Options::Get("-experiment=");
     if (arg_experiment != NULL) {
         output_file_ << "\n  \"Experiment\":\"" << arg_experiment << "\"";
@@ -74,6 +80,22 @@ PccEventLogger::PccEventLogger(const std::string& filename) {
             output_file_ << ",";
         }
         output_file_ << "\n  \"Loss Rate\":\"" << arg_loss << "\"";
+        needs_comma = true;
+    }
+    const char* arg_timeshift = Options::Get("-timeshift=");
+    if (arg_timeshift != NULL) {
+        if (needs_comma) {
+            output_file_ << ",";
+        }
+        output_file_ << "\n  \"Time Shift\":\"" << arg_timeshift << "\"";
+        needs_comma = true;
+    }
+    const char* arg_flowid = Options::Get("-flowid=");
+    if (arg_flowid != NULL) {
+        if (needs_comma) {
+            output_file_ << ",";
+        }
+        output_file_ << "\n  \"Flow ID\":\"" << arg_flowid << "\"";
         needs_comma = true;
     }
     output_file_ << "\n},\n\"events\":[";
