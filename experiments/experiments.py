@@ -9,6 +9,17 @@ dir_expr_path = dir_expr_root + "/pcc_expr/"
 dir_expr_bash = "/pcc_expr/experiments/bash/"
 dir_expr_home = "/users/"
 
+# The subdirectories of the PCC repo that should be copied
+# to emulab.
+copied_paths = [
+"../experiments/*",
+"../src/core/*",
+"../src/pcc/*",
+"../src/Makefile",
+"../src/pcc_addon.py",
+"../src/app/*",
+"../src/pcc_model*"
+]
 
 # Helper function definition
 
@@ -51,19 +62,19 @@ def prepare_other_setup(n_pair, username, expr, proj) :
 
 def prepare_file_copy(n_pair, username, expr, proj) :
   cur_path = os.path.dirname(os.path.realpath(__file__))
-  copy_path = cur_path + "/../*"
-  #copy_path = "!(" + cur_path + "/../results/*) " + cur_path + "/../*"
-  remote_path = dir_expr_root + dir_expr_folder
-  remote_host = get_hostname("bridge0", username, expr, proj)
-  remote_call(remote_host, "mkdir -p " + remote_path)
-  remote_copy(copy_path, remote_host + ":" + remote_path)
-  for i in range(1, n_pair + 1):
-      remote_host = get_hostname("sender" + str(i), username, expr, proj)
+  for copied_path in copied_paths:
+      copy_path = cur_path + "/" + copied_path
+      remote_path = dir_expr_root + dir_expr_folder + copied_path[2:copied_path.rfind("/")]
+      remote_host = get_hostname("bridge0", username, expr, proj)
       remote_call(remote_host, "mkdir -p " + remote_path)
       remote_copy(copy_path, remote_host + ":" + remote_path)
-      remote_host = get_hostname("receiver" + str(i), username, expr, proj)
-      remote_call(remote_host, "mkdir -p " + remote_path)
-      remote_copy(copy_path, remote_host + ":" + remote_path)
+      for i in range(1, n_pair + 1):
+          remote_host = get_hostname("sender" + str(i), username, expr, proj)
+          remote_call(remote_host, "mkdir -p " + remote_path)
+          remote_copy(copy_path, remote_host + ":" + remote_path)
+          remote_host = get_hostname("receiver" + str(i), username, expr, proj)
+          remote_call(remote_host, "mkdir -p " + remote_path)
+          remote_copy(copy_path, remote_host + ":" + remote_path)
 
 
 # Experiment classes

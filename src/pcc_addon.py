@@ -8,36 +8,52 @@ n_fields = 5
 inputs = tf.placeholder(dtype=tf.float32, shape=[1, n_fields])
 output = tf.placeholder(dtype=tf.float32, shape=[None])
 
+n_neurons = [
+    64,
+    64,
+    32,
+    32,
+    16,
+    16,
+    16
+]
+
 n_neurons_1 = 64
 n_neurons_2 = 32
+n_neurons_3 = 16
 n_target = 1
 
 sigma = 1
 weight_initializer = tf.variance_scaling_initializer(mode="fan_avg", distribution="uniform", scale=sigma)
 bias_initializer = tf.zeros_initializer()
 
-W_hidden_1 = tf.Variable(weight_initializer([n_fields, n_neurons_1]))
-bias_hidden_1 = tf.Variable(bias_initializer([n_neurons_1]))
+w = []
+bias = []
+prev_size = n_fields
+for i in range(0, len(n_neurons)):
+    w.append(tf.Variable(weight_initializer([prev_size, n_neurons[i]])))
+    bias.append(tf.Variable(bias_initializer([n_neurons[i]])))
+    prev_size = n_neurons[i]
 
-W_hidden_2 = tf.Variable(weight_initializer([n_neurons_1, n_neurons_2]))
-bias_hidden_2 = tf.Variable(bias_initializer([n_neurons_2]))
-
-W_out = tf.Variable(weight_initializer([n_neurons_2, n_target]))
+W_out = tf.Variable(weight_initializer([n_neurons[-1], n_target]))
 bias_out = tf.Variable(bias_initializer([n_target]))
 
-hidden_1 = tf.nn.relu(tf.add(tf.matmul(inputs, W_hidden_1), bias_hidden_1))
-hidden_2 = tf.nn.relu(tf.add(tf.matmul(hidden_1, W_hidden_2), bias_hidden_2))
-out = tf.transpose(tf.add(tf.matmul(hidden_2, W_out), bias_out))
+hidden_layers = []
+prev_layer = inputs
+for i in range(0, len(n_neurons)):
+    hidden_layers.append(tf.nn.relu(tf.add(tf.matmul(prev_layer, w[i]), bias[i])))
+    prev_layer = hidden_layers[-1]
+
+out = tf.transpose(tf.add(tf.matmul(hidden_layers[-1], W_out), bias_out))
 
 mse = tf.reduce_mean(tf.squared_difference(out, output))
 
-# This line doesn't work because output is something we know (utility) but not something that the network ever produces.
 opt = tf.train.AdamOptimizer().minimize(mse)
 
 net = tf.Session()
 
 if os.path.isfile("./pcc_model.nn.meta"):
-    #print "Restoring session..."
+    print "Restoring session..."
     tf.train.Saver().restore(net, "./pcc_model.nn")
     #print "Loaded session:"
     out_weights = W_out.eval(session=net)
@@ -167,23 +183,27 @@ if ("--python-context-table" in sys.argv):
     load_context_table()
     print "USING PYTHON CONTEXT TABLE"
 
+def train_on_dataset(dataset):
+    net.run(opt, feed_dict={inputs:dataset["inputs"], output:dataset["output"]})
+
 def give_reward(sending_rate, latency, loss_rate, latency_inflation, new_sending_rate, utility):
     #print "rate=" + str(sending_rate / 1000000.0) + ", lat=" + str(latency) + ", loss=" + str(loss_rate) + ", " + str(new_sending_rate / 1000000.0) + ", util=" + str(utility)
     global use_context_table
     if use_context_table:
         context_table_give_reward(rate, latency, loss, latency_inflation, new_sending_rate, utility);
     else:
-        net.run(opt, feed_dict={inputs: [[sending_rate / 1000000.0, latency, loss_rate, latency_inflation, new_sending_rate / 1000000.0]], output: [utility]})
+        net.run(opt, feed_dict={inputs: [[sending_rate / 1000000000.0, latency / 1000000.0, loss_rate,
+        latency_inflation, new_sending_rate / 1000000000.0]], output: [utility]})
 
-def give_sample(sending_rate, latency, loss_rate, latency_inflation, utility, auto_reward=True):
+def give_sample(sending_rate, latency, loss_rate, latency_inflation, utility, auto_reward=False):
     global rate
     global lat
     global loss
     global lat_infl
     if (auto_reward == True) and (rate >= 0.0):
-        give_reward(rate * 1000000.0, lat, loss, lat_infl, sending_rate, utility)
-    rate = sending_rate / 1000000.0
-    lat = latency
+        give_reward(rate * 1000000000.0, lat * 1000000.0, loss, lat_infl, sending_rate, utility)
+    rate = sending_rate / 1000000000.0
+    lat = latency / 1000000.0
     loss = loss_rate
     lat_infl = latency_inflation
 
@@ -192,6 +212,7 @@ def predict_utility(new_sending_rate):
     global lat
     global loss
     global lat_infl
+    #print str(rate) + " @ " + str(lat) + " --> " + str(new_sending_rate)
     new_utility = net.run(out, feed_dict={inputs: [[rate, lat, loss, lat_infl, new_sending_rate]]})
     return new_utility[0][0]
 
@@ -203,6 +224,27 @@ def get_rate():
     if use_context_table:
         return context_table_get_best_rate(rate, lat, loss, lat_infl)
     else:
+        step = 0.05
+        best_rate = rate
+        best_utility = -1000000000.0
+        for i in range(-9, 10):
+            possible_rate = rate + i * step
+            if (possible_rate > 0 and possible_rate < 0.4):
+                expected_utility = predict_utility(possible_rate)
+                if expected_utility > best_utility:
+                    best_rate = possible_rate
+                    best_utility = expected_utility
+
+        best_prev_step_rate = best_rate
+        step /= 10.0
+        for i in range(-9, 10):
+            possible_rate = best_prev_step_rate + i * step
+            if (possible_rate > 0 and possible_rate < 0.4):
+                expected_utility = predict_utility(possible_rate)
+                if expected_utility > best_utility:
+                    best_rate = possible_rate
+                    best_utility = expected_utility
+        """
         possible_rates = []
         possible_utilities = []
         for i in range(-3, 3):
@@ -216,7 +258,8 @@ def get_rate():
             if (possible_utilities[i] > best_utility):
                 best_utility = possible_utilities[i]
                 best_rate = possible_rates[i]
-        return best_rate * 1000000.0
+        """
+        return best_rate * 1000000000.0
 
 def save_model():
     tf.train.Saver().save(net, "./pcc_model.nn")

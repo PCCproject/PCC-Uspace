@@ -2,19 +2,48 @@ import sys
 import math
 import pcc_addon
 import json
+import os
 
 training_event_type = "Calculate Utility"
+utility_func = "Inverted Exponent Utility"
 
 if (len(sys.argv) == 1):
-    print "usage: pcc_grapher.py \"<pcc_log_file> [<pcc_log_file_2>, ...]\" [iterations]" 
+    print "usage: pcc_trainer.py dir_with_logs [iterations]" 
 
 iterations = 1
-if (len(sys.argv) == 3):
+if (len(sys.argv) > 2):
     iterations = int(sys.argv[2])
 
-log_files = sys.argv[1].split()
-log_data = []
-event_counts = []
+log_files = os.listdir(sys.argv[1])
+
+estimation_event_type = "Calculate Utility"
+
+
+def estimate_event_utility(prev_event, event):
+    pcc_addon.give_sample(
+        float(prev_event["Target Rate"]),
+        float(prev_event["Avg RTT"]),
+        float(prev_event["Loss Rate"]),
+        float(prev_event["Latency Inflation"]),
+        float(prev_event[utility_func]),
+        False)
+
+    return pcc_addon.predict_utility(float(event["Target Rate"]) / 1000000000.0)
+
+def estimate_log_file(filename):
+    data = json.load(open(filename))
+    prev_event = None
+    for event in data["events"]:
+        event_name = event.keys()[0]
+        ev = event[event_name]
+        if event_name == estimation_event_type:
+            if prev_event is None:
+                ev["Estimate"] = "0.0"
+            else:
+                ev["Estimate"] = str(estimate_event_utility(prev_event, ev))
+            prev_event = ev
+    with open("est_" + filename, "w") as outfile:
+        json.dump(data, outfile, indent=4)
 
 def train_on_event(event):
     pcc_addon.give_sample(
@@ -22,21 +51,75 @@ def train_on_event(event):
         float(event["Avg RTT"]),
         float(event["Loss Rate"]),
         float(event["Latency Inflation"]),
-        float(event["Utility"]),
+        float(event[utility_func]),
         True)
 
-def train_on_log_file(filename):
+def prepare_dataset(filename):
     data = json.load(open(filename))
+    inputs = []
+    output = []
+    prev_event = None
     for event in data["events"]:
+        event_name = event.keys()[0]
+        ev = event[event_name]
+        if event_name == training_event_type:
+            if prev_event is not None:
+                old_rate = float(prev_event["Target Rate"]) / 1000000000.0
+                avg_rtt = float(prev_event["Avg RTT"]) / 1000000.0
+                loss_rate = float(prev_event["Loss Rate"])
+                lat_infl = float(prev_event["Latency Inflation"])
+                new_rate = float(ev["Target Rate"]) / 1000000000.0
+                inputs.append([old_rate, avg_rtt, loss_rate, lat_infl, new_rate])
+                output.append(float(ev[utility_func]))
+            prev_event = ev
+     
+    dataset = {"inputs":inputs, "output":output}
+    #return dataset
+    return data
+
+def train_on_dataset(dataset):
+    #pcc_addon.train_on_dataset(dataset)
+    #"""
+    for event in dataset["events"]:
         event_name = event.keys()[0]
         if event_name == training_event_type:
             train_on_event(event[event_name])
+    #"""
+
+def compute_event_error(event):
+    val = float(event[utility_func])
+    est = float(event["Estimate"])
+    if est == 0.0:
+        return 0.0
+    return 0.5 * math.sqrt((val - est) * (val - est))
+
+def compute_log_estimate_error(estimation):
+    error = 0.0
+    event_count = 0
+    for event in estimation["events"]:
+        event_name = event.keys()[0]
+        if event_name == training_event_type:
+            error += compute_event_error(event[event_name])
+            event_count += 1
+    return error / event_count
+
+def test_on_data_set(filename):
+    estimate_log_file(filename)
+    estimation = json.load(open("est_" + filename))
+    error = compute_log_estimate_error(estimation)
+    print str(error)
+    #print "Error: " + str(error)
+
+datasets = []
+for log_file in log_files:
+    datasets.append(prepare_dataset(sys.argv[1] + "/" + log_file))
 
 for i in range(0, iterations):
-    for filename in log_files:
-        train_on_log_file(filename)
+    #print "\t--- Iteration " + str(i) + " ---"
+    if i % 10 == 0:
+        if len(sys.argv) > 3:
+            test_on_data_set(sys.argv[3])
+    for dataset in datasets:
+        train_on_dataset(dataset)
 
-pcc_addon.give_sample(80000000.0, 30000.0, 0.0, 0.0, 80.0, False)
-pcc_addon.get_rate()
 pcc_addon.save_model()
-pcc_addon.save_context_table()

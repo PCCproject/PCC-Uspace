@@ -14,6 +14,7 @@
 #include "pcc_sender.h"
 #include "pcc_logger.h"
 #include "stdlib.h"
+#include <random>
 #endif
 
 #include <algorithm>
@@ -56,6 +57,11 @@ const float kNumMicrosPerSecond = 1000000.0f;
 const size_t kDefaultTCPMSS = 1400;
 // An inital RTT value to use (10ms)
 const size_t kInitialRttMicroseconds = 1 * 1000;
+// Chance to make a random choice between 0 and 2x current rate.
+float kRandomChoice = 0.0;
+std::random_device kChoiceGenDevice;
+std::mt19937 kChoiceGen(kChoiceGenDevice());
+std::uniform_real_distribution<> kChoiceGenDis(0.0, 1.0);
 #endif
 // Step size for rate change in PROBING mode.
 float kProbingStepSize = 0.05f;
@@ -124,6 +130,10 @@ bool PccSender::ReadRateControlParams() {
     if (arg_min_rate != NULL) {
         kMinSendingRate = atoi(arg_min_rate);
     }
+    const char* arg_p_rand_rate = Options::Get("--p-rand-rate=");
+    if (arg_p_rand_rate != NULL) {
+        kRandomChoice = atof(arg_p_rand_rate);
+    }
 
     PccLoggableEvent event("Rate Control Parameters", "-LOG_RATE_CONTROL_PARAMS");
     event.AddValue("Monitor Interval Duration", kMonitorIntervalDuration);
@@ -136,6 +146,7 @@ bool PccSender::ReadRateControlParams() {
     event.AddValue("Number Of Interval Groups In Probing", kNumIntervalGroupsInProbing);
     event.AddValue("Minimum Packets Per Interval", kMinimumPacketsPerInterval);
     event.AddValue("Minimum Sending Rate", kMinSendingRate);
+    event.AddValue("Probability of Random Rate", kRandomChoice);
     this->log->LogEvent(event);
     
     return true;
@@ -824,7 +835,14 @@ void PccSender::EnterDecisionMade(QuicBandwidth new_rate) {
   #ifdef QUIC_PORT
   DCHECK_EQ(PROBING, mode_);
   #endif
+
   sending_rate_ = new_rate;
+  #ifndef QUIC_PORT
+    float val = kChoiceGenDis(kChoiceGen);
+    if (val < kRandomChoice){
+      sending_rate_ = kChoiceGenDis(kChoiceGen) * 2.0 * sending_rate_;
+    }
+  #endif
   #if ! defined(QUIC_PORT)
     PccLoggableEvent event("PCC State Change", "-DEBUG_PCC_STATE_MACHINE");
     event.AddValue("Old State", mode_);

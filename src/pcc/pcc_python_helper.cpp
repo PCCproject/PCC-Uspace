@@ -67,7 +67,8 @@ void PccPythonHelper::GiveSample(double sending_rate, double latency, double los
     Py_DECREF(loss_rate_value);
     Py_DECREF(latency_inflation_value);
     Py_DECREF(utility_value);
-    Py_DECREF(args);
+    // Py_DECREF(args); // This line causes segfaults for some reason. I'm not sure why, but it has something to do with
+    // reference counting in the python interpreter.
     Py_DECREF(result);
 }
 

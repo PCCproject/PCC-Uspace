@@ -210,9 +210,12 @@ void PccMonitorIntervalQueue::OnPacketSent(QuicTime sent_time,
   monitor_intervals_.back().last_packet_number = packet_number;
   monitor_intervals_.back().bytes_sent += bytes;
   ++monitor_intervals_.back().n_packets;
-  #if ! defined(QUIC_PORT) && defined(DEBUG_INTERVAL_SIZE)
+  #if ! defined(QUIC_PORT)
   if (monitor_intervals_.back().is_useful) {
-    std::cerr << "Added packet " << packet_number << " to monitor interval, now " << monitor_intervals_.back().bytes_sent << " bytes " << std::endl;
+    //std::cerr << "Added packet " << packet_number << " to monitor interval, now " << monitor_intervals_.back().bytes_sent << " bytes " << std::endl;
+  } else {
+    PccLoggableEvent event("Skipped Packet", "-DEBUG_UTILITY_CALC");
+    delegate_->log->LogEvent(event);
   }
   #endif
 }
@@ -474,7 +477,7 @@ bool PccMonitorIntervalQueue::CalculateUtility(MonitorInterval* interval) {
   }
   alpha *= latency_sensitivity;
   float beta = 20.0;
-  float inverted_exponent_utility = sending_rate_bps / (exp(alpha * avg_rtt + beta * loss_rate));
+  float inverted_exponent_utility = sending_rate_bps / (exp(alpha * avg_rtt + beta * ((float)bytes_lost / (float)(bytes_sent - bytes_lost))));
   float pccv1_const = 11.35;
   float pccv1_utility = sending_rate_bps * (1.0 - loss_rate) * (1.0 / (1.0 + exp(pccv1_const * (loss_rate - 0.05)))) - sending_rate_bps * loss_rate;
 
