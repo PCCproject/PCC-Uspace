@@ -1,9 +1,10 @@
 from gym.envs.registration import register
+import src.pcc_addon
 
 register(
     id='PCCEnv-v0',
-    entry_point='impl.pcc_env.pcc_env:PccEnv',
-    kwargs={'log_file' : '<log address>', 'epsilon' : 4, 'k' : 2},
+    entry_point='impl.pcc_env.pcc_log_env:PccLogEnv',
+    kwargs={'log_file' : 'logs/pcc_log_1516039168.txt', 'epsilon' : 4, 'k' : 2},
     max_episode_steps=100,
     reward_threshold=0.78, # optimum = .8196
 )
