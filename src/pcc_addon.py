@@ -53,7 +53,7 @@ opt = tf.train.AdamOptimizer().minimize(mse)
 net = tf.Session()
 
 if os.path.isfile("./pcc_model.nn.meta"):
-    print "Restoring session..."
+    print("Restoring session...")
     tf.train.Saver().restore(net, "./pcc_model.nn")
     #print "Loaded session:"
     out_weights = W_out.eval(session=net)
@@ -181,7 +181,7 @@ use_context_table = False
 if ("--python-context-table" in sys.argv):
     use_context_table = True
     load_context_table()
-    print "USING PYTHON CONTEXT TABLE"
+    print("USING PYTHON CONTEXT TABLE")
 
 def train_on_dataset(dataset):
     net.run(opt, feed_dict={inputs:dataset["inputs"], output:dataset["output"]})
@@ -266,7 +266,7 @@ def save_model():
 
 # Sanity checking code below
 def sanity_check():
-    print "Giving reward..."
+    print("Giving reward...")
     start_time = time.time()
     for i in range(0, 10000):
         pass
@@ -274,19 +274,19 @@ def sanity_check():
         give_reward(99000000.0, 30000.0, 0.0, 0.0, 104000000.0, 104.0)
     end_time = time.time()
     total_time = end_time - start_time
-    print "Time elapsed = " + str(total_time) + ", time per reward = " + str(total_time / 20000.0)
-    print "Giving sample..."
+    print("Time elapsed = " + str(total_time) + ", time per reward = " + str(total_time / 20000.0))
+    print("Giving sample...")
     give_sample(99000000.0, 30000.0, 0.0, 0.0, 99.0, False)
-    print "Chosen rate is:" + str(get_rate())
+    print("Chosen rate is:" + str(get_rate()))
     start_time = time.time()
     for i in range(0, 100):
         get_rate()
         pass
     end_time = time.time()
     total_time = end_time - start_time
-    print "Time elapsed = " + str(total_time) + ", time per rate decision = " + str(total_time / 100.0)
+    print("Time elapsed = " + str(total_time) + ", time per rate decision = " + str(total_time / 100.0))
     out_weights = W_out.eval(session=net)
-    print out_weights
+    print(out_weights)
     save_model()
 
 #sanity_check()
