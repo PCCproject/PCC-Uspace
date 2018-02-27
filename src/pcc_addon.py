@@ -191,7 +191,7 @@ use_context_table = False
 if ("--python-context-table" in sys.argv):
     use_context_table = True
     load_context_table()
-    print "USING PYTHON CONTEXT TABLE"
+    print("USING PYTHON CONTEXT TABLE")
 
 def train_on_dataset(dataset):
     net.run(opt, feed_dict={inputs:dataset["inputs"], output:dataset["output"]})

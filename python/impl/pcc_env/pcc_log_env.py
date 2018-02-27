@@ -4,6 +4,8 @@ import gym
 from gym import error, spaces
 from gym import utils
 from gym.utils import seeding
+import json
+import src.pcc_addon
 
 
 # This is a copy of the Atari env from gym/envs/atari/atari_env- awaiting implementation. NHR
@@ -16,14 +18,15 @@ except ImportError as e:
 import logging
 logger = logging.getLogger(__name__)
 
-def to_ram(ale):
-    ram_size = ale.getRAMSize()
-    ram = np.zeros((ram_size),dtype=np.uint8)
-    ale.getRAM(ram)
-    return ram
+# def to_ram(ale):
+#     ram_size = ale.getRAMSize()
+#     ram = np.zeros((ram_size),dtype=np.uint8)
+#     ale.getRAM(ram)
+#     return ram
 
 
-class PccEnv(gym.Env, utils.EzPickle):
+class PccLogEnv(gym.Env, utils.EzPickle):
+    training_event_type = "Calculate Utility"
 
     # And set the following attributes:
     #
@@ -34,18 +37,39 @@ class PccEnv(gym.Env, utils.EzPickle):
     # Note: a default reward range set to [-inf,+inf] already exists. Set it if you want a narrower range.
     ## Here we need to get the log somehow
     def __init__(self, log_file, epsilon, k):
-        # self._action_set = [prev_rate+epsilon, prev_rate-epsilon] ### Maybe we need a general rate range?
         # self.action_space = spaces.Box(low=-epsilon, high=epsilon, shape=(1,))
-        self.action_space = spaces.Discrete(2)
+        # self.action_space = spaces.Discrete(2)
+        self.action_space = spaces.Box(0,200,1)
         print("DEBUG:: log file is: ", log_file, ", epsilon is", epsilon, "action space low: ", self.action_space)
         self.observation_space = spaces.Tuple((
-            spaces.Box(0, 150.0, k),  # Sending rates
+            # spaces.Box(0, 150.0, k),  # Sending rates
             spaces.Box(0, 100.0, k),  # Loss rates
             spaces.Box(0, -5, k),  # Latency
             spaces.Box(-1, 1, k),  # Loss gradient
             spaces.Box(-1.0, 1.0, k),  # Latency gradient
             ))
-        print(self.observation_space)
+        # print(self.observation_space)
+        self.log_file = log_file
+        self.log_entries = []
+        self.current_index = 0
+        self.observations = []
+        self.rewards = []
+        self.actions = []
+        data = json.load(open(self.log_file))
+        for event in data["events"]:
+            event_name = list(event.keys())[0]
+            if event_name == self.training_event_type:
+                header = event[event_name]
+                self.actions.append(float(header["Target Rate"]))
+                self.observations.append([float(header["Avg RTT"]),
+                                        float(header["Loss Rate"]),
+                                        float(header["Latency Inflation"])])
+                self.rewards.append(float(header["Utility"]))
+        print("actions: ", self.actions)
+        print("observations: ", self.observations)
+        print("rewards: ", self.rewards)
+
+
 
 
     def _seed(self, seed=None):
@@ -60,11 +84,16 @@ class PccEnv(gym.Env, utils.EzPickle):
         return [seed1, seed2]
 
     def _step(self, a):
-        action = self._action_set[a]
+        # action = self._action_set[a]
+
 
         ### Now, run the rate, and get the reward - Nathan, can you fill that part in?
-        reward = 0.0
-        ob = self._get_obs()
+        # src.pcc_addon.give_reward()
+
+        ob = self.observations[self.current_index]
+        reward = self.rewards[self.current_index]
+
+        self.current_index += 1
 
         return ob, reward
 

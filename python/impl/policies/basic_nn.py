@@ -18,9 +18,11 @@ class BasicNNPolicy(object):
         self.pdtype = pdtype = make_pdtype(ac_space)
         sequence_length = None
 
-        ob = U.get_placeholder(name="ob", dtype=tf.float32, shape=[sequence_length] + list(ob_space.shape))
+        # ob = U.get_placeholder(name="ob", dtype=tf.float32, shape=[sequence_length] + list(ob_space.shape))
+        ob = U.get_placeholder(name="ob", dtype=tf.float32, shape=[sequence_length] )
 
         # obscaled = ob / 255.0
+        obscaled = ob
 
         # with tf.variable_scope("pol"):
         #     x = obscaled
@@ -38,13 +40,42 @@ class BasicNNPolicy(object):
         #     x = tf.nn.relu(U.dense(x, 128, 'lin', U.normc_initializer(1.0)))
         #     self.vpred = U.dense(x, 1, "value", U.normc_initializer(1.0))
         #     self.vpredz = self.vpred
+
+        n_fields = 5
+        inputs = tf.placeholder(dtype=tf.float32, shape=[1, n_fields])
+        output = tf.placeholder(dtype=tf.float32, shape=[None])
+
+        n_neurons_1 = 64
+        n_neurons_2 = 32
+        n_target = 1
+
+        sigma = 1
+        weight_initializer = tf.variance_scaling_initializer(mode="fan_avg", distribution="uniform", scale=sigma)
+        bias_initializer = tf.zeros_initializer()
+
+        W_hidden_1 = tf.Variable(weight_initializer([n_fields, n_neurons_1]))
+        bias_hidden_1 = tf.Variable(bias_initializer([n_neurons_1]))
+
+        W_hidden_2 = tf.Variable(weight_initializer([n_neurons_1, n_neurons_2]))
+        bias_hidden_2 = tf.Variable(bias_initializer([n_neurons_2]))
+
+        W_out = tf.Variable(weight_initializer([n_neurons_2, n_target]))
+        bias_out = tf.Variable(bias_initializer([n_target]))
+
+        hidden_1 = tf.nn.relu(tf.add(tf.matmul(inputs, W_hidden_1), bias_hidden_1))
+        hidden_2 = tf.nn.relu(tf.add(tf.matmul(hidden_1, W_hidden_2), bias_hidden_2))
+        out = tf.transpose(tf.add(tf.matmul(hidden_2, W_out), bias_out))
+
+        # mse = tf.reduce_mean(# How do I tell it what rate it should have chosen? #)
+        mse = tf.reduce_mean(tf.squared_difference(out, output))
+
+        self.state_in = []
+        self.state_out = []
         #
-        # self.state_in = []
-        # self.state_out = []
-        #
-        # stochastic = tf.placeholder(dtype=tf.bool, shape=())
+        stochastic = tf.placeholder(dtype=tf.bool, shape=())
         # ac = self.pd.sample()
-        self._act = U.function([stochastic, ob], [ac, self.vpred])
+        ac = ac_space.sample()
+        # self._act = U.function([stochastic, ob], [ac, self.vpred])
 
     def act(self, stochastic, ob):
         ac1, vpred1 = self._act(stochastic, ob[None])
