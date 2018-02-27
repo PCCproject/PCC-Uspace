@@ -38,6 +38,7 @@ def graph_net_estimates(title):
     fig.suptitle(title)
     plt.show()
 
+"""
 contexts = [
 {"Target Rate":22400000.0,
 "Avg RTT":30713.5,
@@ -58,6 +59,30 @@ contexts = [
 "Vivace Latency Utility":52000000,
 "Title":"Estimated Utility By Rate (85% link bandwidth, 5.3% latency deflation)"}
 ]
+"""
+
+def give_event_sample(event):
+    pcc_addon.give_sample(
+        float(event["Target Rate"]),
+        float(event["Avg RTT"]),
+        float(event["Loss Rate"]),
+        float(event["Latency Inflation"]),
+        float(event[utility_func]),
+        False)
+
+def graph_estimates_for_log_file(filename):
+    pcc_addon.clear_history()
+    data = json.load(open(filename))
+    for event in data["events"]:
+        event_name = event.keys()[0]
+        ev = event[event_name]
+        if event_name == estimation_event_type:
+            ev["Estimate"] = str(pcc_addon.predict_utility(float(ev["Target Rate"]) / 1000000000.0))
+            give_event_sample(ev)
+    with open("est_" + filename, "w") as outfile:
+        json.dump(data, outfile, indent=4)
+    pcc_addon.clear_history()
+
 
 for context in contexts:
     give_net_context(context)

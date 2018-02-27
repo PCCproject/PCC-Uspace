@@ -24,7 +24,6 @@ for filename in log_files:
     if len(log.dict.keys()) > 0:
         experiment_logs.append(log)
 
-
 graph_config = json.load(open(sys.argv[2]))
 legend_param = graph_config["legend param"]
 title = graph_config["title"] + " (by " + legend_param + ")"
@@ -36,7 +35,9 @@ for log in experiment_logs:
 
 if "log filters" in graph_config.keys():
     pcc_filter = PccLogFilter(graph_config["log filters"])
+    print "Before filtering, have " + str(len(experiment_logs)) + " logs"
     experiment_logs = pcc_filter.apply_filter(experiment_logs)
+    print "After filtering, have " + str(len(experiment_logs)) + " logs"
 
 event_filters = None
 if "event filters" in graph_config.keys():
@@ -45,8 +46,6 @@ if "event filters" in graph_config.keys():
         for log in experiment_logs:
             event_filter.apply_filter(log)
 
-    
-
 for log in experiment_logs:
     if event_type not in log.get_event_types():
         experiment_logs.remove(log)
@@ -54,6 +53,38 @@ for log in experiment_logs:
 legend = []
 for log in experiment_logs:
     legend.append(str(log.get_param(legend_param)))
+
+model = None
+if "model" in graph_config.keys():
+    model = graph_config["model"]
+    import pcc_addon
+
+pypath = None
+if "pypath" in graph_config.keys():
+    pypath = graph_config["pypath"]
+
+def give_net_context(context):
+    pcc_addon.give_sample(
+        context["Target Rate"],
+        context["Avg RTT"],
+        context["Loss Rate"],
+        context["Latency Inflation"],
+        context["Vivace Latency Utility"],
+        False)
+
+def graph_net_estimates(plot):
+    x_values = []
+    y_values = []
+    for i in range(0, 200):
+        x = 1000000.0 * i
+        y = pcc_addon.predict_utility(x / 1000000000.0)
+        x_values.append(x)
+        y_values.append(y)
+    y_axis_name = "Expected Utility"
+    x_axis_name = "Next Sending Rate"
+    plot.set_ylabel(y_axis_name)
+    plot.set_xlabel(x_axis_name)
+    plot.plot(x_values, y_values)
 
 if graph_config["type"] == "summary":
     legend = []
@@ -83,7 +114,7 @@ if graph_config["type"] == "summary":
         if "param" in graph_config["x-axis"].keys():
             x_axis_name = graph_config["x-axis"]["param"]
             for log in experiment_logs:
-                x_axis_values.append(log.get_param(graph_config["x-axis"]))
+                x_axis_values.append(float(log.get_param(x_axis_name)))
 
         if "stat" in graph_config["x-axis"].keys():
             x_axis_obj = graph_config["x-axis"]
@@ -142,6 +173,7 @@ if graph_config["type"] == "summary":
     plt.show()
     #plt.savefig("graph.png")
 
+model_event_num = 0
 if graph_config["type"] == "event":
     legend = []
     for log in experiment_logs:
@@ -154,22 +186,33 @@ if graph_config["type"] == "event":
     latencies = []
     x_axis_values = []
     y_axis_values = []
+    model_event_time = 0.0
     for l in range(0, len(experiment_logs)):
         experiment_log = experiment_logs[l]
         this_log_x_axis_values = []
         this_log_y_axis_values = {}
         for y_axis_name in y_axis_names:
             this_log_y_axis_values[y_axis_name] = []
+        event_num = 0
         for event in experiment_log.get_event_list(event_type):
             this_event = event
             this_log_x_axis_values.append(float(this_event[x_axis_name]))
             for k in this_log_y_axis_values.keys():
                 this_log_y_axis_values[k].append(float(this_event[k]))
+            if event_num < model_event_num:
+                give_net_context(event) 
+            elif event_num == model_event_num:
+                model_even_time = float(event["Time"])
+            event_num += 1
         x_axis_values.append(this_log_x_axis_values) 
         y_axis_values.append(this_log_y_axis_values) 
         
 
-    fig, axes = plt.subplots(len(y_axis_values[0].keys()), sharex=True)
+    add_model_plot = (model is not None)
+    n_plots = len(y_axis_values[0].keys())
+    if add_model_plot:
+        n_plots += 1
+    fig, axes = plt.subplots(n_plots)#, sharex=True)
     for i in range(0, len(y_axis_names)):
         y_axis_name = y_axis_names[i]
         handles = []
@@ -196,6 +239,9 @@ if graph_config["type"] == "event":
                 handles.append(handle)
                 plt.legend(handles, legend)
                 axes[i].set_ylabel(y_axis_name)
+                #axes[i].set_xticklabels([])
+                if add_model_plot:
+                    axes[i].axvline(model_event_time, color='r')
             else:
                 if x_axis_name == "Time":
                     if "point event" in graph_config.keys():
@@ -217,10 +263,16 @@ if graph_config["type"] == "event":
                 plt.legend(handles, legend)
                 axes.set_ylabel(y_axis_name)
     
-    if len(y_axis_names) > 1:
-        axes[-1].set_xlabel(x_axis_name)
+    if add_model_plot:
+        graph_net_estimates(axes[-1]) 
+        if len(y_axis_names) > 1:
+            axes[-2].set_xlabel(x_axis_name)
+        pass
     else:
-        axes.set_xlabel(x_axis_name)
+        if len(y_axis_names) > 1:
+            axes[-1].set_xlabel(x_axis_name)
+        else:
+            axes.set_xlabel(x_axis_name)
     fig.suptitle(title)
     plt.show()
     #plt.savefig("graph.png")

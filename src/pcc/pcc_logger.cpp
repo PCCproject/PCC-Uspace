@@ -108,6 +108,7 @@ void PccEventLogger::LogEvent(const PccLoggableEvent& event) {
     if (!event.IsActive()) {
         return;
     }
+    std::lock_guard<std::mutex> locked(log_lock);
     if (!first_line) {
         output_file_ << ",";
     } else {

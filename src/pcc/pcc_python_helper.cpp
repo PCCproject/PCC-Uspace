@@ -12,14 +12,14 @@ PccPythonHelper::PccPythonHelper(const std::string& python_filename) {
         sprintf(&python_path_cmd_buf[0], "sys.path.append(\"%s\")", python_path_arg);
         PyRun_SimpleString(&python_path_cmd_buf[0]);
     }
-    PyObject* module_name = PyString_FromString(python_filename.c_str());
-    module = PyImport_Import(module_name);
+    //PyObject* module_name = PyString_FromString(python_filename.c_str());
+    module = PyImport_ImportModule(python_filename.c_str());
     if (module == NULL) {
         std::cerr << "ERROR: Could not load python module: " << python_filename << std::endl;
         PyErr_Print();
         exit(-1);
     }
-    Py_DECREF(module_name);
+    //Py_DECREF(module_name);
     give_sample_func = PyObject_GetAttrString(module, "give_sample");
     if (give_sample_func == NULL) {
         std::cerr << "ERROR: Could not load python function: give_sample" << std::endl;

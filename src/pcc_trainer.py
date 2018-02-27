@@ -18,7 +18,7 @@ log_files = os.listdir(sys.argv[1])
 
 estimation_event_type = "Calculate Utility"
 
-
+"""
 def estimate_event_utility(prev_event, event):
     pcc_addon.give_sample(
         float(prev_event["Target Rate"]),
@@ -44,6 +44,28 @@ def estimate_log_file(filename):
             prev_event = ev
     with open("est_" + filename, "w") as outfile:
         json.dump(data, outfile, indent=4)
+"""
+def give_event_sample(event):
+    pcc_addon.give_sample(
+        float(event["Target Rate"]),
+        float(event["Avg RTT"]),
+        float(event["Loss Rate"]),
+        float(event["Latency Inflation"]),
+        float(event[utility_func]),
+        False)
+
+def estimate_log_file(filename):
+    pcc_addon.clear_history()
+    data = json.load(open(filename))
+    for event in data["events"]:
+        event_name = event.keys()[0]
+        ev = event[event_name]
+        if event_name == estimation_event_type:
+            ev["Estimate"] = str(pcc_addon.predict_utility(float(ev["Target Rate"]) / 1000000000.0))
+            give_event_sample(ev)
+    with open("est_" + filename, "w") as outfile:
+        json.dump(data, outfile, indent=4)
+    pcc_addon.clear_history()
 
 def train_on_event(event):
     pcc_addon.give_sample(
@@ -86,12 +108,14 @@ def train_on_dataset(dataset):
             train_on_event(event[event_name])
     #"""
 
+"""
 def compute_event_error(event):
     val = float(event[utility_func])
     est = float(event["Estimate"])
     if est == 0.0:
         return 0.0
     return 0.5 * math.sqrt((val - est) * (val - est))
+
 
 def compute_log_estimate_error(estimation):
     error = 0.0
@@ -100,6 +124,35 @@ def compute_log_estimate_error(estimation):
         event_name = event.keys()[0]
         if event_name == training_event_type:
             error += compute_event_error(event[event_name])
+            event_count += 1
+    return error / event_count
+"""
+def compute_event_error(events, i):
+    est = float(events[i]["Estimate"])
+    if est == -1.0 or len(events) < i + pcc_addon.prediction_history_len:
+        return -1.0
+    utility_sum = 0
+    utility_count = 0
+    for j in range(0, pcc_addon.prediction_history_len):
+        utility_sum += float(events[i + j][utility_func])
+        utility_count += 1
+    val = utility_sum / float(utility_count)
+
+    return 0.5 * math.sqrt((val - est) * (val - est))
+
+def compute_log_estimate_error(estimation):
+    error = 0.0
+    event_count = 0
+    events = []
+    for event in estimation["events"]:
+        event_name = event.keys()[0]
+        if event_name == training_event_type:
+            events.append(event[event_name])
+
+    for i in range(0, len(events)):
+        this_error = compute_event_error(events, i)
+        if this_error >= 0:
+            error += this_error
             event_count += 1
     return error / event_count
 

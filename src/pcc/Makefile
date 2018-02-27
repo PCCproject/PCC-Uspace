@@ -36,7 +36,7 @@ DIR = $(shell pwd)
 all: $(OBJS)
 
 %.o: %.cpp %.h
-	$(C++) $(CCFLAGS) -I/usr/include/python2.7 $< -c -lpython2.7 -static
+	$(C++) $(CCFLAGS) -I/usr/include/python3.5 $< -c -lpython3.5 -static
 
 clean:
 	rm -f *.o

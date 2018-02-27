@@ -40,9 +40,9 @@ all: libudt.so libudt.a udt
 
 libudt.so: $(OBJS)
 ifneq ($(os), OSX)
-	$(C++) -shared -o $@ $^ -lpython2.7
+	$(C++) -shared -o $@ $^ -L/usr/lib/python3.5/config-3.5m-x86_64-linux-gnu/ -lpython3.5
 else
-	$(C++) -dynamiclib -o libudt.dylib -lstdc++ -lpthread -lm $^ -lpython2.7 
+	$(C++) -dynamiclib -o libudt.dylib -lstdc++ -lpthread -lm $^ -lpython3.5 
 endif
 
 libudt.a: $(OBJS)

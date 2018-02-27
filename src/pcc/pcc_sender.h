@@ -205,6 +205,9 @@ class QUIC_EXPORT_PRIVATE PccSender
 
   // Returns true if the sender can enter DECISION_MADE from PROBING mode.
   bool CanMakeDecision(const std::vector<UtilityInfo>& utility_info) const;
+  // Returns true if the probe returned consistent data that can be used to
+  // make a (hopefully) reasonable decision.
+  bool IsProbeConclusive(const std::vector<UtilityInfo>& utility_info) const;
   // Set the sending rate to the central rate used in PROBING mode.
   void EnterProbing();
   // Set the sending rate when entering DECISION_MADE from PROBING mode.

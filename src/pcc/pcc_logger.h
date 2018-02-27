@@ -9,6 +9,7 @@
 #include "../core/options.h"
 #include <iostream>
 #include <fstream>
+#include <mutex>
 #include <sstream>
 #define QUIC_EXPORT_PRIVATE
 
@@ -41,6 +42,7 @@ class QUIC_EXPORT_PRIVATE PccEventLogger {
   std::ofstream output_file_;
   bool first_line;
   uint64_t start_time;
+  std::mutex log_lock;
 };
 
 template <typename ValueType>

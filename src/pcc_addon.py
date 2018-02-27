@@ -3,9 +3,14 @@ import time
 import os
 import sys
 import json
+import numpy as np
+
+input_history_len = 5
+prediction_history_len = 2
 
 n_fields = 5
-inputs = tf.placeholder(dtype=tf.float32, shape=[1, n_fields])
+n_inputs = n_fields * input_history_len + 1
+inputs = tf.placeholder(dtype=tf.float32, shape=[1, n_inputs])
 output = tf.placeholder(dtype=tf.float32, shape=[None])
 
 n_neurons = [
@@ -29,7 +34,7 @@ bias_initializer = tf.zeros_initializer()
 
 w = []
 bias = []
-prev_size = n_fields
+prev_size = n_inputs
 for i in range(0, len(n_neurons)):
     w.append(tf.Variable(weight_initializer([prev_size, n_neurons[i]])))
     bias.append(tf.Variable(bias_initializer([n_neurons[i]])))
@@ -52,9 +57,14 @@ opt = tf.train.AdamOptimizer().minimize(mse)
 
 net = tf.Session()
 
-if os.path.isfile("./pcc_model.nn.meta"):
+history_len = input_history_len + prediction_history_len
+pypath = "./"
+for arg in sys.argv:
+    if "-pypath=" in arg:
+        pypath = arg[8:]
+if os.path.isfile(pypath + "pcc_model.nn.meta"):
     print "Restoring session..."
-    tf.train.Saver().restore(net, "./pcc_model.nn")
+    tf.train.Saver().restore(net, pypath + "pcc_model.nn")
     #print "Loaded session:"
     out_weights = W_out.eval(session=net)
     #print out_weights
@@ -63,11 +73,7 @@ else:
     net.run(tf.global_variables_initializer())
 
 next_rate = 1.0
-
-rate = -1.0
-lat = 0.0
-loss = 0.0
-lat_infl = 0.0
+history = []
 
 rate_step = 5000000.0
 latency_step = 1000.0
@@ -75,6 +81,10 @@ loss_step = 0.01
 lat_infl_step = 0.01
 
 context_table = {}
+
+always_learn_online = False
+if "--online-learning" in sys.argv:
+    always_learn_online = True
 
 def round_rate(rate):
     global rate_step
@@ -186,43 +196,80 @@ if ("--python-context-table" in sys.argv):
 def train_on_dataset(dataset):
     net.run(opt, feed_dict={inputs:dataset["inputs"], output:dataset["output"]})
 
-def give_reward(sending_rate, latency, loss_rate, latency_inflation, new_sending_rate, utility):
+def give_reward():
     #print "rate=" + str(sending_rate / 1000000.0) + ", lat=" + str(latency) + ", loss=" + str(loss_rate) + ", " + str(new_sending_rate / 1000000.0) + ", util=" + str(utility)
     global use_context_table
+    global prediction_history_len
+    global history
     if use_context_table:
-        context_table_give_reward(rate, latency, loss, latency_inflation, new_sending_rate, utility);
+        #context_table_give_reward(rate, latency, loss, latency_inflation, new_sending_rate, utility);
+        pass
     else:
-        net.run(opt, feed_dict={inputs: [[sending_rate / 1000000000.0, latency / 1000000.0, loss_rate,
-        latency_inflation, new_sending_rate / 1000000000.0]], output: [utility]})
+        if (len(history) < history_len):
+            return
+        pred_inputs = flatten_history(prediction_history_len)
+        #pred_inputs = pred_inputs[:-1]
+        pred_inputs.append(history[-1 * prediction_history_len][0])
+        utilities = []
+        for i in range(1, prediction_history_len + 1):
+            utilities.append(history[-1 * i][4])
+        utility_avg = sum(utilities) / float(len(utilities))
+        utility_var = np.var(utilities)
+        utility_min = min(utilities)
+        utility_max = max(utilities)
+        utility_range = utility_max - utility_min
+        #print "==================== "
+        #print " Giving reward with inputs: "
+        #print "==================== "
+        #print pred_inputs
+        #print "Reward: " + str(utility_avg)
+        net.run(opt, feed_dict={inputs: [pred_inputs], output: [1000000000.0 * utility_avg]})
 
 def give_sample(sending_rate, latency, loss_rate, latency_inflation, utility, auto_reward=False):
-    global rate
-    global lat
-    global loss
-    global lat_infl
-    if (auto_reward == True) and (rate >= 0.0):
-        give_reward(rate * 1000000000.0, lat * 1000000.0, loss, lat_infl, sending_rate, utility)
-    rate = sending_rate / 1000000000.0
-    lat = latency / 1000000.0
-    loss = loss_rate
-    lat_infl = latency_inflation
+    update_history(sending_rate / 1000000000.0, latency / 1000000.0, loss_rate, latency_inflation, utility / 1000000000.0)
+    if auto_reward or always_learn_online:
+        give_reward()
+
+def clear_history():
+    global history
+    history = []
 
 def predict_utility(new_sending_rate):
-    global rate
-    global lat
-    global loss
-    global lat_infl
-    #print str(rate) + " @ " + str(lat) + " --> " + str(new_sending_rate)
-    new_utility = net.run(out, feed_dict={inputs: [[rate, lat, loss, lat_infl, new_sending_rate]]})
+    if len(history) < input_history_len:
+        return -1.0
+    pred_inputs = flatten_history(0)
+    #pred_inputs = pred_inputs[:-1]
+    pred_inputs.append(new_sending_rate)
+    #print "==================== "
+    #print " Predicting utility with inputs: "
+    #print "==================== "
+    #print pred_inputs
+    new_utility = net.run(out, feed_dict={inputs: [pred_inputs]})
     return new_utility[0][0]
 
+def update_history(rate, lat, loss, lat_infl, util):
+    if (len(history) >= history_len):
+        history.pop(0)
+    history.append([rate, lat, loss, lat_infl, util])
+    #print "==================== "
+    #print " History updated to: "
+    #print "==================== "
+    #for h in history:
+    #    print h
+
+def flatten_history(offset):
+    global history
+    global input_history_len
+    if offset == 0:
+        return [item for sublist in history[-1 * input_history_len:] for item in sublist]
+    return [item for sublist in history[-1 * input_history_len - offset: -1 * offset] for item in sublist]
+
 def get_rate():
-    global rate
-    global lat
-    global loss
-    global lat_infl
+    global history
+    rate = history[-1][0]
     if use_context_table:
-        return context_table_get_best_rate(rate, lat, loss, lat_infl)
+        #return context_table_get_best_rate(rate, lat, loss, lat_infl)
+        pass
     else:
         step = 0.05
         best_rate = rate
@@ -244,49 +291,11 @@ def get_rate():
                 if expected_utility > best_utility:
                     best_rate = possible_rate
                     best_utility = expected_utility
-        """
-        possible_rates = []
-        possible_utilities = []
-        for i in range(-3, 3):
-            possible_rates.append(rate * (1.0 + 0.1 * i))
-        for possible_rate in possible_rates:
-            possible_utilities.append(predict_utility(possible_rate))
-        best_utility = possible_utilities[0]
-        best_rate = possible_rates[0]
-        for i in range(1, len(possible_rates)):
-            #print "Rate: " + str(possible_rates[i]) + ", Utility: " + str(possible_utilities[i])
-            if (possible_utilities[i] > best_utility):
-                best_utility = possible_utilities[i]
-                best_rate = possible_rates[i]
-        """
+        
+        if best_utility == -1:
+            return rate * 1000000000.0
         return best_rate * 1000000000.0
 
 def save_model():
-    tf.train.Saver().save(net, "./pcc_model.nn")
-
-# Sanity checking code below
-def sanity_check():
-    print "Giving reward..."
-    start_time = time.time()
-    for i in range(0, 10000):
-        pass
-        give_reward(99000000.0, 30000.0, 0.0, 0.0, 94000000.0, 94.0)
-        give_reward(99000000.0, 30000.0, 0.0, 0.0, 104000000.0, 104.0)
-    end_time = time.time()
-    total_time = end_time - start_time
-    print "Time elapsed = " + str(total_time) + ", time per reward = " + str(total_time / 20000.0)
-    print "Giving sample..."
-    give_sample(99000000.0, 30000.0, 0.0, 0.0, 99.0, False)
-    print "Chosen rate is:" + str(get_rate())
-    start_time = time.time()
-    for i in range(0, 100):
-        get_rate()
-        pass
-    end_time = time.time()
-    total_time = end_time - start_time
-    print "Time elapsed = " + str(total_time) + ", time per rate decision = " + str(total_time / 100.0)
-    out_weights = W_out.eval(session=net)
-    print out_weights
-    save_model()
-
-#sanity_check()
+    global pypath
+    tf.train.Saver().save(net, pypath + "pcc_model.nn")

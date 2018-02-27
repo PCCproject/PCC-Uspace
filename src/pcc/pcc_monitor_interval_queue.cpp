@@ -214,7 +214,7 @@ void PccMonitorIntervalQueue::OnPacketSent(QuicTime sent_time,
   if (monitor_intervals_.back().is_useful) {
     //std::cerr << "Added packet " << packet_number << " to monitor interval, now " << monitor_intervals_.back().bytes_sent << " bytes " << std::endl;
   } else {
-    PccLoggableEvent event("Skipped Packet", "-DEBUG_UTILITY_CALC");
+    PccLoggableEvent event("Skipped Packet", "-DEBUG_PACKET_SKIP");
     delegate_->log->LogEvent(event);
   }
   #endif
@@ -477,9 +477,11 @@ bool PccMonitorIntervalQueue::CalculateUtility(MonitorInterval* interval) {
   }
   alpha *= latency_sensitivity;
   float beta = 20.0;
-  float inverted_exponent_utility = sending_rate_bps / (exp(alpha * avg_rtt + beta * ((float)bytes_lost / (float)(bytes_sent - bytes_lost))));
+  float inverted_exponent_utility = sending_rate_bps / (exp(alpha * avg_rtt + beta * (loss_rate / (1.0 - loss_rate))));
   float pccv1_const = 11.35;
   float pccv1_utility = sending_rate_bps * (1.0 - loss_rate) * (1.0 / (1.0 + exp(pccv1_const * (loss_rate - 0.05)))) - sending_rate_bps * loss_rate;
+
+  float lr_utility = pow(sending_rate_bps * (1.0 - loss_rate), 0.9) - 10000000.0 * loss_rate;
 
   float current_utility = 0.0;
   if (Options::Get("--cubed-loss-utility")) {
@@ -490,6 +492,8 @@ bool PccMonitorIntervalQueue::CalculateUtility(MonitorInterval* interval) {
     current_utility = vivace_loss_utility;
   } else if (Options::Get("--pccv1-utility")) {
     current_utility = pccv1_utility;
+  } else if (Options::Get("--lr-utility")) {
+    current_utility = lr_utility;
   } else {
     current_utility = vivace_latency_utility;
   }
@@ -501,6 +505,7 @@ bool PccMonitorIntervalQueue::CalculateUtility(MonitorInterval* interval) {
     event.AddValue("Cubed Loss Utility", cubed_loss_utility);
     event.AddValue("Inverted Exponent Utility", inverted_exponent_utility);
     event.AddValue("Pccv1 Utility", pccv1_utility);
+    event.AddValue("LR Utility", lr_utility);
     event.AddValue("Utility", current_utility);
     event.AddValue("Number of Packets", interval->n_packets);
     event.AddValue("Target Rate", interval->sending_rate);

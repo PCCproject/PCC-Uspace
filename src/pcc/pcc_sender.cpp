@@ -435,6 +435,45 @@ QuicBandwidth PccSender::ComputeRateChange(
       static_cast<float>(utility_sample_1.sending_rate - 
           utility_sample_2.sending_rate);
   #endif
+  
+  #ifndef QUIC_PORT
+  static bool use_njay_ascent = (Options::Get("--njay-ascent") != NULL);
+  static bool init_unit_step = false;
+  static float unit_step = 0.0;
+  if (!init_unit_step) {
+      unit_step = utility_sample_1.sending_rate / utility_sample_1.utility;
+      init_unit_step = true;
+  }
+  static float step_size = 5.0 * unit_step;
+  static int consecutive_changes = 3;
+  static bool last_change_pos = true;
+  if (use_njay_ascent) {
+    if (consecutive_changes > 2) {
+        step_size += unit_step;
+    } else if (step_size > 2.0 * unit_step) {
+        step_size -= unit_step;
+    }
+
+    bool this_change_pos = (utility_gradient > 0.0);
+    if (last_change_pos == this_change_pos) {
+      consecutive_changes++;
+    } else {
+      consecutive_changes = 0;
+    }
+    last_change_pos = this_change_pos;
+    PccLoggableEvent event("Compute Rate Change", "-DEBUG_RATE_CONTROL");
+    event.AddValue("Utility 1", utility_sample_1.utility);
+    event.AddValue("Utility 2", utility_sample_2.utility);
+    event.AddValue("Rate 1", utility_sample_1.sending_rate);
+    event.AddValue("Rate 2", utility_sample_2.sending_rate);
+    event.AddValue("Gradient", utility_gradient);
+    event.AddValue("Step Size", step_size);
+    event.AddValue("Consecutive Changes", step_size);
+    event.AddValue("Change", step_size * utility_gradient);
+    log->LogEvent(event);
+    return step_size * utility_gradient;
+  }
+  #endif
 
   UpdateAverageGradient(utility_gradient);
   #ifdef QUIC_PORT
@@ -614,29 +653,34 @@ void PccSender::OnUtilityAvailable(
         #ifdef QUIC_PORT
         DCHECK_EQ(2 * kNumIntervalGroupsInProbing, utility_info.size());
         #endif
-        // Enter DECISION_MADE mode if a decision is made.
-        direction_ = (utility_info[0].utility > utility_info[1].utility)
-                         ? ((utility_info[0].sending_rate >
-                             utility_info[1].sending_rate)
-                                ? INCREASE
-                                : DECREASE)
-                         : ((utility_info[0].sending_rate >
-                             utility_info[1].sending_rate)
-                                ? DECREASE
-                                : INCREASE);
-        latest_utility_info_ = 
-            utility_info[2 * kNumIntervalGroupsInProbing - 2].utility >
-            utility_info[2 * kNumIntervalGroupsInProbing - 1].utility ?
-            utility_info[2 * kNumIntervalGroupsInProbing - 2] :
-            utility_info[2 * kNumIntervalGroupsInProbing - 1];
+        if (IsProbeConclusive(utility_info)) {
+            // Enter DECISION_MADE mode if a decision is made.
+            direction_ = (utility_info[0].utility > utility_info[1].utility)
+                             ? ((utility_info[0].sending_rate >
+                                 utility_info[1].sending_rate)
+                                    ? INCREASE
+                                    : DECREASE)
+                             : ((utility_info[0].sending_rate >
+                                 utility_info[1].sending_rate)
+                                    ? DECREASE
+                                    : INCREASE);
+            latest_utility_info_ = 
+                utility_info[2 * kNumIntervalGroupsInProbing - 2].utility >
+                utility_info[2 * kNumIntervalGroupsInProbing - 1].utility ?
+                utility_info[2 * kNumIntervalGroupsInProbing - 2] :
+                utility_info[2 * kNumIntervalGroupsInProbing - 1];
 
-        QuicBandwidth rate_change = 
-            ComputeRateChange(utility_info[0], utility_info[1]);
-        if (sending_rate_ + rate_change < kMinSendingRate) {
-            rate_change = kMinSendingRate - sending_rate_;
+            QuicBandwidth rate_change = 
+                ComputeRateChange(utility_info[0], utility_info[1]);
+            if (sending_rate_ + rate_change < kMinSendingRate) {
+                rate_change = kMinSendingRate - sending_rate_;
+            }
+            previous_change_ = rate_change;
+            EnterDecisionMade(sending_rate_ + rate_change);
+        } else {
+            sending_rate_ = sending_rate_ * 0.95;
+            EnterProbing();
         }
-        previous_change_ = rate_change;
-        EnterDecisionMade(sending_rate_ + rate_change);
       } else {
         // Stays in PROBING mode.
         EnterProbing();
@@ -851,6 +895,26 @@ void PccSender::EnterDecisionMade(QuicBandwidth new_rate) {
   #endif
   mode_ = DECISION_MADE;
   rounds_ = 1;
+}
+  
+bool PccSender::IsProbeConclusive(const std::vector<UtilityInfo>& utility_info) const {
+  const UtilityInfo& reference_utility = utility_info[0];
+  bool higher_is_better = true;
+  for (int i = 1; i < utility_info.size(); ++i) {
+    if (i == 1) {
+      higher_is_better = 
+          ((reference_utility.utility > utility_info[i].utility) ==  
+            reference_utility.sending_rate > utility_info[i].sending_rate);
+    } else {
+      bool higher_better_this_trial = 
+          ((reference_utility.utility > utility_info[i].utility) ==  
+            reference_utility.sending_rate > utility_info[i].sending_rate);
+      if (higher_is_better != higher_better_this_trial) {
+        return false;
+      }
+    }
+  }
+  return true;
 }
 
 #ifdef QUIC_PORT

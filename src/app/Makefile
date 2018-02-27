@@ -26,7 +26,7 @@ ifeq ($(arch), SPARC)
    CCFLAGS += -DSPARC
 endif
 
-LDFLAGS = -L../core -lpython2.7 -ludt -lstdc++ -lpthread -lm
+LDFLAGS = -L../core -L/usr/lib/python3.5/config-3.5m-x86_64-linux-gnu/ -lpython3.5 -ludt -lstdc++ -lpthread -lm
 
 ifeq ($(os), UNIX)
    LDFLAGS += -lsocket

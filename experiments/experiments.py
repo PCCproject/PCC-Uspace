@@ -16,9 +16,8 @@ copied_paths = [
 "../src/core/*",
 "../src/pcc/*",
 "../src/Makefile",
-"../src/pcc_addon.py",
 "../src/app/*",
-"../src/pcc_model*"
+"../python/models/gym-env/*"
 ]
 
 # Helper function definition

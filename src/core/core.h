@@ -58,6 +58,7 @@ written by
 #include <vector>
 #include <deque>
 #include <mutex>
+#include <condition_variable>
 #include <thread>
 #include "time.h"
 
@@ -65,6 +66,13 @@ written by
 #include "packet_tracker.h"
 
 typedef uint64_t PacketId;
+
+typedef struct AsynchCongestionEvent {
+    int64_t time;
+    int64_t rtt_us;
+    AckedPacketVector acks;
+    LostPacketVector lost;
+};
 
 enum UDTSockType {UDT_STREAM = 1, UDT_DGRAM};
 
@@ -538,6 +546,17 @@ private: // for epoll
    std::set<int> m_sPollID;                     // set of epoll ID to trigger
    void addEPoll(const int eid);
    void removeEPoll(const int eid);
+
+private: // for asynchronous congestion event handling.
+    static void CongestionEventHandler(CUDT* self);
+    void OnCongestionEvent(int64_t event_time,
+                           int64_t rtt_us,
+                           AckedPacketVector& acked_packets,
+                           LostPacketVector& lost_packets);
+    std::mutex congestion_event_lock;
+    std::queue<AsynchCongestionEvent*> congestion_event_queue;
+    std::condition_variable congestion_event_cv;
+    std::thread* congestion_event_thread;
 };
 
 
