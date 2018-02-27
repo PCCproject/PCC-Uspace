@@ -6,8 +6,22 @@ import cv2
 
 def make_pcc(env_id):
     env = gym.make(env_id)
-    env = LogEnv(env)
+    # env = LogEnv(env)
+    env = PCCEnv(env)
     return env
+
+
+class PCCEnv(gym.Wrapper):
+    def __init__(self, env):
+        """Wrapping stuff into the environment
+        """
+        gym.Wrapper.__init__(self, env)
+        print("hey new PCC wrapper!")
+        self.action_history = env.unwrapped.action_history
+        self.observation_history = env.unwrapped.observation_history
+        self.reward_history = env.unwrapped.reward_history
+        # assert env.unwrapped.get_action_meanings()[0] == 'NOOP'
+
 
 class LogEnv(gym.Wrapper):
     def __init__(self, env):

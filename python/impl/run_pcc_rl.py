@@ -11,8 +11,8 @@ from impl.pcc_wrappers import make_pcc
 def train(env_id, num_timesteps, seed):
     from impl.policies.basic_nn import BasicNNPolicy
     from impl.policies.nosharing_cnn_policy import CnnPolicy
-    # from baselines_master.trpo_mpi import trpo_mpi_for_log
-    from impl.trpo_mpi import trpo_mpi_for_log
+    from baselines_master.trpo_mpi import trpo_mpi
+    # from impl.trpo_mpi import trpo_mpi_for_log
     import baselines.common.tf_util as U
     rank = MPI.COMM_WORLD.Get_rank()
     sess = U.single_threaded_session()
@@ -35,12 +35,26 @@ def train(env_id, num_timesteps, seed):
     # env = wrap_deepmind(env)
     env.seed(workerseed)
 
-    trpo_mpi_for_log.learn(env, policy_fn, timesteps_per_batch=512, max_kl=0.001, cg_iters=10, cg_damping=1e-3,
+    trpo_mpi.learn(env, policy_fn, timesteps_per_batch=512, max_kl=0.001, cg_iters=10, cg_damping=1e-3,
         max_timesteps=int(num_timesteps * 1.1), gamma=0.98, lam=1.0, vf_iters=3, vf_stepsize=1e-4, entcoeff=0.00)
     env.close()
 
 
 def main():
+
+    # Testing fun stuff!
+    from collections import deque
+    d = deque()
+    d.append(1)
+    d.append(2)
+    d.append(3)
+    d.append(4)
+
+    print(d)
+
+    d.popleft()
+    print(d)
+
     import argparse
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     # parser.add_argument('--env', help='environment ID', default='PongNoFrameskip-v4')
@@ -49,7 +63,6 @@ def main():
     parser.add_argument('--num-timesteps', type=int, default=int(10e6))
     args = parser.parse_args()
     train(args.env, num_timesteps=args.num_timesteps, seed=args.seed)
-
 
 if __name__ == "__main__":
     main()
