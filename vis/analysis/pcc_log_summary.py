@@ -60,4 +60,8 @@ class PccLogSummary:
 def _summary_stat_avg(values):
     return numpy.mean(values)
 
+def _summary_stat_stddev(values):
+    return numpy.std(values)
+
 _summary_avg = PccSummaryStatistic("Mean", _summary_stat_avg)
+_summary_stddev = PccSummaryStatistic("Standard Deviation", _summary_stat_stddev)
