@@ -127,7 +127,7 @@ p = multiprocessing.Process(target=train, args=(1e9, 0, mi_queue, rate_queue))
 p.start()
 
 def give_sample(sending_rate, latency, loss, lat_infl, utility):
-    print("GIVING SAMPLE")
+    #print("GIVING SAMPLE")
     mi_queue.put(PccMonitorInterval(
         sending_rate,
         latency,
@@ -136,15 +136,15 @@ def give_sample(sending_rate, latency, loss, lat_infl, utility):
         utility,
         False
     ))
-    print("GAVE SAMPLE")
+    #print("GAVE SAMPLE")
 
 def get_rate():
-    print("GETTING RATE")
+    #print("GETTING RATE")
     rate = rate_queue.get()[0]
     if rate < 0:
         rate = 0
     elif rate > 1.0:
         rate = 1.0
     rate *= float(1e9)
-    print("\tRATE = " + str(rate / 1000000.0))
+    #print("\tRATE = " + str(rate / 1000000.0))
     return rate
