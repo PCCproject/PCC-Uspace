@@ -39,16 +39,40 @@ def remote_copy(path1, path2) :
 
 def prepare_install_dependencies(n_pair, username, expr, proj) :
   # should run on Ubuntu node
-  cmds = []
-  cmds.append("sudo apt-get update")
-  cmds.append("sudo apt-get -y install python-dev python-pip vim iperf")
-  cmds.append("sudo -H pip install --upgrade pip")
-  cmds.append("sudo -H pip install --upgrade tensorflow")
+  sender_cmds = []
+  receiver_cmds = []
+  #cmds.append("sudo apt-get update")
+  #cmds.append("sudo apt-get -y install python-dev python-pip vim iperf")
+  #cmds.append("sudo -H pip install --upgrade pip")
+  #cmds.append("sudo -H pip install --upgrade tensorflow")
+  sender_cmds.append("sudo apt-get -y --force-yes install vim curl software-properties-common")
+  sender_cmds.append("sudo add-apt-repository -y ppa:fkrull/deadsnakes")
+  sender_cmds.append("sudo apt-get update")
+  sender_cmds.append("sudo apt-get -y --force-yes install python3.5")
+  sender_cmds.append("sudo apt-get -y --force-yes install python3.5-dev")
+  sender_cmds.append("curl https://bootstrap.pypa.io/get-pip.py | sudo python3.5")
+  sender_cmds.append("sudo apt-get -y install libopenmpi-dev")
+  sender_cmds.append("sudo python3.5 -m pip install mpi4py")
+  sender_cmds.append("sudo python3.5 -m pip install numpy")
+  sender_cmds.append("sudo apt-get -y install libblas-dev liblapack-dev libatlas-base-dev gfortran")
+  sender_cmds.append("sudo python3.5 -m pip install --upgrade pip")
+  sender_cmds.append("sudo python3.5 -m pip install scipy")
+  sender_cmds.append("sudo python3.5 -m pip install gym")
+  sender_cmds.append("sudo python3.5 -m pip install tensorflow")
+  sender_cmds.append("sudo apt -y install openmpi-bin")
+  
+  receiver_cmds.append("sudo apt-get -y install vim software-properties-common")
+  receiver_cmds.append("sudo add-apt-repository -y ppa:fkrull/deadsnakes")
+  receiver_cmds.append("sudo apt-get update")
+  receiver_cmds.append("sudo apt-get -y --force-yes install python3.5")
+  receiver_cmds.append("sudo apt-get -y --force-yes install python3.5-dev")
   for i in range(1, n_pair + 1) :
     remote_sender = get_hostname("sender" + str(i), username, expr, proj)
     remote_receiver = get_hostname("receiver" + str(i), username, expr, proj)
-    for cmd in cmds :
+    for cmd in sender_cmds:
       remote_call(remote_sender, cmd)
+
+    for cmd in receiver_cmds:
       remote_call(remote_receiver, cmd)
 
 def prepare_other_setup(n_pair, username, expr, proj) :

@@ -8,7 +8,8 @@ ifndef arch
    arch = IA32
 endif
 
-CCFLAGS = -fPIC -Wall -Wextra -D$(os) -finline-functions -O3 -fno-strict-aliasing #-msse3
+#CCFLAGS = -fPIC -Wall -Wextra -D$(os) -finline-functions -O3 -fno-strict-aliasing #-msse3
+CCFLAGS = -fPIC -Wall -Wextra -D$(os) -finline-functions -g -fno-strict-aliasing #-msse3
 
 ifeq ($(arch), IA32)
    CCFLAGS += -DIA32

@@ -41,7 +41,7 @@ class PccEnv(gym.Env):
 
     def __init__(self, mi_queue, rate_queue):
         
-        self.action_space = spaces.Box(low=np.array([0]), high=np.array([1e9]))
+        self.action_space = spaces.Box(low=np.array([0]), high=np.array([1e9]), dtype=numpy.float32)
         mins = [
         0.0, # Sending rate
         0.0, # Latency
@@ -54,7 +54,7 @@ class PccEnv(gym.Env):
         1.0, # Loss Rate
         100.0 # Latency Inflation
         ]
-        self.observation_space = spaces.Box(low=np.array(mins), high=np.array(maxes))
+        self.observation_space = spaces.Box(low=np.array(mins), high=np.array(maxes), dtype=numpy.float32)
         self.mi_queue = mi_queue
         self.rate_queue = rate_queue
         self.state = np.array(mins)
@@ -127,7 +127,7 @@ p = multiprocessing.Process(target=train, args=(1e9, 0, mi_queue, rate_queue))
 p.start()
 
 def give_sample(sending_rate, latency, loss, lat_infl, utility):
-    #print("GIVING SAMPLE")
+    print("GIVING SAMPLE")
     mi_queue.put(PccMonitorInterval(
         sending_rate,
         latency,
@@ -136,7 +136,15 @@ def give_sample(sending_rate, latency, loss, lat_infl, utility):
         utility,
         False
     ))
+    print("GAVE SAMPLE")
 
 def get_rate():
-    #print("GETTING RATE")
-    return rate_queue.get()
+    print("GETTING RATE")
+    rate = rate_queue.get()[0]
+    if rate < 0:
+        rate = 0
+    elif rate > 1.0:
+        rate = 1.0
+    rate *= float(1e9)
+    print("\tRATE = " + str(rate / 1000000.0))
+    return rate
