@@ -23,11 +23,18 @@ emulab_initialized = False
 
 EXPERIMENT_DUR = 3600
 
+user = "nogar02"
+experiment_name = "basic-test"
+#project = "UIUCScheduling"
+project = "LBCC"
+
+
+
 def get_worker_name(worker_id):
-    return "njay-worker-lite-" + str(worker_id)
+    return experiment_name+"-" + str(worker_id)
 
 def init_emulab_on_worker(worker_id, background):
-    init_emulab_cmd = "./experiments/run_experiment_pcc.py -u njay2 -e " + get_worker_name(worker_id) + " -t 1 -n 1"
+    init_emulab_cmd = "./experiments/run_experiment_pcc.py -u "+user+" -e " + get_worker_name(worker_id) + " -t 1 -n 1"
     if (background):
         init_emulab_cmd += " &"
     os.system(init_emulab_cmd)
@@ -39,16 +46,16 @@ def init_emulab():
     time.sleep(5)
 
 def remove_old_results_from_worker(worker_name):
-    hostname = "njay2@sender1." + worker_name + ".UIUCScheduling.emulab.net"
+    hostname = user+"@sender1." + worker_name + "."+project+".emulab.net"
     os.system("ssh " + hostname + " \"rm /tmp/pcc_expr/pcc_log*\"")
-    hostname = "njay2@sender2." + worker_name + ".UIUCScheduling.emulab.net"
+    hostname = user+"@sender2." + worker_name + "."+project+".emulab.net"
     os.system("ssh " + hostname + " \"rm /tmp/pcc_expr/pcc_log*\"")
 
 def get_results_from_worker(worker_name):
     os.system("mkdir -p ~/pcc_expr/results")
-    hostname = "njay2@sender1." + worker_name + ".UIUCScheduling.emulab.net"
+    hostname = user+"@sender1." + worker_name + "."+project+".emulab.net"
     os.system("scp " + hostname + ":/tmp/pcc_expr/pcc_log* ~/pcc_expr/results/")
-    hostname = "njay2@sender2." + worker_name + ".UIUCScheduling.emulab.net"
+    hostname = user+"@sender2." + worker_name + "."+project+".emulab.net"
     os.system("scp " + hostname + ":/tmp/pcc_expr/pcc_log* ~/pcc_expr/results/")
 
 class ExperimentBatch:
@@ -90,7 +97,7 @@ class ExperimentType:
         self.pairs = pairs
 
     def run(self, worker_name, background):
-        run_experiment_cmd = "./experiments/run_experiment_pcc.py -u njay2 -e " + worker_name + " -n " + str(self.pairs) + " -t " + str(EXPERIMENT_DUR) + " -lb " + str(self.thpt) + " -rb " + str(self.thpt) + " -ld " + str(self.lat) + " -rd " + str(self.lat) + " -lq " + str(self.buf) + " -rq " + str(self.buf) + " -ll " + str(self.loss) + " -rl " + str(self.loss) + " -r " + str(self.reps) + " -ski -skc -skb "
+        run_experiment_cmd = "./experiments/run_experiment_pcc.py -u "+user+" -e " + worker_name + " -n " + str(self.pairs) + " -t " + str(EXPERIMENT_DUR) + " -lb " + str(self.thpt) + " -rb " + str(self.thpt) + " -ld " + str(self.lat) + " -rd " + str(self.lat) + " -lq " + str(self.buf) + " -rq " + str(self.buf) + " -ll " + str(self.loss) + " -rl " + str(self.loss) + " -r " + str(self.reps) + " -ski -skc -skb "
         if len(self.attrs.keys()) > 0:
             run_experiment_cmd += " -a \" "
             for k in self.attrs.keys():
