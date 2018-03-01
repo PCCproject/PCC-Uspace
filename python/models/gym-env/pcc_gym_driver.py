@@ -41,7 +41,7 @@ class PccEnv(gym.Env):
 
     def __init__(self, mi_queue, rate_queue):
         
-        self.action_space = spaces.Box(low=np.array([0]), high=np.array([1e9]), dtype=numpy.float32)
+        self.action_space = spaces.Box(low=np.array([0]), high=np.array([1e9]))
         mins = [
         0.0, # Sending rate
         0.0, # Latency
@@ -54,7 +54,7 @@ class PccEnv(gym.Env):
         1.0, # Loss Rate
         100.0 # Latency Inflation
         ]
-        self.observation_space = spaces.Box(low=np.array(mins), high=np.array(maxes), dtype=numpy.float32)
+        self.observation_space = spaces.Box(low=np.array(mins), high=np.array(maxes))
         self.mi_queue = mi_queue
         self.rate_queue = rate_queue
         self.state = np.array(mins)
@@ -65,9 +65,9 @@ class PccEnv(gym.Env):
 
     def step(self, action):
         action[0] = action[0].astype(np.float32)
-        #print("MODEL: action = " + str(action))
-        #print(self.action_space)
-        assert self.action_space.contains(action)#, "%r (%s) invalid"%(action, type(action))
+        if not self.action_space.contains(action):
+            print("ERROR: Action space does not contain value: " + action)
+            exit(-1)
         rate_queue.put(action)
         mi = mi_queue.get()
         reward = mi.utility
@@ -116,7 +116,7 @@ def train(num_timesteps, seed, mi_queue, rate_queue):
     # env = wrap_deepmind(env)
     env.seed(workerseed)
 
-    trpo_mpi.learn(env, policy_fn, timesteps_per_batch=512, max_kl=0.001, cg_iters=10, cg_damping=1e-3,
+    trpo_mpi.learn(env, policy_fn, timesteps_per_batch=64, max_kl=0.001, cg_iters=10, cg_damping=1e-3,
         max_timesteps=int(num_timesteps * 1.1), gamma=0.98, lam=1.0, vf_iters=3, vf_stepsize=1e-4, entcoeff=0.00)
     env.close()
 

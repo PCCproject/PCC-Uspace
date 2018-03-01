@@ -325,12 +325,18 @@ void PccMonitorIntervalQueue::OnCongestionEvent(
 
   // Remove MonitorIntervals from the head of the queue,
   // until all useful intervals are removed.
+  /*
   while (num_useful_intervals_ > 0) {
     if (monitor_intervals_.front().is_useful) {
       --num_useful_intervals_;
     }
     monitor_intervals_.pop_front();
   }
+  */
+  while (!monitor_intervals_.empty()) {
+      monitor_intervals_.pop_front();
+  }
+  num_useful_intervals_ = 0;
   num_available_intervals_ = 0;
 }
 
