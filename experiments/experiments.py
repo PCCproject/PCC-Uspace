@@ -17,7 +17,7 @@ copied_paths = [
 "../src/pcc/*",
 "../src/Makefile",
 "../src/app/*",
-"../python/models/gym-env/*"
+"../python/models/*"
 ]
 
 # Helper function definition
@@ -45,6 +45,7 @@ def prepare_install_dependencies(n_pair, username, expr, proj) :
   #cmds.append("sudo apt-get -y install python-dev python-pip vim iperf")
   #cmds.append("sudo -H pip install --upgrade pip")
   #cmds.append("sudo -H pip install --upgrade tensorflow")
+  sender_cmds.append("sudo apt-get update")
   sender_cmds.append("sudo apt-get -y --force-yes install vim curl software-properties-common")
   sender_cmds.append("sudo add-apt-repository -y ppa:fkrull/deadsnakes")
   sender_cmds.append("sudo apt-get update")
@@ -61,6 +62,7 @@ def prepare_install_dependencies(n_pair, username, expr, proj) :
   sender_cmds.append("sudo python3.5 -m pip install tensorflow")
   sender_cmds.append("sudo apt -y install openmpi-bin")
   
+  receiver_cmds.append("sudo apt-get update")
   receiver_cmds.append("sudo apt-get -y install vim software-properties-common")
   receiver_cmds.append("sudo add-apt-repository -y ppa:fkrull/deadsnakes")
   receiver_cmds.append("sudo apt-get update")
