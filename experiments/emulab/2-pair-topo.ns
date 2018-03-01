@@ -1,0 +1,25 @@
+set ns [new Simulator]
+source tb_compat.tcl
+
+tb-set-delay-capacity 1
+set bridge0 [$ns bridge]
+
+tb-set-hardware $bridge0 pc3000
+tb-set-node-os $bridge0 FBSD83-STD
+
+set sender1 [$ns node]
+tb-set-hardware $sender1 d710
+set sender2 [$ns node]
+tb-set-hardware $sender2 d710
+
+set receiver1 [$ns node]
+tb-set-hardware $receiver1 pc3000
+set receiver2 [$ns node]
+tb-set-hardware $receiver2 pc3000
+
+set lan0 [$ns make-lan "$bridge0 $sender1 $sender2" 1G 0ms]
+set lan1 [$ns make-lan "$bridge0 $receiver1 $receiver2" 1G 0ms]
+
+$ns rtproto Static
+
+$ns run
