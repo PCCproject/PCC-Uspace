@@ -59,7 +59,7 @@ def prepare_install_dependencies(n_pair, username, expr, proj) :
   sender_cmds.append("sudo python3.5 -m pip install --upgrade pip")
   sender_cmds.append("sudo python3.5 -m pip install scipy")
   sender_cmds.append("sudo python3.5 -m pip install gym")
-  sender_cmds.append("sudo python3.5 -m pip install tensorflow")
+  sender_cmds.append("sudo python3.5 -m pip install tensorflow==1.5")
   sender_cmds.append("sudo apt -y install openmpi-bin")
   
   receiver_cmds.append("sudo apt-get update")
