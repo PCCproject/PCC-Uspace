@@ -1,0 +1,13 @@
+{
+    "title":"PCC Performance Metrics",
+    "legend param":"Monitor Interval Duration",
+    "type":"event",
+    "event":"Calculate Utility",
+    "x-axis":"Time",
+    "y-axis":[
+        "Actual Rate",
+        "Avg RTT",
+        "Inverted Exponent Utility",
+        "Loss Rate"
+    ]
+}
