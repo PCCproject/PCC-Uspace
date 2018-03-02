@@ -6,23 +6,36 @@ import math
 import matplotlib.pyplot as plt
 import json
 import numpy
+from scipy import interpolate
+from scipy.signal import savgol_filter
+from operator import itemgetter
 
 from analysis.pcc_experiment_log import *
 from analysis.pcc_filter import *
 from analysis.pcc_log_summary import *
 
-point_size = 6.0
+def merge_log_group(log_group):
+    merged_log = PccExperimentLog("NULL")
+    merged_log.filename = "many"
+    merged_log.dict = {}
+    merged_log.event_dict = {}
+    merged_log.event_types = ["Calculate Utility"]
+    all_events = []
+    for log in log_group:
+        el = log.get_event_list("Calculate Utility")
+        for e in el:
+            e["Time"] = float(e["Time"])
+        all_events += el
+    #all_events.sort(key=itemgetter('Time'))
+    #all_events = sorted(all_events, key=lambda k: k["Time"])
+    all_events = sorted(all_events, key=itemgetter('Time'))
+    merged_log.event_dict["Calculate Utility"] = all_events
+    return merged_log
+
+point_size = 30.0
 
 if (len(sys.argv) == 1):
     print "usage: pcc_grapher.py <log_file_directory> <graph_json_file>"
-
-log_files = os.listdir("./" + sys.argv[1])
-experiment_logs = []
-event_counts = []
-for filename in log_files:
-    log = PccExperimentLog("./" + sys.argv[1] + "/" + filename)
-    if len(log.dict.keys()) > 0:
-        experiment_logs.append(log)
 
 graph_config = json.load(open(sys.argv[2]))
 legend_param = graph_config["legend param"]
@@ -30,8 +43,24 @@ title = graph_config["title"] + " (by " + legend_param + ")"
 event_type = graph_config["event"]
 y_axis_names = graph_config["y-axis"]
 
-for log in experiment_logs:
-    log.apply_timeshift()
+should_smooth = False
+smooth_window_size = None
+if "smooth" in graph_config.keys():
+    should_smooth = True
+    smooth_window_size = int(graph_config["smooth"])
+
+compression = 0
+if "compression" in graph_config.keys():
+    compression = graph_config["compression"]
+
+log_files = os.listdir("./" + sys.argv[1])
+experiment_logs = []
+event_counts = []
+for filename in log_files:
+    log = PccExperimentLog("./" + sys.argv[1] + "/" + filename)
+    if len(log.dict.keys()) > 0:
+        log.apply_timeshift()
+        experiment_logs.append(log)
 
 if "log filters" in graph_config.keys():
     pcc_filter = PccLogFilter(graph_config["log filters"])
@@ -90,11 +119,13 @@ if graph_config["type"] == "summary":
     legend = []
     log_groups = []
     group_filters = []
+    log_group_names = []
     if "groups" in graph_config.keys():
         group_filter_objs = graph_config["groups"]
         for group_filter_obj in group_filter_objs:
             print "Making group filter from " + str(group_filter_obj)
-            group_filters.append(PccLogFilter(group_filter_obj))
+            #exit(1)
+            group_filters.append(PccLogFilter(group_filter_obj["log filter"]))
     if len(group_filters) > 0:
         for group_filter in group_filters:
             log_groups.append(group_filter.apply_filter(experiment_logs))
@@ -133,6 +164,7 @@ if graph_config["type"] == "summary":
             y_axis_obj = y_axis_objs[i]
             for log in experiment_logs:
                 log_summary = PccLogSummary(log)
+                print("Getting event summary " + str(i) + "/" + str(len(y_axis_objs)))
                 event_summary = log_summary.get_event_summary(graph_config["event"])
                 y_axis_values[i].append(event_summary.get_summary_stat(
                     y_axis_obj["value"],
@@ -146,6 +178,7 @@ if graph_config["type"] == "summary":
         y_axis_obj = y_axis_objs[i]
         y_axis_name = y_axis_obj["stat"] + " " + y_axis_obj["value"]
         for j in range(0, len(log_groups)):
+            print("Graphing log group " + str(j))
             x_axis_values = log_group_x_values[j]
             y_axis_values = log_group_y_values[j]
             if len(y_axis_values) > 1:
@@ -153,6 +186,11 @@ if graph_config["type"] == "summary":
                     handle, = axes[i].plot(x_axis_values, y_axis_values[i])
                 else: 
                     handle = axes[i].scatter(x_axis_values, y_axis_values[i], s=point_size)
+                    if "annotate" in graph_config.keys():
+                        for k in range(0, len(log_groups[j])):
+                            log = log_groups[j][k]
+                            annotation = log.filename[log.filename.rfind("_") + 1:-4]
+                            axes[i].annotate(annotation, (x_axis_values[k], y_axis_values[i][k]))
                 handles.append(handle)
                 axes[i].set_ylabel(y_axis_name)
             else:
@@ -175,9 +213,23 @@ if graph_config["type"] == "summary":
 
 model_event_num = 0
 if graph_config["type"] == "event":
+    group_filters = []
+    if "groups" in graph_config.keys():
+        group_filter_objs = graph_config["groups"]
+        for group_filter_obj in group_filter_objs:
+            print "Making group filter from " + str(group_filter_obj)
+            #exit(1)
+            group_filters.append(PccLogFilter(group_filter_obj["log filter"]))
     legend = []
-    for log in experiment_logs:
-        legend.append(str(log.get_param(legend_param)))
+    if len(group_filters) > 0:
+        new_logs = []
+        for group_filter in group_filters:
+            new_logs.append(merge_log_group(group_filter.apply_filter(experiment_logs)))
+            legend.append(group_filter.get_legend_label())
+        experiment_logs = new_logs     
+    else:
+        for log in experiment_logs:
+            legend.append(str(log.get_param(legend_param)))
     x_axis_name = graph_config["x-axis"]
 
     avg_thpts = []
@@ -204,7 +256,17 @@ if graph_config["type"] == "event":
             elif event_num == model_event_num:
                 model_even_time = float(event["Time"])
             event_num += 1
-        x_axis_values.append(this_log_x_axis_values) 
+        x_axis_values.append(this_log_x_axis_values)
+        if (should_smooth):
+            for k in this_log_y_axis_values.keys():
+                x = this_log_x_axis_values
+                y = this_log_y_axis_values[k]
+                if len(y) < 1:
+                    continue
+                f = interpolate.interp1d(x, y, kind="linear")
+                window_size = smooth_window_size
+                order = 3
+                this_log_y_axis_values[k] = savgol_filter(y, window_size, order)
         y_axis_values.append(this_log_y_axis_values) 
         
 

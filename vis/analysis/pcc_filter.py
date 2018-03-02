@@ -70,6 +70,9 @@ class PccLogFilter:
 
     def __init__(self, json_obj):
         self.parameter_checks = []
+        print(json_obj)
+# FIGURE OUT AND CHANGE LATER
+        #json_obj = json_obj["log filters"]
         for json_filter in json_obj:
             if ("values" in json_filter.keys()):
                 self.add_parameter_check(PccFilterParameterValue(

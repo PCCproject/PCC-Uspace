@@ -1,8 +1,17 @@
 import json
 
+def dict_str_to_num(d):
+    for k in d.keys():
+        try:
+            d[k] = float(d[k])
+        except:
+            pass
+    return d
+
 class PccExperimentLog:
     def __init__(self, filename):
         print filename
+        self.filename = filename
         self.dict = {}
         try:
             self.dict = json.load(open(filename))
@@ -10,17 +19,21 @@ class PccExperimentLog:
             self.dict = {}
             return
 
+        self.event_types = ["Calculate Utility"]
+        """
         self.event_types = []
         for event in self.dict["events"]:
             event_type = event.keys()[0]
             if event_type not in self.event_types:
                 self.event_types.append(event_type)
+        """
         self.event_dict = {}
         for event_type in self.event_types:
             self.event_dict[event_type] = []
             for event in self.dict["events"]:
                 if event_type in event.keys():
-                    self.event_dict[event_type].append(event[event_type])
+                    ev = dict_str_to_num(event[event_type])
+                    self.event_dict[event_type].append(ev)
     
     def get_param(self, param):
         if "Experiment Parameters" not in self.dict.keys():
