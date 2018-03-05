@@ -41,6 +41,8 @@ class PccExperimentLog:
         if param in self.dict["Experiment Parameters"].keys():
             return self.dict["Experiment Parameters"][param]
         else:
+            if "Rate Control Parameters" not in self.dict.keys():
+                return ""
             rate_control_params = self.dict["events"][0]["Rate Control Parameters"]
             return rate_control_params[param]
 

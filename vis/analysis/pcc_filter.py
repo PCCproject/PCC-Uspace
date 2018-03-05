@@ -9,7 +9,7 @@ class PccFilterParameterRange:
 
     def matches(self, experiment_log):
         param_value = float(experiment_log.get_param(self.param))
-        return not (self.inverted == (param_value >= self.param_min and param_value <= param_max))
+        return not (self.inverted == (param_value >= self.param_min and param_value <= self.param_max))
 
     def matches_dict(self, input_dict):
         #print "Checking if event " + str(input_dict) + " matches " + self.param + " in [" + str(self.param_min) + ", " + str(self.param_max) + "]" 

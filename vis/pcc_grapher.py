@@ -1,14 +1,24 @@
 import os
 import sys
 import math
-#import matplotlib as mpl
-#mpl.use('Agg')
+file_output = False
+output_filename = None
+for arg in sys.argv:
+    if "--output=" in arg:
+        output_filename = arg[arg.rfind("=") + 1:]
+        file_output = True
+
+if file_output:
+    import matplotlib as mpl
+    mpl.use('Agg')
 import matplotlib.pyplot as plt
 import json
 import numpy
 from scipy import interpolate
 from scipy.signal import savgol_filter
 from operator import itemgetter
+
+
 
 from analysis.pcc_experiment_log import *
 from analysis.pcc_filter import *
@@ -145,6 +155,7 @@ if graph_config["type"] == "summary":
         if "param" in graph_config["x-axis"].keys():
             x_axis_name = graph_config["x-axis"]["param"]
             for log in experiment_logs:
+                print("value is " + log.get_param(x_axis_name))
                 x_axis_values.append(float(log.get_param(x_axis_name)))
 
         if "stat" in graph_config["x-axis"].keys():
@@ -208,8 +219,10 @@ if graph_config["type"] == "summary":
         axes.set_xlabel(x_axis_name)
     
     fig.suptitle(title)
-    plt.show()
-    #plt.savefig("graph.png")
+    if file_output:
+        plt.savefig(output_filename)
+    else:
+        plt.show()
 
 model_event_num = 0
 if graph_config["type"] == "event":
@@ -336,5 +349,7 @@ if graph_config["type"] == "event":
         else:
             axes.set_xlabel(x_axis_name)
     fig.suptitle(title)
-    plt.show()
-    #plt.savefig("graph.png")
+    if file_output:
+        plt.savefig(output_filename)
+    else:
+        plt.show()
