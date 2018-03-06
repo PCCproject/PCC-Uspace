@@ -17,11 +17,11 @@ lat = 30000.0
 lat_infl = 0
 prob_loss = 0
 
-LINK_CAPACITY = 10e6
+LINK_CAPACITY = 100e6
 
 for arg in sys.argv:
     arg_val = "NULL"
-    if "=" in arg and "log=" not in arg:
+    if "=" in arg and "log=" not in arg and "model-name=" not in arg:
         arg_val = float(arg[arg.rfind("=") + 1:])
 
     if "--all-rate-scale=" in arg:
@@ -41,7 +41,7 @@ for arg in sys.argv:
 
 
 # The number of samples to train for
-N_SAMPLES = 500000
+N_SAMPLES = 200000
 
 # 
 events = []
@@ -89,8 +89,12 @@ for i in range(0, N_SAMPLES):
     # Calculate the reward the algorithm based on its chosen rate.
     util = reward(rate)
 
+    stop = (i == (N_SAMPLES - 1))
+
+    if (stop):
+        print("SENDING STOP SIGNAL")
     # Give the algorithm information about the current link state and reward.
-    pcc_gym_driver.give_sample(rate * RATE_SCALE, lat * LATENCY_SCALE, loss_func(rate) * LOSS_SCALE, lat_infl, util * UTILITY_SCALE)
+    pcc_gym_driver.give_sample(rate * RATE_SCALE, lat * LATENCY_SCALE, loss_func(rate) * LOSS_SCALE, lat_infl, util * UTILITY_SCALE, stop)
 
     # Record the endtime for a single training loop.
     end = time.time()
@@ -102,4 +106,5 @@ for i in range(0, N_SAMPLES):
 json_obj = {"events":events, "Experiment Parameters":cfg}
 with open("./logs/" + log_name, 'w') as outfile:
     json.dump(json_obj, outfile)
+print("Main thread exiting")
 exit(0)

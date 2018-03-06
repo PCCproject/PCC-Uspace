@@ -10,6 +10,7 @@ import numpy as np
 import math
 import tensorflow as tf
 import sys
+import baselines.common.tf_util as U
 if not hasattr(sys, 'argv'):
     sys.argv  = ['']
 
@@ -34,12 +35,27 @@ ENTCOEFF = 0.00
 
 MIN_RATE = 0.00001
 MAX_RATE = 1000.0
-DELTA_SCALE = 0.2
+DELTA_SCALE = 0.5
+
+LOAD_MODEL = False
+SAVE_MODEL = False
+MODEL_NAME = "NULL"
+
+MODEL_LOADED = False
 
 for arg in sys.argv:
     arg_val = "NULL"
-    if "=" in arg and "log=" not in arg:
+    if "=" in arg and "log=" not in arg and "model-name=" not in arg:
         arg_val = float(arg[arg.rfind("=") + 1:])
+
+    if "--model-name=" in arg:
+        MODEL_NAME = arg[arg.rfind("=") + 1:]
+
+    if "--save-model" in arg:
+        SAVE_MODEL = True
+
+    if "--load-model" in arg:
+        LOAD_MODEL = True
 
     if "--delta-rate-scale=" in arg:
         DELTA_SCALE *= arg_val
@@ -99,8 +115,8 @@ MONITOR_INTERVAL_MAX_OBS = [
     100.0  # Latency Inflation
 ]
 
-RESET_UTILITY_FRACTION = 0.1
-RESET_RATE_TARGET = 2.0
+RESET_UTILITY_FRACTION = 0.33
+RESET_RATE_TARGET = 10.0
 
 STATE_RECORDING_RESET_SAMPLES = "RECORDING_RESET_VALUES"
 STATE_RUNNING = "RUNNING"
@@ -125,18 +141,23 @@ def update_util_ewma(new_val):
 # the machine learning module.
 #
 class PccMonitorInterval():
-    def __init__(self, rate=0.0, latency=0.0, loss=0.0, lat_infl=0.0, utility=0.0, done=False):
+    def __init__(self, rate=0.0, latency=0.0, loss=0.0, lat_infl=0.0, utility=0.0, done=False, stop=False):
         self.rate = rate
         self.latency = latency
         self.loss = loss
         self.lat_infl = lat_infl
         self.utility = utility
         self.done = done
+        self.stop = stop
+
+        if (stop):
+            print("CREATED MONITOR INTERVAL WITH STOP SIGNAL")
 
         update_util_ewma(utility)
         print("UTIL = " + str(UTIL_EWMA_VAL) + " (" + str(RESET_RATE_EXPECTED_UTILITY) + ")")
         if UTIL_EWMA_VAL < RESET_RATE_EXPECTED_UTILITY * RESET_UTILITY_FRACTION:
-            self.done = True
+            pass
+            #self.done = True
 
     # Convert the observation parts of the monitor interval into a numpy array
     # eb
@@ -150,7 +171,7 @@ class PccHistory():
             self.values.append(PccMonitorInterval())
 
     def step(self, new_mi):
-        self.values.pop()
+        self.values.pop(0)
         self.values.append(new_mi)
 
     def as_array(self):
@@ -159,6 +180,31 @@ class PccHistory():
             arrays.append(mi.as_array())
         arrays = np.array(arrays).flatten()
         return arrays
+
+sess = "NULL"
+def save_model(model_name):
+    global sess
+    saver = tf.train.Saver()
+    saver.save(sess, model_name)
+    #my_vars = tf.global_variables()
+    #for v in my_vars:
+    #    print(v.name)
+    #    if v.name == "pi/obfilter/runningsum:0":
+    #        val = sess.run(v)
+    #        print(val)
+    #print(my_vars)
+
+def load_model(model_name):
+    saver = tf.train.Saver()
+    saver.restore(sess, model_name)
+    #my_vars = tf.global_variables()
+    #for v in my_vars:
+    #    print(v.name)
+    #    if v.name == "pi/obfilter/runningsum:0":
+    #        val = sess.run(v)
+    #        print(val)
+    #print(my_vars)
+    #exit(0)
 
 class PccEnv(gym.Env):
     metadata = {
@@ -194,15 +240,31 @@ class PccEnv(gym.Env):
         rate_queue.put((action, should_reset))
         #print("Waiting for MI from PCC...")
         mi = mi_queue.get()
+        #print("GOT MONITOR INTERVAL")
+        if mi.stop:
+            #print("\tWITH STOP SIGNAL")
+            global SAVE_MODEL
+            global MODEL_NAME
+            if SAVE_MODEL:
+                print("SAVING MODEL")
+                save_model(MODEL_NAME)
+            print("EXITING")
+            exit(0)
         self.hist.step(mi)
         reward = mi.utility
         self.state = self.hist.as_array()
+        #print(self.state)
         return self.state, reward, mi.done, {}
 
     def reset(self):
-        print("RESET CALLED!")
+        #print("RESET CALLED!")
         self.was_reset = True
         #exit(0)
+        global LOAD_MODEL
+        global MODEL_LOADED
+        global MODEL_NAME
+        if LOAD_MODEL and not MODEL_LOADED:
+            load_model(MODEL_NAME)
         global HISTORY_LEN
         self.hist = PccHistory(HISTORY_LEN)
         self.state = self.hist.as_array()
@@ -213,7 +275,7 @@ class PccEnv(gym.Env):
 
     def close(self):
         pass
-
+    
 def train(num_timesteps, seed, mi_queue, rate_queue):
     from policies.basic_nn import BasicNNPolicy
     #from policies.nosharing_cnn_policy import CnnPolicy
@@ -221,7 +283,7 @@ def train(num_timesteps, seed, mi_queue, rate_queue):
     from policies.mlp_policy import MlpPolicy
     from policies.simple_policy import SimplePolicy
     from baselines_master.trpo_mpi import trpo_mpi
-    import baselines.common.tf_util as U
+    global sess
     rank = MPI.COMM_WORLD.Get_rank()
     sess = U.single_threaded_session()
     sess.__enter__()
@@ -277,7 +339,7 @@ rate_queue = multiprocessing.Queue()
 p = multiprocessing.Process(target=train, args=(1e9, int(time.time()), mi_queue, rate_queue))
 p.start()
 
-def give_sample(sending_rate, latency, loss, lat_infl, utility):
+def give_sample(sending_rate, latency, loss, lat_infl, utility, stop=False):
     #print("GIVING SAMPLE")
     global STATE
     global STATE_RECORDING_RESET_SAMPLES
@@ -288,7 +350,7 @@ def give_sample(sending_rate, latency, loss, lat_infl, utility):
     global RESET_RATE_EXPECTED_UTILITY
     global UTIL_EWMA_VAL
 
-    if STATE == STATE_RECORDING_RESET_SAMPLES:
+    if (not stop) and STATE == STATE_RECORDING_RESET_SAMPLES:
         print("GIVE SAMPLE: RECORDING RESET SAMPLES = " + str(utility))
         RESET_SAMPLES_UTILITY_SUM += utility
         N_RESET_SAMPLES += 1
@@ -298,7 +360,7 @@ def give_sample(sending_rate, latency, loss, lat_infl, utility):
         #if N_RESET_SAMPLES == MAX_RESET_SAMPLES:
         #    N_RESET_SAMPLES = 0
         #    STATE = STATE_RUNNING
-    elif STATE == STATE_RUNNING:
+    else:
         #print("GIVE SAMPLE: RUNNING")
         mi_queue.put(PccMonitorInterval(
             sending_rate,
@@ -306,7 +368,8 @@ def give_sample(sending_rate, latency, loss, lat_infl, utility):
             loss,
             lat_infl,
             utility,
-            False
+            False,
+            stop
         ))
 
 _prev_rate = RESET_RATE_TARGET
@@ -322,12 +385,17 @@ def get_rate():
     global MAX_RESET_SAMPLES
     global N_RESET_SAMPLES
     global RESET_SAMPLES_UTILITY_SUM
+    global MODEL_LOADED
+    global LOAD_MODEL
+    global MODEL_NAME
     #print("Rate delta: " + str(rate_delta))
     if STATE == STATE_RUNNING:
         #print("Waiting for rate from ML...")
         rate_delta, reset = rate_queue.get()
         rate_delta = rate_delta[0] * DELTA_SCALE
         if reset:
+            #if LOAD_MODEL and not MODEL_LOADED:
+            #    load_model(MODEL_NAME)
             _prev_rate = RESET_RATE_TARGET
             STATE = STATE_RECORDING_RESET_SAMPLES
             return _prev_rate * 1e6
