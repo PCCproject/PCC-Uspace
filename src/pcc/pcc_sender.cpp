@@ -48,7 +48,7 @@ const QuicBandwidth kMinSendingRate = QuicBandwidth::FromKBitsPerSecond(2000);
 const QuicBandwidth kMinimumRateChange = QuicBandwidth::FromBitsPerSecond(
     static_cast<int64_t>(0.5f * kMegabit));
 #else
-QuicBandwidth kMinSendingRate = 2.0f * kMegabit;
+QuicBandwidth kMinSendingRate = 0.1f * kMegabit;
 // The smallest amount that the rate can be changed by at a time.
 QuicBandwidth kMinimumRateChange = (int64_t)(0.5f * kMegabit);
 // Number of microseconds per second.
