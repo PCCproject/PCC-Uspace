@@ -8,7 +8,6 @@ LATENCY_SCALE = 1e-7
 UTILITY_SCALE = 1e-2
 LOSS_SCALE = 1.0
 
-
 #
 # A static link state to give to the gym training algorithm. We will keep all of
 # these parameters constant and define a reward function based on the utility to
@@ -18,7 +17,7 @@ lat = 30000.0
 lat_infl = 0
 prob_loss = 0
 
-LINK_CAPACITY = 0.5
+LINK_CAPACITY = 10e6
 
 for arg in sys.argv:
     arg_val = "NULL"
@@ -42,7 +41,7 @@ for arg in sys.argv:
 
 
 # The number of samples to train for
-N_SAMPLES = 200000
+N_SAMPLES = 500000
 
 # 
 events = []

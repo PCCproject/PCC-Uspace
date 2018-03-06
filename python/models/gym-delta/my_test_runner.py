@@ -49,6 +49,6 @@ for param in params.keys():
     for i in range(0, replicas):
         for value in get_scaled_list(params[param]):
             os.system("python3.5 ./my_gym_test.py " + param + str(value) + " -log=test_log_" + str(time.time()) + ".txt &")
-            time.sleep(200)
+            time.sleep(500)
             os.system("killall python3.5")
 print "Done!"

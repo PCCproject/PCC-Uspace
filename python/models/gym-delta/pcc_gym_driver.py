@@ -10,6 +10,8 @@ import numpy as np
 import math
 import tensorflow as tf
 import sys
+if not hasattr(sys, 'argv'):
+    sys.argv  = ['']
 
 """
 Classic cart-pole system implemented by Rich Sutton et al.
@@ -31,8 +33,8 @@ VF_STEPSIZE = 1e-4
 ENTCOEFF = 0.00
 
 MIN_RATE = 0.00001
-MAX_RATE = 10.0
-DELTA_SCALE = 0.1
+MAX_RATE = 1000.0
+DELTA_SCALE = 0.2
 
 for arg in sys.argv:
     arg_val = "NULL"
@@ -83,10 +85,10 @@ for arg in sys.argv:
 
 MONITOR_INTERVAL_MIN_OBS = [
     0.0, # Utility
-    0.0,  # Sending rate
-    0.0,  # Latency
-    0.0,  # Loss Rate
-    0.0  # Latency Inflation
+    0.0, # Sending rate
+    0.0, # Latency
+    0.0, # Loss Rate
+    -1.0  # Latency Inflation
 ]
 
 MONITOR_INTERVAL_MAX_OBS = [
@@ -94,8 +96,29 @@ MONITOR_INTERVAL_MAX_OBS = [
     1.0, # Sending rate
     1.0, # Latency
     1.0, # Loss Rate
-    1.0 # Latency Inflation
+    100.0  # Latency Inflation
 ]
+
+RESET_UTILITY_FRACTION = 0.1
+RESET_RATE_TARGET = 2.0
+
+STATE_RECORDING_RESET_SAMPLES = "RECORDING_RESET_VALUES"
+STATE_RUNNING = "RUNNING"
+
+MAX_RESET_SAMPLES = 4
+N_RESET_SAMPLES = 0
+RESET_SAMPLES_UTILITY_SUM = 0.0
+RESET_RATE_EXPECTED_UTILITY = 0.0
+
+STATE = STATE_RECORDING_RESET_SAMPLES
+
+UTIL_EWMA_FACTOR = 0.66
+UTIL_EWMA_VAL = 0.0
+
+def update_util_ewma(new_val):
+    global UTIL_EWMA_FACTOR
+    global UTIL_EWMA_VAL
+    UTIL_EWMA_VAL = UTIL_EWMA_FACTOR * new_val + (1.0 - UTIL_EWMA_FACTOR) * UTIL_EWMA_VAL
 
 #
 # The monitor interval class used to pass data from the PCC subsystem to
@@ -110,13 +133,15 @@ class PccMonitorInterval():
         self.utility = utility
         self.done = done
 
-        if utility < 0.0 or rate == MIN_RATE:
+        update_util_ewma(utility)
+        print("UTIL = " + str(UTIL_EWMA_VAL) + " (" + str(RESET_RATE_EXPECTED_UTILITY) + ")")
+        if UTIL_EWMA_VAL < RESET_RATE_EXPECTED_UTILITY * RESET_UTILITY_FRACTION:
             self.done = True
 
     # Convert the observation parts of the monitor interval into a numpy array
     # eb
     def as_array(self):
-        return np.array([self.utility, self.rate, self.latency, self.loss, self.lat_infl])
+        return np.array([self.utility * 1e-8, self.rate * 1e-8, self.latency * 1e-6, self.loss, self.lat_infl])
 
 class PccHistory():
     def __init__(self, length):
@@ -167,6 +192,7 @@ class PccEnv(gym.Env):
             print("ERROR: Action space does not contain value: " + action)
             exit(-1)
         rate_queue.put((action, should_reset))
+        #print("Waiting for MI from PCC...")
         mi = mi_queue.get()
         self.hist.step(mi)
         reward = mi.utility
@@ -253,36 +279,70 @@ p.start()
 
 def give_sample(sending_rate, latency, loss, lat_infl, utility):
     #print("GIVING SAMPLE")
-    mi_queue.put(PccMonitorInterval(
-        sending_rate,
-        latency,
-        loss,
-        lat_infl,
-        utility,
-        False
-    ))
-    #print("GAVE SAMPLE")
+    global STATE
+    global STATE_RECORDING_RESET_SAMPLES
+    global STATE_RUNNING
+    global MAX_RESET_SAMPLES
+    global N_RESET_SAMPLES
+    global RESET_SAMPLES_UTILITY_SUM
+    global RESET_RATE_EXPECTED_UTILITY
+    global UTIL_EWMA_VAL
 
-_prev_rate = 10e6
-STARTING_RATE = 0.01
-_prev_rate = 0.01
+    if STATE == STATE_RECORDING_RESET_SAMPLES:
+        print("GIVE SAMPLE: RECORDING RESET SAMPLES = " + str(utility))
+        RESET_SAMPLES_UTILITY_SUM += utility
+        N_RESET_SAMPLES += 1
+        #print("N_RESET_SAMPLES = " + str(N_RESET_SAMPLES))
+        RESET_RATE_EXPECTED_UTILITY = RESET_SAMPLES_UTILITY_SUM / float(N_RESET_SAMPLES)
+        UTIL_EWMA_VAL = 0.0
+        #if N_RESET_SAMPLES == MAX_RESET_SAMPLES:
+        #    N_RESET_SAMPLES = 0
+        #    STATE = STATE_RUNNING
+    elif STATE == STATE_RUNNING:
+        #print("GIVE SAMPLE: RUNNING")
+        mi_queue.put(PccMonitorInterval(
+            sending_rate,
+            latency,
+            loss,
+            lat_infl,
+            utility,
+            False
+        ))
+
+_prev_rate = RESET_RATE_TARGET
 
 def get_rate():
     #print("GETTING RATE")
     # Rate normally varies from -5 to 5
     global _prev_rate
-    rate_delta, reset = rate_queue.get()
-    rate_delta = rate_delta[0] * DELTA_SCALE
+    global RESET_RATE_TARGET
+    global STATE
+    global STATE_RECORDING_RESET_SAMPLES
+    global STATE_RUNNING
+    global MAX_RESET_SAMPLES
+    global N_RESET_SAMPLES
+    global RESET_SAMPLES_UTILITY_SUM
     #print("Rate delta: " + str(rate_delta))
-    if reset:
-        _prev_rate = STARTING_RATE
-    rate = _prev_rate
-    rate *= (1.0 + rate_delta)
-    if rate < MIN_RATE:
-        rate = MIN_RATE
-    if rate > MAX_RATE:
-        rate = MAX_RATE
-    _prev_rate = rate
-    #rate *= float(1e9)
-    #print("\tRATE = " + str(rate / 1000000.0))
-    return rate
+    if STATE == STATE_RUNNING:
+        #print("Waiting for rate from ML...")
+        rate_delta, reset = rate_queue.get()
+        rate_delta = rate_delta[0] * DELTA_SCALE
+        if reset:
+            _prev_rate = RESET_RATE_TARGET
+            STATE = STATE_RECORDING_RESET_SAMPLES
+            return _prev_rate * 1e6
+        rate = _prev_rate
+        rate *= (1.0 + rate_delta)
+        if rate < MIN_RATE:
+            rate = MIN_RATE
+        if rate > MAX_RATE:
+            rate = MAX_RATE
+        _prev_rate = rate
+        return rate * 1e6
+    elif STATE == STATE_RECORDING_RESET_SAMPLES:
+        if N_RESET_SAMPLES == MAX_RESET_SAMPLES:
+            N_RESET_SAMPLES = 0
+            RESET_SAMPLES_UTILITY_SUM = 0.0
+            STATE = STATE_RUNNING
+        return RESET_RATE_TARGET * 1e6
+
