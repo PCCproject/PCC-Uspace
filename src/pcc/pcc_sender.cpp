@@ -159,7 +159,7 @@ QuicTime::Delta PccSender::ComputeMonitorDuration(
 
   return QuicTime::Delta::FromMicroseconds(
       std::max(1.5 * rtt.ToMicroseconds(), 
-               kMinimumPacketsPerInterval * kBitsPerByte * 
+               kNumMicrosPerSecond * kMinimumPacketsPerInterval * kBitsPerByte * 
                    kDefaultTCPMSS / static_cast<float>(
                        sending_rate.ToBitsPerSecond())));
 }
@@ -170,7 +170,7 @@ QuicTime PccSender::ComputeMonitorDuration(
   
   return
       std::max(kMonitorIntervalDuration * rtt, 
-               kMinimumPacketsPerInterval * kBitsPerByte * 
+               kNumMicrosPerSecond * kMinimumPacketsPerInterval * kBitsPerByte * 
                    kDefaultTCPMSS / (float)sending_rate);
 }
 #endif

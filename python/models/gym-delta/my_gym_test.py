@@ -41,7 +41,7 @@ for arg in sys.argv:
 
 
 # The number of samples to train for
-N_SAMPLES = 200000
+N_SAMPLES = 100000
 
 # 
 events = []

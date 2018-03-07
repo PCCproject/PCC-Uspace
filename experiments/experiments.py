@@ -185,9 +185,9 @@ class PccExperiment:
       executable = dir_expr_path + "/src/app/pccserver"
       remote_call(remote_host,
                   "cd " + dir_expr_root + dir_expr_bash +
-                      " && chmod a+x ./run_receiver.sh")
+                      " && chmod a+x ./run_pcc_receiver.sh")
       remote_call(remote_host,
-                  dir_expr_root + dir_expr_bash + "/run_receiver.sh " +
+                  dir_expr_root + dir_expr_bash + "/run_pcc_receiver.sh " +
                       executable)
 
   def run_sender(self, remote_host, receiver_ip, duration, flow_id, timeshift) :
@@ -236,7 +236,7 @@ class PccExperiment:
       remote_call_background(get_hostname("bridge0", self.emulab_user, self.emulab_expr,
                                self.emulab_project),
                   dir_expr_root + dir_expr_bash +
-                      "/run_bridge_setup.sh " + str(self.expr_node_pair) +
+                      "/run_bridge_setup_old.sh " + str(self.expr_node_pair) +
                       " " + str(self.bridge_intvl) + " " + str(self.seed) +
                       " " + str(self.bridge_lbw) + " " + str(self.bridge_rbw) +
                       " " + str(self.bridge_ldl) + " " + str(self.bridge_rdl) +

@@ -4,7 +4,7 @@ import time
 replicas = 1
 
 params = {
-"--delta-rate-scale=":[0.1, 0.15],
+"--delta-rate-scale=":[1.0, 1.5],
 }
 """
 "--history-len=":[1, 10000],
@@ -52,7 +52,7 @@ for param in params.keys():
             cmd += " " + param + str(value)
             #cmd += " --save-model"
             #cmd += " --load-model"
-            cmd += " --model-name=/home/njay2/PCC/deep-learning/python/models/gym-delta/pcc_model"
+            #cmd += " --model-name=/home/njay2/PCC/deep-learning/python/models/gym-delta/pcc_model"
             cmd += " -log=test_log_" + str(time.time()) + ".txt"
             #cmd += " &"
             os.system(cmd)

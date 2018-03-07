@@ -424,6 +424,12 @@ bool PccMonitorIntervalQueue::CalculateUtility(MonitorInterval* interval) {
     // Cannot get valid utility if interval only contains one packet.
     return false;
   }
+
+  if (interval->packet_rtt_samples.size() < 2) {
+      // Cannot get valid utility if we do not have at least two packet with
+      // valid RTTs.
+      return false;
+  }
   const int64_t kMinTransmissionTime = 1l;
   int64_t mi_duration = std::max(
       kMinTransmissionTime,

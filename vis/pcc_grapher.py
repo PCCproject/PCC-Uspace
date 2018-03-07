@@ -18,7 +18,12 @@ from scipy import interpolate
 from scipy.signal import savgol_filter
 from operator import itemgetter
 
-
+def smooth(array, period):
+    ret = numpy.cumsum(array, dtype=float)
+    ret[period:] = ret[period:] - ret[:-period]
+    ret[period - 1:] = ret[period - 1:] / period
+    ret[:period] = array[:period]
+    return ret
 
 from analysis.pcc_experiment_log import *
 from analysis.pcc_filter import *
@@ -273,13 +278,15 @@ if graph_config["type"] == "event":
         if (should_smooth):
             for k in this_log_y_axis_values.keys():
                 x = this_log_x_axis_values
-                y = this_log_y_axis_values[k]
-                if len(y) < 1:
-                    continue
-                f = interpolate.interp1d(x, y, kind="linear")
-                window_size = smooth_window_size
-                order = 3
-                this_log_y_axis_values[k] = savgol_filter(y, window_size, order)
+                y = smooth(this_log_y_axis_values[k], smooth_window_size)
+                this_log_y_axis_values[k] = y
+                #y = this_log_y_axis_values[k]
+                #if len(y) < 1:
+                #    continue
+                #f = interpolate.interp1d(x, y, kind="linear")
+                #window_size = smooth_window_size
+                #order = 3
+                #this_log_y_axis_values[k] = savgol_filter(y, window_size, order)
         y_axis_values.append(this_log_y_axis_values) 
         
 

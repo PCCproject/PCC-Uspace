@@ -11,6 +11,7 @@ import math
 import tensorflow as tf
 import sys
 import baselines.common.tf_util as U
+import random
 if not hasattr(sys, 'argv'):
     sys.argv  = ['']
 
@@ -20,14 +21,15 @@ Copied from http://incompleteideas.net/sutton/book/code/pole.c
 permalink: https://perma.cc/C9ZM-652R
 """
    
-HISTORY_LEN = 10
+HISTORY_LEN = 1
+#HISTORY_LEN = 10
 HID_LAYERS = 3
 HID_SIZE = 64
 TS_PER_BATCH = 512
 MAX_KL = 0.001
 CG_ITERS = 10
 CG_DAMPING = 1e-3
-GAMMA = 0.9
+GAMMA = 0.0
 LAMBDA = 1.0
 VF_ITERS = 3
 VF_STEPSIZE = 1e-4
@@ -35,7 +37,7 @@ ENTCOEFF = 0.00
 
 MIN_RATE = 0.00001
 MAX_RATE = 1000.0
-DELTA_SCALE = 0.5
+DELTA_SCALE = 0.02
 
 LOAD_MODEL = False
 SAVE_MODEL = False
@@ -117,11 +119,16 @@ MONITOR_INTERVAL_MAX_OBS = [
 
 RESET_UTILITY_FRACTION = 0.33
 RESET_RATE_TARGET = 10.0
+RESET_TARGET_RATE_MIN = 1.0
+RESET_TARGET_RATE_MAX = 180.0
+
+RESET_INTERVAL = 50
+RESET_COUNTER = 0
 
 STATE_RECORDING_RESET_SAMPLES = "RECORDING_RESET_VALUES"
 STATE_RUNNING = "RUNNING"
 
-MAX_RESET_SAMPLES = 4
+MAX_RESET_SAMPLES = max(HISTORY_LEN, 10)
 N_RESET_SAMPLES = 0
 RESET_SAMPLES_UTILITY_SUM = 0.0
 RESET_RATE_EXPECTED_UTILITY = 0.0
@@ -153,11 +160,19 @@ class PccMonitorInterval():
         if (stop):
             print("CREATED MONITOR INTERVAL WITH STOP SIGNAL")
 
+        global RESET_COUNTER
+        RESET_COUNTER += 1
+
         update_util_ewma(utility)
         print("UTIL = " + str(UTIL_EWMA_VAL) + " (" + str(RESET_RATE_EXPECTED_UTILITY) + ")")
         if UTIL_EWMA_VAL < RESET_RATE_EXPECTED_UTILITY * RESET_UTILITY_FRACTION:
-            pass
-            #self.done = True
+            self.done = True
+            RESET_COUNTER = 0
+            print("\t RESET DUE TO LOW UTILITY")
+        elif RESET_COUNTER >= RESET_INTERVAL:
+            self.done = True
+            RESET_COUNTER = 0
+            print("\t RESET DUE TO COUNTER")
 
     # Convert the observation parts of the monitor interval into a numpy array
     # eb
@@ -336,7 +351,7 @@ def train(num_timesteps, seed, mi_queue, rate_queue):
 mi_queue = multiprocessing.Queue()
 rate_queue = multiprocessing.Queue()
 
-p = multiprocessing.Process(target=train, args=(1e9, int(time.time()), mi_queue, rate_queue))
+p = multiprocessing.Process(target=train, args=(1e9, 0, mi_queue, rate_queue))
 p.start()
 
 def give_sample(sending_rate, latency, loss, lat_infl, utility, stop=False):
@@ -396,11 +411,25 @@ def get_rate():
         if reset:
             #if LOAD_MODEL and not MODEL_LOADED:
             #    load_model(MODEL_NAME)
-            _prev_rate = RESET_RATE_TARGET
+            # _prev_rate = RESET_RATE_TARGET
+            global RESET_TARGET_RATE_MIN
+            global RESET_TARGET_RATE_MAX
+            global RESET_COUNTER
+            print("RESET_COUNTER = 0")
+            #_prev_rate = RESET_RATE_TARGET
+            _prev_rate = random.uniform(RESET_TARGET_RATE_MIN, RESET_TARGET_RATE_MAX)
+            RESET_COUNTER = 0
             STATE = STATE_RECORDING_RESET_SAMPLES
             return _prev_rate * 1e6
         rate = _prev_rate
-        rate *= (1.0 + rate_delta)
+        #rate += 10.0 * rate_delta
+        #"""
+        if rate_delta > 0:
+            rate *= (1.0 + rate_delta)
+        elif rate_delta < 0:
+            #rate *= (1.0 + rate_delta)
+            rate /= (1.0 - rate_delta)
+        #"""
         if rate < MIN_RATE:
             rate = MIN_RATE
         if rate > MAX_RATE:
@@ -412,5 +441,5 @@ def get_rate():
             N_RESET_SAMPLES = 0
             RESET_SAMPLES_UTILITY_SUM = 0.0
             STATE = STATE_RUNNING
-        return RESET_RATE_TARGET * 1e6
+        return _prev_rate * 1e6
 
