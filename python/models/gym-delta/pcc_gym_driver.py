@@ -23,9 +23,11 @@ permalink: https://perma.cc/C9ZM-652R
    
 HISTORY_LEN = 1
 #HISTORY_LEN = 10
-HID_LAYERS = 3
-HID_SIZE = 64
-TS_PER_BATCH = 512
+HID_LAYERS = 1
+#HID_LAYERS = 3
+HID_SIZE = 1
+#HID_SIZE = 64
+TS_PER_BATCH = 16#512
 MAX_KL = 0.001
 CG_ITERS = 10
 CG_DAMPING = 1e-3
@@ -37,7 +39,7 @@ ENTCOEFF = 0.00
 
 MIN_RATE = 0.00001
 MAX_RATE = 1000.0
-DELTA_SCALE = 0.02
+DELTA_SCALE = 0.04
 
 LOAD_MODEL = False
 SAVE_MODEL = False
@@ -119,21 +121,22 @@ MONITOR_INTERVAL_MAX_OBS = [
 
 RESET_UTILITY_FRACTION = 0.33
 RESET_RATE_TARGET = 10.0
-RESET_TARGET_RATE_MIN = 1.0
-RESET_TARGET_RATE_MAX = 180.0
+RESET_TARGET_RATE_MIN = 10.0#40.0
+RESET_TARGET_RATE_MAX = 10.0#160.0
 
-RESET_INTERVAL = 50
+RESET_INTERVAL = 4
 RESET_COUNTER = 0
 
 STATE_RECORDING_RESET_SAMPLES = "RECORDING_RESET_VALUES"
 STATE_RUNNING = "RUNNING"
+STATE_RESET = "RESET"
 
-MAX_RESET_SAMPLES = max(HISTORY_LEN, 10)
+MAX_RESET_SAMPLES = max(HISTORY_LEN, 1)
 N_RESET_SAMPLES = 0
 RESET_SAMPLES_UTILITY_SUM = 0.0
 RESET_RATE_EXPECTED_UTILITY = 0.0
 
-STATE = STATE_RECORDING_RESET_SAMPLES
+STATE = STATE_RESET
 
 UTIL_EWMA_FACTOR = 0.66
 UTIL_EWMA_VAL = 0.0
@@ -160,19 +163,23 @@ class PccMonitorInterval():
         if (stop):
             print("CREATED MONITOR INTERVAL WITH STOP SIGNAL")
 
+        #self.done = True
+        
         global RESET_COUNTER
-        RESET_COUNTER += 1
-
+        print("reset counter = " + str(RESET_COUNTER))
         update_util_ewma(utility)
-        print("UTIL = " + str(UTIL_EWMA_VAL) + " (" + str(RESET_RATE_EXPECTED_UTILITY) + ")")
-        if UTIL_EWMA_VAL < RESET_RATE_EXPECTED_UTILITY * RESET_UTILITY_FRACTION:
+        #print("UTIL = " + str(UTIL_EWMA_VAL) + " (" + str(RESET_RATE_EXPECTED_UTILITY) + ")")
+        if not done and UTIL_EWMA_VAL < RESET_RATE_EXPECTED_UTILITY * RESET_UTILITY_FRACTION:
+            #self.done = True
+            #RESET_COUNTER = 0
+            #print("\t RESET DUE TO LOW UTILITY")
+            pass
+        
+        if RESET_COUNTER >= RESET_INTERVAL:
             self.done = True
             RESET_COUNTER = 0
-            print("\t RESET DUE TO LOW UTILITY")
-        elif RESET_COUNTER >= RESET_INTERVAL:
-            self.done = True
-            RESET_COUNTER = 0
-            print("\t RESET DUE TO COUNTER")
+            print("\t RESET DUE TO COUNTER (" + str(rate) + ")")
+        RESET_COUNTER += 1
 
     # Convert the observation parts of the monitor interval into a numpy array
     # eb
@@ -201,13 +208,16 @@ def save_model(model_name):
     global sess
     saver = tf.train.Saver()
     saver.save(sess, model_name)
-    #my_vars = tf.global_variables()
-    #for v in my_vars:
-    #    print(v.name)
-    #    if v.name == "pi/obfilter/runningsum:0":
-    #        val = sess.run(v)
-    #        print(val)
-    #print(my_vars)
+    my_vars = tf.global_variables()
+    for v in my_vars:
+        print(v.name)
+        if v.name == "pi/obfilter/runningsum:0": 
+            val = sess.run(v)
+            print(val)
+        if v.name == "pi/logstd:0":
+            val = sess.run(v)
+            print(math.exp(val))
+    print(my_vars)
 
 def load_model(model_name):
     saver = tf.train.Saver()
@@ -252,8 +262,10 @@ class PccEnv(gym.Env):
         if not self.action_space.contains(action):
             print("ERROR: Action space does not contain value: " + action)
             exit(-1)
+        #print("Putting rate on rate queue")
         rate_queue.put((action, should_reset))
         #print("Waiting for MI from PCC...")
+        #print("Getting MI from queue")
         mi = mi_queue.get()
         #print("GOT MONITOR INTERVAL")
         if mi.stop:
@@ -265,14 +277,17 @@ class PccEnv(gym.Env):
                 save_model(MODEL_NAME)
             print("EXITING")
             exit(0)
+        
         self.hist.step(mi)
-        reward = mi.utility
+        reward = mi.utility# * 1e-8
         self.state = self.hist.as_array()
         #print(self.state)
+        print("Returning reward: " + str(reward) + " for action " + str(action))
+        #exit(0)
         return self.state, reward, mi.done, {}
 
     def reset(self):
-        #print("RESET CALLED!")
+        print("RESET CALLED!")
         self.was_reset = True
         #exit(0)
         global LOAD_MODEL
@@ -314,15 +329,18 @@ def train(num_timesteps, seed, mi_queue, rate_queue):
     # def policy_fn(name, ob_space, ac_space): #pylint: disable=W0613
     #     return BasicNNPolicy(name=name, ob_space=env.observation_space, ac_space=env.action_space) ## Here's the neural network! NHR
     def policy_fn(name, ob_space, ac_space): #pylint: disable=W0613
-        #return BasicNNPolicy(name=name, ob_space=env.observation_space, ac_space=env.action_space) ## Here's the neural network! NHR
-        #return CnnPolicy(name=name, ob_space=env.observation_space, ac_space=env.action_space) ## Here's the neural network! NHR
-        #return SimplePolicy(name=name, ob_space=env.observation_space, ac_space=env.action_space, hid_size=64, num_hid_layers=7) ## Here's the neural network! NHR
-        return MlpPolicy(name=name, ob_space=env.observation_space, ac_space=env.action_space, hid_size=HID_SIZE, num_hid_layers=HID_LAYERS) ## Here's the neural network! NHR
+        return MlpPolicy(
+            name=name,
+            ob_space=env.observation_space,
+            ac_space=env.action_space,
+            hid_size=HID_SIZE,
+            num_hid_layers=HID_LAYERS
+        )
     #env = bench.Monitor(env, logger.get_dir() and osp.join(logger.get_dir(), str(rank)))
     env.seed(workerseed)
     #gym.logger.setLevel(logging.WARN)
 
-    # env = wrap_deepmind(env)
+    #env = wrap_deepmind(env)
     env.seed(workerseed)
 
     global TS_PER_BATCH
@@ -353,10 +371,11 @@ rate_queue = multiprocessing.Queue()
 
 p = multiprocessing.Process(target=train, args=(1e9, 0, mi_queue, rate_queue))
 p.start()
+_prev_rate_delta = 0.0
 
 def give_sample(sending_rate, latency, loss, lat_infl, utility, stop=False):
-    #print("GIVING SAMPLE")
     global STATE
+    print("GIVING SAMPLE: " + STATE)
     global STATE_RECORDING_RESET_SAMPLES
     global STATE_RUNNING
     global MAX_RESET_SAMPLES
@@ -365,18 +384,13 @@ def give_sample(sending_rate, latency, loss, lat_infl, utility, stop=False):
     global RESET_RATE_EXPECTED_UTILITY
     global UTIL_EWMA_VAL
 
-    if (not stop) and STATE == STATE_RECORDING_RESET_SAMPLES:
-        print("GIVE SAMPLE: RECORDING RESET SAMPLES = " + str(utility))
-        RESET_SAMPLES_UTILITY_SUM += utility
-        N_RESET_SAMPLES += 1
-        #print("N_RESET_SAMPLES = " + str(N_RESET_SAMPLES))
-        RESET_RATE_EXPECTED_UTILITY = RESET_SAMPLES_UTILITY_SUM / float(N_RESET_SAMPLES)
-        UTIL_EWMA_VAL = 0.0
-        #if N_RESET_SAMPLES == MAX_RESET_SAMPLES:
-        #    N_RESET_SAMPLES = 0
-        #    STATE = STATE_RUNNING
-    else:
-        #print("GIVE SAMPLE: RUNNING")
+    if stop:
+        mi_queue.put(PccMonitorInterval(
+            sending_rate, latency, loss,
+            lat_infl, utility, False, stop))
+
+    elif STATE == STATE_RUNNING or STATE == STATE_RESET:
+        print("Putting MI on queue.")
         mi_queue.put(PccMonitorInterval(
             sending_rate,
             latency,
@@ -386,60 +400,67 @@ def give_sample(sending_rate, latency, loss, lat_infl, utility, stop=False):
             False,
             stop
         ))
-
-_prev_rate = RESET_RATE_TARGET
-
-def get_rate():
-    #print("GETTING RATE")
-    # Rate normally varies from -5 to 5
-    global _prev_rate
-    global RESET_RATE_TARGET
-    global STATE
-    global STATE_RECORDING_RESET_SAMPLES
-    global STATE_RUNNING
-    global MAX_RESET_SAMPLES
-    global N_RESET_SAMPLES
-    global RESET_SAMPLES_UTILITY_SUM
-    global MODEL_LOADED
-    global LOAD_MODEL
-    global MODEL_NAME
-    #print("Rate delta: " + str(rate_delta))
-    if STATE == STATE_RUNNING:
-        #print("Waiting for rate from ML...")
-        rate_delta, reset = rate_queue.get()
-        rate_delta = rate_delta[0] * DELTA_SCALE
-        if reset:
-            #if LOAD_MODEL and not MODEL_LOADED:
-            #    load_model(MODEL_NAME)
-            # _prev_rate = RESET_RATE_TARGET
-            global RESET_TARGET_RATE_MIN
-            global RESET_TARGET_RATE_MAX
-            global RESET_COUNTER
-            print("RESET_COUNTER = 0")
-            #_prev_rate = RESET_RATE_TARGET
-            _prev_rate = random.uniform(RESET_TARGET_RATE_MIN, RESET_TARGET_RATE_MAX)
-            RESET_COUNTER = 0
-            STATE = STATE_RECORDING_RESET_SAMPLES
-            return _prev_rate * 1e6
-        rate = _prev_rate
-        #rate += 10.0 * rate_delta
-        #"""
-        if rate_delta > 0:
-            rate *= (1.0 + rate_delta)
-        elif rate_delta < 0:
-            #rate *= (1.0 + rate_delta)
-            rate /= (1.0 - rate_delta)
-        #"""
-        if rate < MIN_RATE:
-            rate = MIN_RATE
-        if rate > MAX_RATE:
-            rate = MAX_RATE
-        _prev_rate = rate
-        return rate * 1e6
+    
     elif STATE == STATE_RECORDING_RESET_SAMPLES:
+        RESET_SAMPLES_UTILITY_SUM += utility
+        N_RESET_SAMPLES += 1
+        RESET_RATE_EXPECTED_UTILITY = RESET_SAMPLES_UTILITY_SUM / float(N_RESET_SAMPLES)
+        UTIL_EWMA_VAL = RESET_RATE_EXPECTED_UTILITY
         if N_RESET_SAMPLES == MAX_RESET_SAMPLES:
             N_RESET_SAMPLES = 0
             RESET_SAMPLES_UTILITY_SUM = 0.0
             STATE = STATE_RUNNING
-        return _prev_rate * 1e6
 
+_prev_rate = None
+
+def apply_rate_delta(rate, rate_delta):
+    global MIN_RATE
+    global MAX_RATE
+
+    # We want a string of actions with average 0 to result in a rate change
+    # of 0, so delta of 0.05 means rate * 1.05,
+    # delta of -0.05 means rate / 1.05
+    if rate_delta > 0:
+        rate *= (1.0 + rate_delta)
+    elif rate_delta < 0:
+        rate /= (1.0 - rate_delta)
+    
+    # For practical purposes, we may have maximum and minimum rates allowed.
+    if rate < MIN_RATE:
+        rate = MIN_RATE
+    if rate > MAX_RATE:
+        rate = MAX_RATE
+
+    return rate
+    
+
+def get_rate():
+    global STATE
+    print("GETTING RATE: " + STATE)
+    
+    global _prev_rate
+    global MAX_RESET_SAMPLES
+    global N_RESET_SAMPLES
+    
+    global RESET_TARGET_RATE_MIN
+    global RESET_TARGET_RATE_MAX
+    
+    if STATE == STATE_RUNNING:
+        rate_delta, reset = rate_queue.get()
+        rate_delta = rate_delta[0]# * DELTA_SCALE
+        
+        rate = apply_rate_delta(_prev_rate, rate_delta)
+        rate = rate_delta
+
+        if reset:
+            STATE = STATE_RESET
+
+    elif STATE == STATE_RESET:
+        rate = 0#random.uniform(RESET_TARGET_RATE_MIN, RESET_TARGET_RATE_MAX)
+        STATE = STATE_RECORDING_RESET_SAMPLES
+
+    elif STATE == STATE_RECORDING_RESET_SAMPLES:
+        rate = _prev_rate
+
+    _prev_rate = rate
+    return rate# * 1e6

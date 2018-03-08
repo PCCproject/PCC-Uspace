@@ -41,7 +41,7 @@ for arg in sys.argv:
 
 
 # The number of samples to train for
-N_SAMPLES = 100000
+N_SAMPLES = 1000000
 
 # 
 events = []
@@ -83,8 +83,13 @@ for i in range(0, N_SAMPLES):
     # Record the starting time for a single rate-then-sample loop.
     start = time.time()
 
+    print("================")
+    print(" Time: " + str(i))
+    print("================")
+
     # Ask the training algorithm for the rate to send packets.
     rate = pcc_gym_driver.get_rate()
+    print(str(i) + " get_rate() = " + str(rate))
 
     # Calculate the reward the algorithm based on its chosen rate.
     util = reward(rate)
@@ -94,7 +99,9 @@ for i in range(0, N_SAMPLES):
     if (stop):
         print("SENDING STOP SIGNAL")
     # Give the algorithm information about the current link state and reward.
-    pcc_gym_driver.give_sample(rate * RATE_SCALE, lat * LATENCY_SCALE, loss_func(rate) * LOSS_SCALE, lat_infl, util * UTILITY_SCALE, stop)
+    #pcc_gym_driver.give_sample(rate * RATE_SCALE, lat * LATENCY_SCALE, loss_func(rate) * LOSS_SCALE, lat_infl, util * UTILITY_SCALE, stop)
+    print(str(i) + " give_sample() (rate = " + str(rate))
+    pcc_gym_driver.give_sample(0.0, 0, 0, 0, rate, stop)
 
     # Record the endtime for a single training loop.
     end = time.time()
