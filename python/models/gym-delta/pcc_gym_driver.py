@@ -27,7 +27,7 @@ HID_LAYERS = 1
 #HID_LAYERS = 3
 HID_SIZE = 1
 #HID_SIZE = 64
-TS_PER_BATCH = 16#512
+TS_PER_BATCH = 512
 MAX_KL = 0.001
 CG_ITERS = 10
 CG_DAMPING = 1e-3
@@ -121,10 +121,10 @@ MONITOR_INTERVAL_MAX_OBS = [
 
 RESET_UTILITY_FRACTION = 0.33
 RESET_RATE_TARGET = 10.0
-RESET_TARGET_RATE_MIN = 10.0#40.0
-RESET_TARGET_RATE_MAX = 10.0#160.0
+RESET_TARGET_RATE_MIN = 20.0
+RESET_TARGET_RATE_MAX = 180.0
 
-RESET_INTERVAL = 4
+RESET_INTERVAL = 100
 RESET_COUNTER = 0
 
 STATE_RECORDING_RESET_SAMPLES = "RECORDING_RESET_VALUES"
@@ -166,19 +166,19 @@ class PccMonitorInterval():
         #self.done = True
         
         global RESET_COUNTER
-        print("reset counter = " + str(RESET_COUNTER))
+        #print("reset counter = " + str(RESET_COUNTER))
         update_util_ewma(utility)
         #print("UTIL = " + str(UTIL_EWMA_VAL) + " (" + str(RESET_RATE_EXPECTED_UTILITY) + ")")
         if not done and UTIL_EWMA_VAL < RESET_RATE_EXPECTED_UTILITY * RESET_UTILITY_FRACTION:
-            #self.done = True
-            #RESET_COUNTER = 0
+            self.done = True
+            RESET_COUNTER = 0
             #print("\t RESET DUE TO LOW UTILITY")
             pass
         
         if RESET_COUNTER >= RESET_INTERVAL:
             self.done = True
             RESET_COUNTER = 0
-            print("\t RESET DUE TO COUNTER (" + str(rate) + ")")
+            #print("\t RESET DUE TO COUNTER (" + str(rate) + ")")
         RESET_COUNTER += 1
 
     # Convert the observation parts of the monitor interval into a numpy array
@@ -282,12 +282,12 @@ class PccEnv(gym.Env):
         reward = mi.utility# * 1e-8
         self.state = self.hist.as_array()
         #print(self.state)
-        print("Returning reward: " + str(reward) + " for action " + str(action))
+        #print("Returning reward: " + str(reward) + " for action " + str(action))
         #exit(0)
         return self.state, reward, mi.done, {}
 
     def reset(self):
-        print("RESET CALLED!")
+        #print("RESET CALLED!")
         self.was_reset = True
         #exit(0)
         global LOAD_MODEL
@@ -375,7 +375,7 @@ _prev_rate_delta = 0.0
 
 def give_sample(sending_rate, latency, loss, lat_infl, utility, stop=False):
     global STATE
-    print("GIVING SAMPLE: " + STATE)
+    #print("GIVING SAMPLE: " + STATE)
     global STATE_RECORDING_RESET_SAMPLES
     global STATE_RUNNING
     global MAX_RESET_SAMPLES
@@ -390,7 +390,7 @@ def give_sample(sending_rate, latency, loss, lat_infl, utility, stop=False):
             lat_infl, utility, False, stop))
 
     elif STATE == STATE_RUNNING or STATE == STATE_RESET:
-        print("Putting MI on queue.")
+        #print("Putting MI on queue.")
         mi_queue.put(PccMonitorInterval(
             sending_rate,
             latency,
@@ -436,7 +436,7 @@ def apply_rate_delta(rate, rate_delta):
 
 def get_rate():
     global STATE
-    print("GETTING RATE: " + STATE)
+    #print("GETTING RATE: " + STATE)
     
     global _prev_rate
     global MAX_RESET_SAMPLES
@@ -447,20 +447,19 @@ def get_rate():
     
     if STATE == STATE_RUNNING:
         rate_delta, reset = rate_queue.get()
-        rate_delta = rate_delta[0]# * DELTA_SCALE
+        rate_delta = rate_delta[0] * DELTA_SCALE
         
         rate = apply_rate_delta(_prev_rate, rate_delta)
-        rate = rate_delta
 
         if reset:
             STATE = STATE_RESET
 
     elif STATE == STATE_RESET:
-        rate = 0#random.uniform(RESET_TARGET_RATE_MIN, RESET_TARGET_RATE_MAX)
+        rate = random.uniform(RESET_TARGET_RATE_MIN, RESET_TARGET_RATE_MAX)
         STATE = STATE_RECORDING_RESET_SAMPLES
 
     elif STATE == STATE_RECORDING_RESET_SAMPLES:
         rate = _prev_rate
 
     _prev_rate = rate
-    return rate# * 1e6
+    return rate * 1e6
