@@ -18,6 +18,7 @@ copied_paths = [
 "python/models/"
 ]
 
+# Configuration variables
 bottleneck_lbw = 0
 bottleneck_rbw = 0
 bottleneck_ldl = 0
@@ -26,6 +27,10 @@ bottleneck_lbf = 0
 bottleneck_rbf = 0
 bottleneck_llr = 0
 bottleneck_rlr = 0
+flow_start_time = []
+flow_end_time = []
+flow_args = []
+flow_proto = []
 
 ################################################################################
 def generate_bridge_setup_script(args) :
@@ -96,6 +101,41 @@ def generate_bridge_setup_script(args) :
   # # save a copy of the bridge setup script
   # time_ms = int(round(time.time() * 1000))
   # os.system("cp bash/run_bridge_setup.sh bash/run_bridge_setup_%d" % time_ms)
+################################################################################
+
+
+################################################################################
+def generate_flow_configuration(args) :
+  flow_config = open(args.flow_config, "r")
+  flow_bbr = 0
+  flow_cubic = 0
+  while True:
+    s = flow_config.readline()
+    if s == "" :
+      break
+    s = s.strip('\n').split(" ")
+    flow_start_time.append(s[0])
+    flow_end_time.append(s[1])
+    flow_proto.append(s[2])
+    if s[2] == "PCC" :
+      if len(s) == 3 :
+        flow_args.append(args.args)
+      else :
+        # FIXME: concatenate all remaining args if there are more than one
+        flow_args.append(s[3])
+    elif s[2] == "BBR" :
+      flow_bbr += 1
+      flow_args.append("")
+    elif s[2] == "CUBIC" :
+      flow_cubic += 1
+      flow_args.append("")
+################################################################################
+
+
+################################################################################
+def process_config(args) :
+  generate_bridge_setup_script(args)
+  generate_flow_configuration(args)
 ################################################################################
 
 
@@ -276,12 +316,100 @@ def run_bridge(args) :
 
 
 ################################################################################
+def run_sender_pcc(args,
+                   flow_args,
+                   remote_host,
+                   receiver_ip,
+                   flow_id,
+                   duration,
+                   timeshift) :
+  # FIXME: timestamp here is local time, not emulab node time
+  executable = dir_expr_path + "/src/app/pccclient"
+
+  remote_call(remote_host,
+                "cd " + dir_expr_root + dir_expr_bash +
+                    " && chmod a+x ./run_pcc_sender.sh")
+  # FIXME: bottleneck related arguments for dynamic setups
+  remote_call_background(
+      remote_host,
+      dir_expr_root + dir_expr_bash + "/run_pcc_sender.sh " + executable + " " +
+          receiver_ip + " " + dir_expr_path + " " + str(args.n) + " " +
+          str(bottleneck_lbw) + " " + str(bottleneck_ldl) + " " +
+          str(self.bottleneck_lbf) + " " + str(bottleneck_llr) +
+          " /dev/null /dev/null " + str(duration) + " " + str(flow_args) +
+          " -flowid=" + str(flow_id) + " -timeshift=" + str(timeshift) + " &")
+################################################################################
+
+
+################################################################################
+def run_sender_tcp(args,
+                   proto,
+                   remote_host,
+                   receiver_ip,
+                   flow_id,
+                   duration,
+                   timeshift) :
+  remote_host = get_hostname("sender" + str(sender_id), args.u, args.e, args.p)
+  # FIXME: change log file names based on the PCC naming standard
+  # FIXME: make sure BBR and CUBIC can be used from the same machine with -Z
+  remote_call_background(
+      remote_host,
+      "cd " + dir_expr_path + " && iperf -c " + receiver_ip + " -i 1 -t " +
+          str(duration) + " -Z " + proto + " >" + proto + "_log_flow" +
+          str(flow_id) + "_" + str(bottleneck_lbw) + "_" + str(bottleneck_ldl) +
+          "_" + str(bottleneck_lbf) + "_" + str(bottleneck_llr) + "_" +
+          str(timeshift) + ".txt")
+################################################################################
+
+
+################################################################################
 def run_senders(args) :
-  flow_config = open(args.flow_config, "r")
-  while True:
-    s = flow_config.readline()
-    if s == "" :
-      break
+  # modify congestion control protocools accordingly
+  for i in sender_bbr :
+    remote_call(get_hostname("sender" + str(i), args.u, args.e, args.p),
+                "sudo sysctl -w net.ipv4.tcp_congestion_control=bbr")
+  for i in sender_cubic :
+    remote_call(get_hostname("sender" + str(i), args.u, args.e, args.p),
+                "sudo sysctl -w net.ipv4.tcp_congestion_control=cubic")
+
+  # start running flows
+  initial_start_time = flow_start_time[0]
+  last_start_time = flow_start_time[0]
+  end_time = flow_end_time[0]
+  sender_indx = 0
+  for i in range(0, len(flow_proto)) :
+    time.sleep(flow_start_time[i] - last_start_time)
+    last_start_time = flow_start_time[i]
+    end_time = max(end_time, flow_end_time[i])
+    timeshift = last_start_time - initial_start_time
+
+    duration = flow_end_time[i] - flow_start_time[i]
+    remote_host = get_hostname("sender" + str(sender_indx + 1), args.u, args.e,
+                               args.p)
+    receiver_ip = "10.1.1." + str(sender_indx + 3)
+    sender_indx = (sender_indx + 1) % args.n
+
+    if flow_proto[i] == "PCC" :
+      run_sender_pcc(args, flow_args[i], remote_host, receiver_ip, i, duration,
+                     timeshift)
+    elif flow_proto[i] == "BBR" :
+      run_sender_tcp(args, "BBR", remote_host, receiver_ip, i, duration,
+                     timeshift)
+    elif flow_proto[i] == "CUBIC" :
+      run_sender_tcp(args, "CUBIC", remote_host, receiver_ip, i, duration,
+                     timeshift)
+
+  time.sleep(end_time - last_start_time)
+################################################################################
+
+
+################################################################################
+def copy_logs(args) :
+  os.system("mkdir -p results")
+  for i in range(1, args.n + 1) :
+    remote_copy(get_hostname("sender" + str(i), args.u, args.e, args.p) + ":" +
+                    dir_expr_path + "/pcc_log_*",
+                "./results/")
 ################################################################################
 
 
@@ -297,10 +425,10 @@ if __name__ == "__main__":
                       default=1)
   parser.add_argument("-r", help="number of experiment repetitions", type=int,
                       default=2)
+
+  # FIXME: get duration from flow configuration file
   parser.add_argument("-t", help="experiment duration (sec)", type=int,
                       default=60)
-  parser.add_argument("-g", help="Time gap between starting two connections",
-                      type=int, default=10)
 
   parser.add_argument("--flow-config", "-fc", help="flow configuration file \
                       path", required=True)
@@ -326,10 +454,9 @@ if __name__ == "__main__":
     print "Invalid flow configuration file path"
     sys.exit()
 
-  generate_bridge_setup_script(args)
+  process_config(args)
   prepare(args)
 
-  duration = args.t
   for itr in range(0, args.r) :
     print "[repitition %d]" % itr
     clean_obsolete(args)
@@ -341,4 +468,5 @@ if __name__ == "__main__":
   print "Experiment finished"
   time.sleep(1)
   clean_obsolete(args)
+  copy_logs(args)
 
