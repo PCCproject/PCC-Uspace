@@ -114,19 +114,18 @@ def generate_flow_configuration(args) :
     if s == "" :
       break
     s = s.strip('\n').split(" ")
-    flow_start_time.append(s[0])
-    flow_end_time.append(s[1])
+    flow_start_time.append(int(s[0]))
+    flow_end_time.append(int(s[1]))
     flow_proto.append(s[2])
     if s[2] == "PCC" :
       if len(s) == 3 :
         flow_args.append(args.args)
       else :
-        # FIXME: concatenate all remaining args if there are more than one
-        flow_args.append(s[3])
-    elif s[2] == "BBR" :
+        flow_args.append(' '.join(s[3:]))
+    elif s[2] == "bbr" :
       flow_bbr += 1
       flow_args.append("")
-    elif s[2] == "CUBIC" :
+    elif s[2] == "cubic" :
       flow_cubic += 1
       flow_args.append("")
 ################################################################################
@@ -134,6 +133,7 @@ def generate_flow_configuration(args) :
 
 ################################################################################
 def process_config(args) :
+  # FIXME: make sure the last '\n' line does not mass up
   generate_bridge_setup_script(args)
   generate_flow_configuration(args)
 ################################################################################
@@ -349,7 +349,6 @@ def run_sender_tcp(args,
                    flow_id,
                    duration,
                    timeshift) :
-  remote_host = get_hostname("sender" + str(sender_id), args.u, args.e, args.p)
   # FIXME: change log file names based on the PCC naming standard
   # FIXME: make sure BBR and CUBIC can be used from the same machine with -Z
   remote_call_background(
@@ -364,14 +363,6 @@ def run_sender_tcp(args,
 
 ################################################################################
 def run_senders(args) :
-  # modify congestion control protocools accordingly
-  for i in sender_bbr :
-    remote_call(get_hostname("sender" + str(i), args.u, args.e, args.p),
-                "sudo sysctl -w net.ipv4.tcp_congestion_control=bbr")
-  for i in sender_cubic :
-    remote_call(get_hostname("sender" + str(i), args.u, args.e, args.p),
-                "sudo sysctl -w net.ipv4.tcp_congestion_control=cubic")
-
   # start running flows
   initial_start_time = flow_start_time[0]
   last_start_time = flow_start_time[0]
@@ -392,11 +383,11 @@ def run_senders(args) :
     if flow_proto[i] == "PCC" :
       run_sender_pcc(args, flow_args[i], remote_host, receiver_ip, i, duration,
                      timeshift)
-    elif flow_proto[i] == "BBR" :
-      run_sender_tcp(args, "BBR", remote_host, receiver_ip, i, duration,
+    elif flow_proto[i] == "bbr" :
+      run_sender_tcp(args, "bbr", remote_host, receiver_ip, i, duration,
                      timeshift)
-    elif flow_proto[i] == "CUBIC" :
-      run_sender_tcp(args, "CUBIC", remote_host, receiver_ip, i, duration,
+    elif flow_proto[i] == "cubic" :
+      run_sender_tcp(args, "cubic", remote_host, receiver_ip, i, duration,
                      timeshift)
 
   time.sleep(end_time - last_start_time)
@@ -408,7 +399,7 @@ def copy_logs(args) :
   os.system("mkdir -p results")
   for i in range(1, args.n + 1) :
     remote_copy(get_hostname("sender" + str(i), args.u, args.e, args.p) + ":" +
-                    dir_expr_path + "/pcc_log_*",
+                    dir_expr_path + "/*_log_*",
                 "./results/")
 ################################################################################
 
