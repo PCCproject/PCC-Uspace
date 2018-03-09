@@ -124,7 +124,7 @@ RESET_RATE_TARGET = 10.0
 RESET_TARGET_RATE_MIN = 20.0
 RESET_TARGET_RATE_MAX = 180.0
 
-RESET_INTERVAL = 100
+RESET_INTERVAL = 200
 RESET_COUNTER = 0
 
 STATE_RECORDING_RESET_SAMPLES = "RECORDING_RESET_VALUES"
@@ -210,14 +210,7 @@ def save_model(model_name):
     saver.save(sess, model_name)
     my_vars = tf.global_variables()
     for v in my_vars:
-        print(v.name)
-        if v.name == "pi/obfilter/runningsum:0": 
-            val = sess.run(v)
-            print(val)
-        if v.name == "pi/logstd:0":
-            val = sess.run(v)
-            print(math.exp(val))
-    print(my_vars)
+        print(v.name + " = " + str(sess.run(v)))
 
 def load_model(model_name):
     saver = tf.train.Saver()
@@ -326,15 +319,14 @@ def train(num_timesteps, seed, mi_queue, rate_queue):
     set_global_seeds(workerseed)
     env = PccEnv(mi_queue, rate_queue) # Need to be changed from Atari, so we need to register with Gym and get the if NHR
 
-    # def policy_fn(name, ob_space, ac_space): #pylint: disable=W0613
-    #     return BasicNNPolicy(name=name, ob_space=env.observation_space, ac_space=env.action_space) ## Here's the neural network! NHR
     def policy_fn(name, ob_space, ac_space): #pylint: disable=W0613
         return MlpPolicy(
             name=name,
             ob_space=env.observation_space,
             ac_space=env.action_space,
             hid_size=HID_SIZE,
-            num_hid_layers=HID_LAYERS
+            num_hid_layers=HID_LAYERS,
+            gaussian_fixed_var=False
         )
     #env = bench.Monitor(env, logger.get_dir() and osp.join(logger.get_dir(), str(rank)))
     env.seed(workerseed)
