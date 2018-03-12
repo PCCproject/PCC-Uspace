@@ -31,6 +31,7 @@ flow_start_time = []
 flow_end_time = []
 flow_args = []
 flow_proto = []
+duration = 0
 
 ################################################################################
 def generate_bridge_setup_script(args) :
@@ -87,7 +88,7 @@ def generate_bridge_setup_script(args) :
     print "  plr   [%.2f, %.2f]" % (bottleneck_llr, bottleneck_rlr)
     print "pipe changes every %d second(s)" % interval
     time_sec = 0
-    while time_sec < args.t :
+    while time_sec < duration :
       bw = random.randint(bottleneck_lbw, bottleneck_rbw)
       dl = random.randint(bottleneck_ldl, bottleneck_rdl)
       bf = random.randint(bottleneck_lbf, bottleneck_rbf)
@@ -117,6 +118,7 @@ def generate_flow_configuration(args) :
     flow_start_time.append(int(s[0]))
     flow_end_time.append(int(s[1]))
     flow_proto.append(s[2])
+    duration = max(duration, int(s[1]))
     if s[2] == "PCC" :
       if len(s) == 3 :
         flow_args.append(args.args)
@@ -134,8 +136,9 @@ def generate_flow_configuration(args) :
 ################################################################################
 def process_config(args) :
   # FIXME: make sure the last '\n' line does not mass up
-  generate_bridge_setup_script(args)
+  # process flow configuration first to get the total experiment duration
   generate_flow_configuration(args)
+  generate_bridge_setup_script(args)
 ################################################################################
 
 
@@ -416,10 +419,6 @@ if __name__ == "__main__":
                       default=1)
   parser.add_argument("-r", help="number of experiment repetitions", type=int,
                       default=2)
-
-  # FIXME: get duration from flow configuration file
-  parser.add_argument("-t", help="experiment duration (sec)", type=int,
-                      default=60)
 
   parser.add_argument("--flow-config", "-fc", help="flow configuration file \
                       path", required=True)
