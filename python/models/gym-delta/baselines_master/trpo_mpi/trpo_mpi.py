@@ -58,7 +58,9 @@ def traj_segment_generator(pi, env, horizon, stochastic):
         acs[i] = ac
         prevacs[i] = prevac
 
+        #print("Calling step with action: " + str(ac))
         ob, rew, new, _ = env.step(ac)
+        #print("Got reward: " + str(rew))
         rews[i] = rew
 
         cur_ep_ret += rew
@@ -83,6 +85,7 @@ def add_vtarg_and_adv(seg, gamma, lam):
         nonterminal = 1 - new[t + 1]
         delta = rew[t] + gamma * vpred[t + 1] * nonterminal - vpred[t]
         gaelam[t] = lastgaelam = delta + gamma * lam * nonterminal * lastgaelam
+    
     seg["tdlamret"] = seg["adv"] + seg["vpred"]
 
 
@@ -215,39 +218,71 @@ def learn(env, policy_func, *,
 
         # ob, ac, atarg, ret, td1ret = map(np.concatenate, (obs, acs, atargs, rets, td1rets))
         ob, ac, atarg, tdlamret = seg["ob"], seg["ac"], seg["adv"], seg["tdlamret"]
+  
+        """
+        print(len(ac))
+        print(len(seg["rew"]))
+        for i in range(0, len(ac)):
+            print("ob = " + str(ob[i]))
+            print("ac = " + str(ac[i]))
+            print("rw = " + str(seg["rew"][i]))
+        """
         vpredbefore = seg["vpred"]  # predicted value function before udpate
         atarg = (atarg - atarg.mean()) / atarg.std()  # standardized advantage function estimate
 
         if hasattr(pi, "ret_rms"): pi.ret_rms.update(tdlamret)
         if hasattr(pi, "ob_rms"): pi.ob_rms.update(ob)  # update running mean/std for policy
 
+        #atarg *= 0.0
         args = seg["ob"], seg["ac"], atarg
+        #print("atarg = " + str(atarg))
         fvpargs = [arr[::5] for arr in args]
 
         def fisher_vector_product(p):
             return allmean(compute_fvp(p, *fvpargs)) + cg_damping * p
 
         assign_old_eq_new()  # set old parameter values to new parameter values
+        #print("args = " + str(len(args)))
         with timed("computegrad"):
             *lossbefore, g = compute_lossandgrad(*args)
         lossbefore = allmean(np.array(lossbefore))
+        #print("Raw gradient = " + str(g))
         g = allmean(g)
+
+        #print("Gradient = " + str(g))
+        #print(var_list)
+        #print(len(var_list))
+        #print(len(g))
+        s = tf.get_default_session()
+
+        #my_vars = tf.global_variables()
+        #print(my_vars)
+        #exit(1)
+        #for v in var_list:
+        #    print(v.name + " = " + str(s.run(v)))
+        
         if np.allclose(g, 0):
             logger.log("Got zero gradient. not updating")
         else:
             with timed("cg"):
                 stepdir = cg(fisher_vector_product, g, cg_iters=cg_iters, verbose=rank == 0)
+            #print("Stepdir = " + str(stepdir))
             assert np.isfinite(stepdir).all()
             shs = .5 * stepdir.dot(fisher_vector_product(stepdir))
             lm = np.sqrt(shs / max_kl)
             # logger.log("lagrange multiplier:", lm, "gnorm:", np.linalg.norm(g))
             fullstep = stepdir / lm
+            #print("Full step = " + str(fullstep))
             expectedimprove = g.dot(fullstep)
             surrbefore = lossbefore[0]
             stepsize = 1.0
             thbefore = get_flat()
+            #print("thbefore = " + str(thbefore))
             for _ in range(10):
+                #print("stepsize = " + str(stepsize))
+                #print("this step = " + str(fullstep * stepsize))
                 thnew = thbefore + fullstep * stepsize
+                #print("thnew = " + str(thnew))
                 set_from_flat(thnew)
                 meanlosses = surr, kl, *_ = allmean(np.array(compute_losses(*args)))
                 improve = surr - surrbefore
@@ -269,6 +304,8 @@ def learn(env, policy_func, *,
                 paramsums = MPI.COMM_WORLD.allgather((thnew.sum(), vfadam.getflat().sum()))  # list of tuples
                 assert all(np.allclose(ps, paramsums[0]) for ps in paramsums[1:])
 
+        #for v in var_list:
+        #    print(v.name + " = " + str(s.run(v)))
         for (lossname, lossval) in zip(loss_names, meanlosses):
             logger.record_tabular(lossname, lossval)
 

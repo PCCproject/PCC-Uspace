@@ -21,12 +21,12 @@ Copied from http://incompleteideas.net/sutton/book/code/pole.c
 permalink: https://perma.cc/C9ZM-652R
 """
    
-HISTORY_LEN = 1
-#HISTORY_LEN = 10
-HID_LAYERS = 1
-#HID_LAYERS = 3
-HID_SIZE = 1
-#HID_SIZE = 64
+#HISTORY_LEN = 1
+HISTORY_LEN = 3
+#HID_LAYERS = 1
+HID_LAYERS = 3
+#HID_SIZE = 1
+HID_SIZE = 32
 TS_PER_BATCH = 512
 MAX_KL = 0.001
 CG_ITERS = 10
@@ -40,6 +40,12 @@ ENTCOEFF = 0.00
 MIN_RATE = 0.00001
 MAX_RATE = 1000.0
 DELTA_SCALE = 0.04
+    
+RATE_SCALE = 1e-9
+LATENCY_SCALE = 1e-7
+LOSS_SCALE = 1.0
+LAT_INFL_SCALE = 1.0
+UTILITY_SCALE = 1e-9
 
 LOAD_MODEL = False
 SAVE_MODEL = False
@@ -119,32 +125,33 @@ MONITOR_INTERVAL_MAX_OBS = [
     100.0  # Latency Inflation
 ]
 
-RESET_UTILITY_FRACTION = 0.33
-RESET_RATE_TARGET = 10.0
+RESET_UTILITY_FRACTION = 0.01
 RESET_TARGET_RATE_MIN = 20.0
-RESET_TARGET_RATE_MAX = 180.0
-
+RESET_TARGET_RATE_MAX = 20.0#180.0
 RESET_INTERVAL = 200
+
 RESET_COUNTER = 0
 
 STATE_RECORDING_RESET_SAMPLES = "RECORDING_RESET_VALUES"
 STATE_RUNNING = "RUNNING"
 STATE_RESET = "RESET"
 
-MAX_RESET_SAMPLES = max(HISTORY_LEN, 1)
+MAX_RESET_SAMPLES = max(HISTORY_LEN, 20)
 N_RESET_SAMPLES = 0
 RESET_SAMPLES_UTILITY_SUM = 0.0
 RESET_RATE_EXPECTED_UTILITY = 0.0
 
 STATE = STATE_RESET
 
-UTIL_EWMA_FACTOR = 0.66
+UTIL_EWMA_FACTOR = 0.1
 UTIL_EWMA_VAL = 0.0
 
 def update_util_ewma(new_val):
     global UTIL_EWMA_FACTOR
     global UTIL_EWMA_VAL
     UTIL_EWMA_VAL = UTIL_EWMA_FACTOR * new_val + (1.0 - UTIL_EWMA_FACTOR) * UTIL_EWMA_VAL
+
+_last_reset_utility = 0.0
 
 #
 # The monitor interval class used to pass data from the PCC subsystem to
@@ -154,7 +161,7 @@ class PccMonitorInterval():
     def __init__(self, rate=0.0, latency=0.0, loss=0.0, lat_infl=0.0, utility=0.0, done=False, stop=False):
         self.rate = rate
         self.latency = latency
-        self.loss = loss
+        self.loss = loss / (1.0 - loss)
         self.lat_infl = lat_infl
         self.utility = utility
         self.done = done
@@ -172,7 +179,7 @@ class PccMonitorInterval():
         if not done and UTIL_EWMA_VAL < RESET_RATE_EXPECTED_UTILITY * RESET_UTILITY_FRACTION:
             self.done = True
             RESET_COUNTER = 0
-            #print("\t RESET DUE TO LOW UTILITY")
+            #print("RESET -- LOW UTILITY: r: " + str(rate) + " u: " + str(utility) + " (ewma: " + str(UTIL_EWMA_VAL) + ", e: " + str(RESET_RATE_EXPECTED_UTILITY) + " rr: " + str(_last_reset_rate) + ")")
             pass
         
         if RESET_COUNTER >= RESET_INTERVAL:
@@ -184,7 +191,8 @@ class PccMonitorInterval():
     # Convert the observation parts of the monitor interval into a numpy array
     # eb
     def as_array(self):
-        return np.array([self.utility * 1e-8, self.rate * 1e-8, self.latency * 1e-6, self.loss, self.lat_infl])
+        #print(np.array([self.utility, self.rate, self.latency, self.loss, self.lat_infl]))
+        return np.array([self.utility, self.rate, self.latency, self.loss, self.lat_infl])
 
 class PccHistory():
     def __init__(self, length):
@@ -233,7 +241,7 @@ class PccEnv(gym.Env):
         global HISTORY_LEN
         self.hist = PccHistory(HISTORY_LEN)
         self.state = self.hist.as_array()
-        self.action_space = spaces.Box(low=np.array([-100.0]), high=np.array([100.0]))
+        self.action_space = spaces.Box(low=np.array([-1e6]), high=np.array([1e6]))
         mins = []
         maxes = []
         for i in range(0, HISTORY_LEN):
@@ -319,6 +327,8 @@ def train(num_timesteps, seed, mi_queue, rate_queue):
     set_global_seeds(workerseed)
     env = PccEnv(mi_queue, rate_queue) # Need to be changed from Atari, so we need to register with Gym and get the if NHR
 
+    # def policy_fn(name, ob_space, ac_space): #pylint: disable=W0613
+    #     return BasicNNPolicy(name=name, ob_space=env.observation_space, ac_space=env.action_space) ## Here's the neural network! NHR
     def policy_fn(name, ob_space, ac_space): #pylint: disable=W0613
         return MlpPolicy(
             name=name,
@@ -364,9 +374,25 @@ rate_queue = multiprocessing.Queue()
 p = multiprocessing.Process(target=train, args=(1e9, 0, mi_queue, rate_queue))
 p.start()
 _prev_rate_delta = 0.0
+_gave_trailing_sample = False
+_first_sample = True
 
 def give_sample(sending_rate, latency, loss, lat_infl, utility, stop=False):
+    
+    global _first_sample
     global STATE
+    global STATE_RESET
+    if _first_sample:
+        _first_sample = False
+        if STATE == STATE_RESET:
+            return
+
+    sending_rate *= RATE_SCALE
+    latency *= LATENCY_SCALE
+    loss *= LOSS_SCALE
+    lat_infl *= LAT_INFL_SCALE
+    utility *= UTILITY_SCALE
+
     #print("GIVING SAMPLE: " + STATE)
     global STATE_RECORDING_RESET_SAMPLES
     global STATE_RUNNING
@@ -375,13 +401,14 @@ def give_sample(sending_rate, latency, loss, lat_infl, utility, stop=False):
     global RESET_SAMPLES_UTILITY_SUM
     global RESET_RATE_EXPECTED_UTILITY
     global UTIL_EWMA_VAL
+    global _gave_trailing_sample
 
     if stop:
         mi_queue.put(PccMonitorInterval(
             sending_rate, latency, loss,
             lat_infl, utility, False, stop))
 
-    elif STATE == STATE_RUNNING or STATE == STATE_RESET:
+    elif STATE == STATE_RUNNING:
         #print("Putting MI on queue.")
         mi_queue.put(PccMonitorInterval(
             sending_rate,
@@ -392,11 +419,35 @@ def give_sample(sending_rate, latency, loss, lat_infl, utility, stop=False):
             False,
             stop
         ))
+    elif STATE == STATE_RESET:
+        if _gave_trailing_sample:
+            #print("Sample: r: " + str(_last_reset_rate) + " u: " + str(utility))
+            RESET_SAMPLES_UTILITY_SUM += utility
+            N_RESET_SAMPLES += 1
+            RESET_RATE_EXPECTED_UTILITY = utility#RESET_SAMPLES_UTILITY_SUM / float(N_RESET_SAMPLES)
+            UTIL_EWMA_VAL = RESET_RATE_EXPECTED_UTILITY
+            if N_RESET_SAMPLES == MAX_RESET_SAMPLES:
+                N_RESET_SAMPLES = 0
+                RESET_SAMPLES_UTILITY_SUM = 0.0
+                STATE = STATE_RUNNING
+        else:
+            #print("Putting MI on queue.")
+            mi_queue.put(PccMonitorInterval(
+                sending_rate,
+                latency,
+                loss,
+                lat_infl,
+                utility,
+                False,
+                stop
+            ))
+            _gave_trailing_sample = True
     
     elif STATE == STATE_RECORDING_RESET_SAMPLES:
+        #print("Sample: r: " + str(_last_reset_rate) + " u: " + str(utility))
         RESET_SAMPLES_UTILITY_SUM += utility
         N_RESET_SAMPLES += 1
-        RESET_RATE_EXPECTED_UTILITY = RESET_SAMPLES_UTILITY_SUM / float(N_RESET_SAMPLES)
+        RESET_RATE_EXPECTED_UTILITY = utility#RESET_SAMPLES_UTILITY_SUM / float(N_RESET_SAMPLES)
         UTIL_EWMA_VAL = RESET_RATE_EXPECTED_UTILITY
         if N_RESET_SAMPLES == MAX_RESET_SAMPLES:
             N_RESET_SAMPLES = 0
@@ -431,6 +482,8 @@ def get_rate():
     #print("GETTING RATE: " + STATE)
     
     global _prev_rate
+    global _last_reset_rate
+    global _gave_trailing_sample
     global MAX_RESET_SAMPLES
     global N_RESET_SAMPLES
     
@@ -445,9 +498,11 @@ def get_rate():
 
         if reset:
             STATE = STATE_RESET
+            _gave_trailing_sample = False
 
     elif STATE == STATE_RESET:
         rate = random.uniform(RESET_TARGET_RATE_MIN, RESET_TARGET_RATE_MAX)
+        _last_reset_rate = rate * 1e6
         STATE = STATE_RECORDING_RESET_SAMPLES
 
     elif STATE == STATE_RECORDING_RESET_SAMPLES:

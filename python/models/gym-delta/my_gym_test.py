@@ -3,11 +3,6 @@ import time
 import json
 import sys
 
-RATE_SCALE = 1e-2
-LATENCY_SCALE = 1e-7
-UTILITY_SCALE = 1e-2
-LOSS_SCALE = 1.0
-
 #
 # A static link state to give to the gym training algorithm. We will keep all of
 # these parameters constant and define a reward function based on the utility to
@@ -19,6 +14,7 @@ prob_loss = 0
 
 LINK_CAPACITY = 100e6
 
+"""
 for arg in sys.argv:
     arg_val = "NULL"
     if "=" in arg and "log=" not in arg and "model-name=" not in arg:
@@ -38,10 +34,10 @@ for arg in sys.argv:
 
     if "--loss-scale=" in arg:
         LOSS_SCALE = arg_val
-
+"""
 
 # The number of samples to train for
-N_SAMPLES = 100000
+N_SAMPLES = 500000
 
 # 
 events = []
@@ -70,9 +66,11 @@ def loss_func(rate):
 def reward(rate):
     global events
     global _time
-    util = rate
-    if rate > LINK_CAPACITY:
-        util -= 2 * (rate - LINK_CAPACITY)
+    loss = loss_func(rate)
+    #util = rate
+    #if rate > LINK_CAPACITY:
+    #    util -= 2 * (rate - LINK_CAPACITY)
+    util = rate * (1.0 - loss) * (1.0 - loss) * (1.0 - loss)
     events.append({"Calculate Utility":{"Utility":util, "Loss Rate":loss_func(rate), "Target Rate":rate, "Actual Rate":rate, "Time":_time}})
     _time += 1
     return util
@@ -99,7 +97,7 @@ for i in range(0, N_SAMPLES):
     if (stop):
         print("SENDING STOP SIGNAL")
     # Give the algorithm information about the current link state and reward.
-    pcc_gym_driver.give_sample(rate * RATE_SCALE, lat * LATENCY_SCALE, loss_func(rate) * LOSS_SCALE, lat_infl, util * UTILITY_SCALE, stop)
+    pcc_gym_driver.give_sample(rate, lat, loss_func(rate), lat_infl, util, stop)
     #print(str(i) + " give_sample() (rate = " + str(rate))
     #pcc_gym_driver.give_sample(0.0, 0, 0, 0, rate, stop)
 
