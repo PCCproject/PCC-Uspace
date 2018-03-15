@@ -353,7 +353,6 @@ def run_sender_tcp(args,
                    duration,
                    timeshift) :
   # FIXME: change log file names based on the PCC naming standard
-  # FIXME: make sure BBR and CUBIC can be used from the same machine with -Z
   remote_call_background(
       remote_host,
       "cd " + dir_expr_path + " && iperf -c " + receiver_ip + " -i 1 -t " +
@@ -399,11 +398,11 @@ def run_senders(args) :
 
 ################################################################################
 def copy_logs(args) :
-  os.system("mkdir -p results")
+  os.system("mkdir -p results/" + args.l)
   for i in range(1, args.n + 1) :
     remote_copy(get_hostname("sender" + str(i), args.u, args.e, args.p) + ":" +
                     dir_expr_path + "/*_log_*",
-                "./results/")
+                "./results/" + args.l + "/")
 ################################################################################
 
 
@@ -417,6 +416,8 @@ if __name__ == "__main__":
   parser.add_argument("-p", help="emulab project", default="UIUCScheduling")
   parser.add_argument("-n", help="sender/receiver pair count", type=int,
                       default=1)
+
+  parser.add_argument("-l", help="experiment label", required=True)
   parser.add_argument("-r", help="number of experiment repetitions", type=int,
                       default=2)
 
@@ -443,6 +444,7 @@ if __name__ == "__main__":
   if not os.path.isfile(args.flow_config) :
     print "Invalid flow configuration file path"
     sys.exit()
+  # TODO: check whether experiment label contains special characters
 
   process_config(args)
   prepare(args)
