@@ -1,5 +1,6 @@
 import multiprocessing
 
+import os.path
 import time
 from mpi4py import MPI
 from baselines.common import set_global_seeds
@@ -27,7 +28,7 @@ HISTORY_LEN = 3
 HID_LAYERS = 3
 #HID_SIZE = 1
 HID_SIZE = 32
-TS_PER_BATCH = 512
+TS_PER_BATCH = 1024
 MAX_KL = 0.001
 CG_ITERS = 10
 CG_DAMPING = 1e-3
@@ -53,10 +54,20 @@ MODEL_NAME = "NULL"
 
 MODEL_LOADED = False
 
+RESET_UTILITY_FRACTION = 0.01
+RESET_TARGET_RATE_MIN = 20.0
+RESET_TARGET_RATE_MAX = 20.0#180.0
+RESET_INTERVAL = 200
+
+SAVE_COUNTER = 0
+SAVE_INTERVAL = TS_PER_BATCH / 2
+
 for arg in sys.argv:
     arg_val = "NULL"
-    if "=" in arg and "log=" not in arg and "model-name=" not in arg:
+    try:
         arg_val = float(arg[arg.rfind("=") + 1:])
+    except:
+        pass
 
     if "--model-name=" in arg:
         MODEL_NAME = arg[arg.rfind("=") + 1:]
@@ -108,6 +119,9 @@ for arg in sys.argv:
 
     if "--history-len=" in arg:
         HISTORY_LEN = int(arg_val)
+    
+    if "--reset-interval=" in arg:
+        RESET_INTERVAL = int(arg_val)
 
 MONITOR_INTERVAL_MIN_OBS = [
     0.0, # Utility
@@ -124,11 +138,6 @@ MONITOR_INTERVAL_MAX_OBS = [
     1.0, # Loss Rate
     100.0  # Latency Inflation
 ]
-
-RESET_UTILITY_FRACTION = 0.01
-RESET_TARGET_RATE_MIN = 20.0
-RESET_TARGET_RATE_MAX = 20.0#180.0
-RESET_INTERVAL = 200
 
 RESET_COUNTER = 0
 
@@ -221,8 +230,9 @@ def save_model(model_name):
         print(v.name + " = " + str(sess.run(v)))
 
 def load_model(model_name):
-    saver = tf.train.Saver()
-    saver.restore(sess, model_name)
+    if os.path.isfile(model_name + ".meta"):
+        saver = tf.train.Saver()
+        saver.restore(sess, model_name)
     #my_vars = tf.global_variables()
     #for v in my_vars:
     #    print(v.name)
@@ -269,15 +279,24 @@ class PccEnv(gym.Env):
         #print("Getting MI from queue")
         mi = mi_queue.get()
         #print("GOT MONITOR INTERVAL")
+        global SAVE_MODEL
+        global MODEL_NAME
         if mi.stop:
             #print("\tWITH STOP SIGNAL")
-            global SAVE_MODEL
-            global MODEL_NAME
             if SAVE_MODEL:
                 print("SAVING MODEL")
                 save_model(MODEL_NAME)
             print("EXITING")
             exit(0)
+        
+        if SAVE_MODEL:
+            global SAVE_COUNTER
+            global SAVE_INTERVAL
+            SAVE_COUNTER += 1
+            if SAVE_COUNTER == SAVE_INTERVAL:
+                SAVE_COUNTER = 0
+                save_model(MODEL_NAME)
+            
         
         self.hist.step(mi)
         reward = mi.utility# * 1e-8
@@ -295,6 +314,7 @@ class PccEnv(gym.Env):
         global MODEL_LOADED
         global MODEL_NAME
         if LOAD_MODEL and not MODEL_LOADED:
+            MODEL_LOADED = True
             load_model(MODEL_NAME)
         global HISTORY_LEN
         self.hist = PccHistory(HISTORY_LEN)
