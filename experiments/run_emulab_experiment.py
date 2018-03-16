@@ -338,7 +338,7 @@ def run_sender_pcc(args,
       dir_expr_root + dir_expr_bash + "/run_pcc_sender.sh " + executable + " " +
           receiver_ip + " " + dir_expr_path + " " + str(args.n) + " " +
           str(bottleneck_lbw) + " " + str(bottleneck_ldl) + " " +
-          str(self.bottleneck_lbf) + " " + str(bottleneck_llr) +
+          str(bottleneck_lbf) + " " + str(bottleneck_llr) +
           " /dev/null /dev/null " + str(duration) + " " + str(flow_args) +
           " -flowid=" + str(flow_id) + " -timeshift=" + str(timeshift) + " &")
 ################################################################################
