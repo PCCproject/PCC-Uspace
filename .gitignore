@@ -10,3 +10,4 @@ sendfile
 recvfile
 udt
 results/*
+vis/graphs/*.json
