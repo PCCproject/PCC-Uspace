@@ -11,3 +11,4 @@ recvfile
 udt
 results/*
 vis/graphs/*.json
+vis/logs/*
