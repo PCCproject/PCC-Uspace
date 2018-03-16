@@ -3,8 +3,27 @@
 
 PccPythonHelper::PccPythonHelper(const std::string& python_filename) {
     Py_Initialize();
-    //PySys_SetArgv(Options::argc, Options::argv);
     PyRun_SimpleString("import sys");
+    
+    std::stringstream set_argv_ss;
+    set_argv_ss << "sys.argv = [";
+    wchar_t** unicode_args = new wchar_t*[Options::argc];
+    for (int i = 0; i < Options::argc; ++i) {
+        const char* arg = Options::argv[i];
+        if (i == 0) {
+            set_argv_ss << "\"" << arg << "\"";
+        } else {
+            set_argv_ss << ", \"" << arg << "\"";
+        }
+        int len = strlen(arg);
+        std::wstring wc(len, L'#' );
+        mbstowcs(&wc[0], arg, len);
+        unicode_args[i] = &wc[0];
+    }
+    set_argv_ss << "]";
+    std::string set_argv_str = set_argv_ss.str();
+    PyRun_SimpleString(set_argv_str.c_str());
+    
     const char* python_path_arg = Options::Get("-pypath="); // The location in which the pcc_addon.py file can be found.
     if (python_path_arg != NULL) {
         int python_path_arg_len = strlen(python_path_arg);
