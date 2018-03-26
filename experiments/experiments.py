@@ -196,9 +196,9 @@ class PccExperiment:
     executable = dir_expr_path + "/src/app/pccclient"
     remote_call(remote_host,
                   "cd " + dir_expr_root + dir_expr_bash +
-                      " && chmod a+x ./run_sender.sh")
+                      " && chmod a+x ./run_pcc_sender.sh")
     remote_call_background(remote_host,
-                dir_expr_root + dir_expr_bash + "/run_sender.sh " + executable +
+                dir_expr_root + dir_expr_bash + "/run_pcc_sender.sh " + executable +
                 " " + receiver_ip + " " + dir_expr_path + " " +
                 str(self.expr_node_pair) + " " + str(self.bridge_lbw) + " " +
                 str(self.bridge_ldl) + " " + str(self.bridge_lqs) + " " +
