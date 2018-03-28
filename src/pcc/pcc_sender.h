@@ -233,17 +233,19 @@ class QUIC_EXPORT_PRIVATE PccSender
   PccMonitorIntervalQueue interval_queue_;
   // Maximum congestion window in bits, used to cap sending rate.
   uint32_t max_cwnd_bits_;
-  // The current average of several utility gradients.
-  float avg_gradient_;
-  // The gradient samples that have been averaged.
-  std::queue<float> gradient_samples_;
-
+  
   #ifdef QUIC_PORT
   const RttStats* rtt_stats_;
   QuicRandom* random_;
   #else
   QuicTime avg_rtt_;
   #endif
+
+  // The current average of several utility gradients.
+  float avg_gradient_;
+  // The gradient samples that have been averaged.
+  std::queue<float> gradient_samples_;
+
 
   // The number of consecutive rate changes in a single direction
   // before we accelerate the rate of change.

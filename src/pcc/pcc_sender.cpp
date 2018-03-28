@@ -17,6 +17,12 @@
 #include <random>
 #endif
 
+#ifdef QUIC_PORT
+#define UDT_UNUSED
+#else
+#define UDT_UNUSED __attribute__((unused))
+#endif
+
 #include <algorithm>
 
 #ifdef QUIC_PORT
@@ -183,7 +189,7 @@ PccSender::PccSender(const RttStats* rtt_stats,
 #else
 PccSender::PccSender(QuicTime initial_rtt_us,
                      QuicPacketCount initial_congestion_window,
-                     QuicPacketCount max_congestion_window)
+                     UDT_UNUSED QuicPacketCount max_congestion_window)
 #endif
     : mode_(STARTING),
 #ifdef QUIC_PORT
@@ -242,10 +248,10 @@ PccSender::~PccSender() {}
 
 #endif
 void PccSender::OnPacketSent(QuicTime sent_time,
-                             QuicByteCount bytes_in_flight,
+                             UDT_UNUSED QuicByteCount bytes_in_flight,
                              QuicPacketNumber packet_number,
                              QuicByteCount bytes,
-                             HasRetransmittableData is_retransmittable) {
+                             UDT_UNUSED HasRetransmittableData is_retransmittable) {
 
   // Start a new monitor interval if the interval queue is empty. If latest RTT
   // is available, start a new monitor interval if (1) there is no useful
@@ -302,8 +308,8 @@ void PccSender::OnPacketSent(QuicTime sent_time,
   interval_queue_.OnPacketSent(sent_time, packet_number, bytes);
 }
 
-void PccSender::OnCongestionEvent(bool rtt_updated,
-                                  QuicByteCount bytes_in_flight,
+void PccSender::OnCongestionEvent(UDT_UNUSED bool rtt_updated,
+                                  UDT_UNUSED QuicByteCount bytes_in_flight,
                                   QuicTime event_time,
   #ifndef QUIC_PORT
                                   QuicTime rtt,
@@ -358,7 +364,7 @@ bool PccSender::CanSend(QuicByteCount bytes_in_flight) {
 }
 #endif
 
-QuicBandwidth PccSender::PacingRate(QuicByteCount bytes_in_flight) const {
+QuicBandwidth PccSender::PacingRate(UDT_UNUSED QuicByteCount bytes_in_flight) const {
   QuicBandwidth result = interval_queue_.empty() ? sending_rate_
                                  : interval_queue_.current().sending_rate;
   return result;
@@ -900,15 +906,15 @@ void PccSender::EnterDecisionMade(QuicBandwidth new_rate) {
 bool PccSender::IsProbeConclusive(const std::vector<UtilityInfo>& utility_info) const {
   const UtilityInfo& reference_utility = utility_info[0];
   bool higher_is_better = true;
-  for (int i = 1; i < utility_info.size(); ++i) {
+  for (uint32_t i = 1; i < utility_info.size(); ++i) {
     if (i == 1) {
       higher_is_better = 
           ((reference_utility.utility > utility_info[i].utility) ==  
-            reference_utility.sending_rate > utility_info[i].sending_rate);
+            (reference_utility.sending_rate > utility_info[i].sending_rate));
     } else {
       bool higher_better_this_trial = 
           ((reference_utility.utility > utility_info[i].utility) ==  
-            reference_utility.sending_rate > utility_info[i].sending_rate);
+            (reference_utility.sending_rate > utility_info[i].sending_rate));
       if (higher_is_better != higher_better_this_trial) {
         return false;
       }

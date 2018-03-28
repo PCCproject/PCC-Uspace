@@ -31,7 +31,6 @@ PccPythonHelper::PccPythonHelper(const std::string& python_filename) {
         sprintf(&python_path_cmd_buf[0], "sys.path.append(\"%s\")", python_path_arg);
         PyRun_SimpleString(&python_path_cmd_buf[0]);
     }
-    //PyObject* module_name = PyString_FromString(python_filename.c_str());
     module = PyImport_ImportModule(python_filename.c_str());
     if (module == NULL) {
         std::cerr << "ERROR: Could not load python module: " << python_filename << std::endl;
@@ -80,7 +79,7 @@ void PccPythonHelper::GiveSample(double sending_rate, double latency, double los
     PyTuple_SetItem(args, 2, loss_rate_value);
     PyTuple_SetItem(args, 3, latency_inflation_value);
     PyTuple_SetItem(args, 4, utility_value);
-    PyObject* result = PyObject_CallObject(give_sample_func, args);
+    PyObject_CallObject(give_sample_func, args);
     //Py_DECREF(sending_rate_value);
     //Py_DECREF(latency_value);
     //Py_DECREF(loss_rate_value);

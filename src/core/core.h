@@ -67,7 +67,7 @@ written by
 
 typedef uint64_t PacketId;
 
-typedef struct AsynchCongestionEvent {
+struct AsynchCongestionEvent {
     int64_t time;
     int64_t rtt_us;
     AckedPacketVector acks;
