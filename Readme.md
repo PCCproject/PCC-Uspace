@@ -4,6 +4,12 @@ This repository houses the Performance-oriented Congestion Control (PCC) project
 
 PCC is a new transport rate control architecture which uses online learning. By empirically observing what actions lead to high performance, PCC achieves substantially higher performance than legacy TCP congestion controllers that are based on fixed rules.  For more, see our original paper on PCC Allegro in [USENIX NSDI 2015](https://www.usenix.org/conference/nsdi15/technical-sessions/presentation/dong), and the paper on PCC Vivace in [USENIX NSDI 2018](https://www.usenix.org/conference/nsdi18/presentation/dong).
 
+## Implementations
+
+This repository contains files for both the UDT and QUIC implementations of PCC. The files in src/pcc/* can be used to build either a UDT or QUIC version of the code; however, the files must be copied to a full QUIC codebase (either Chromium or a QUIC server) before building PCC-QUIC. The UDT version can be built in this repository as described in the next section.
+
+Note: The QUIC version of PCC may require minor type or convention changes depending on the QUIC implementation it is built with because the Chromium and QUIC server codebases have different rules enforced by their build systems. We are working on additional documentation to walk through building PCC QUIC with each of the QUIC codebases.
+
 ## Building
 
 To build PCC for UDT, run the following:
