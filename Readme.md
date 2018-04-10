@@ -1,6 +1,10 @@
-#PCC
+# Performance-oriented Congestion Control
 
-This repository houses the Performance Congestion Control project.
+This repository houses the Performance-oriented Congestion Control (PCC) project.
+
+PCC is a new transport rate control architecture which uses online learning. By empirically observing what actions lead to high performance, PCC achieves substantially higher performance than legacy TCP congestion controllers that are based on fixed rules.  For more, see our original paper on PCC Allegro in [USENIX NSDI 2015](https://www.usenix.org/conference/nsdi15/technical-sessions/presentation/dong), and the paper on PCC Vivace in [USENIX NSDI 2018](https://www.usenix.org/conference/nsdi18/presentation/dong).
+
+## Building
 
 To build PCC for UDT, run the following:
 
