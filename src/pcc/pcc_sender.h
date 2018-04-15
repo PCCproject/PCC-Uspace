@@ -60,30 +60,11 @@ class PccSenderPeer;
 // higher utility.
 class QUIC_EXPORT_PRIVATE PccSender
 #ifdef QUIC_PORT
-    : public SendAlgorithmInterface,
-      public PccMonitorIntervalQueueDelegateInterface {
+    : public SendAlgorithmInterface {
 #else
           {
 #endif
  public:
-  // Sender's mode during a connection.
-  enum SenderMode {
-    // Initial phase of the connection. Sending rate gets doubled as
-    // long as utility keeps increasing, and the sender enters
-    // PROBING mode when utility decreases.
-    STARTING,
-    // Sender tries different sending rates to decide whether higher
-    // or lower sending rate has greater utility. Sender enters
-    // DECISION_MADE mode once a decision is made.
-    PROBING,
-    // Sender keeps increasing or decreasing sending rate until
-    // utility decreases, then sender returns to PROBING mode.
-    // TODO(tongmeng): a better name?
-    DECISION_MADE
-  };
-
-  // Indicates whether sender should increase or decrease sending rate.
-  enum RateChangeDirection { INCREASE, DECREASE };
 
   #ifdef QUIC_PORT
   PccSender(const RttStats* rtt_stats,
