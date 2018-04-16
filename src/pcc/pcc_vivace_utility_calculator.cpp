@@ -5,7 +5,7 @@
 #include "third_party/pcc_quic/pcc_utility_calculator.h"
 #endif
 #else
-#include "pcc_utility_calculator.h"
+#include "pcc_vivace_utility_calculator.h"
 #endif
 
 #ifdef QUIC_PORT
@@ -31,16 +31,19 @@ const float kLatencyCoefficient = 1;
 const float kAlpha = 1;
 // An exponent in the utility function.
 const float kExponent = 0.9;
+// Number of bits in a megabit.
+const float kBitsPerMegabit = 1024 * 1024;
 }  // namespace
 
-float CalculateUtility(MonitorInterval& interval) {
-  
-  float sending_rate_bps = interval.GetObsSendingRate();
-  float rtt_inflation = interval.GetObsRttInflation(); 
-  float avg_rtt = interval.GetObsRtt();
-  float loss_rate = interval->GetObsLossRate();
+float PccVivaceUtilityCalculator::CalculateUtility(PccMonitorIntervalAnalysisGroup& past_monitor_intervals,
+        MonitorInterval& cur_monitor_interval) {
 
-  float rtt_penalty = int(int(latency_inflation * 100) / 100.0 * 100) / 2 * 2/ 100.0;
+  float sending_rate_bps = cur_monitor_interval.GetObsSendingRate();
+  float rtt_inflation = cur_monitor_interval.GetObsRttInflation(); 
+  float avg_rtt = cur_monitor_interval.GetObsRtt();
+  float loss_rate = cur_monitor_interval.GetObsLossRate();
+
+  float rtt_penalty = int(int(rtt_inflation * 100) / 100.0 * 100) / 2 * 2/ 100.0;
   float rtt_contribution = kLatencyCoefficient * 11330 * (pow(rtt_penalty, 1));
 
   float loss_contribution = (11.35 * (pow((1 + loss_rate), 1) - 1));
@@ -49,7 +52,7 @@ float CalculateUtility(MonitorInterval& interval) {
   }
   float sending_factor = kAlpha * pow(sending_rate_bps/kBitsPerMegabit, kExponent);
   loss_contribution *= -1.0 * (sending_rate_bps / kBitsPerMegabit);
-  rtt_contribution *= -1.0 * 1500 (sending_rate_bps / kBitsPerMegabit);
+  rtt_contribution *= -1.0 * 1500 * (sending_rate_bps / kBitsPerMegabit);
   
   float vivace_latency_utility = sending_factor + loss_contribution + rtt_contribution;
   return vivace_latency_utility;

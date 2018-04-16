@@ -13,6 +13,8 @@
 #else
 #include "pcc_sender.h"
 #include "pcc_logger.h"
+#include "pcc_vivace_utility_calculator.h"
+#include "pcc_vivace_rate_controller.h"
 #include "stdlib.h"
 #include <random>
 #endif
@@ -32,16 +34,7 @@ namespace net {
 #else
 namespace gfe_quic {
 
-DEFINE_double(max_rtt_fluctuation_tolerance_ratio_in_starting, 0.3,
-              "Ignore RTT fluctuation within 30 percent in STARTING mode");
-DEFINE_double(max_rtt_fluctuation_tolerance_ratio_in_decision_made, 0.05,
-              "Ignore RTT fluctuation within 5 percent in DECISION_MADE mode");
 #endif
-#endif
-
-#if ! defined(QUIC_PORT) || defined(QUIC_PORT_LOCAL)
-static float FLAGS_max_rtt_fluctuation_tolerance_ratio_in_starting = 0.3f;
-static float FLAGS_max_rtt_fluctuation_tolerance_ratio_in_decision_made = 0.05f;
 #endif
 
 namespace {
@@ -63,100 +56,14 @@ const float kNumMicrosPerSecond = 1000000.0f;
 const size_t kDefaultTCPMSS = 1400;
 // An inital RTT value to use (10ms)
 const size_t kInitialRttMicroseconds = 1 * 1000;
-// Chance to make a random choice between 0 and 2x current rate.
-float kRandomChoice = 0.0;
-std::random_device kChoiceGenDevice;
-std::mt19937 kChoiceGen(kChoiceGenDevice());
-std::uniform_real_distribution<> kChoiceGenDis(0.0, 1.0);
 #endif
-// Step size for rate change in PROBING mode.
-float kProbingStepSize = 0.05f;
-// Groups of useful monitor intervals each time in PROBING mode.
-size_t kNumIntervalGroupsInProbing = 2;
 // Number of bits per byte.
 const size_t kBitsPerByte = 8;
-// Minimum number of packers per interval.
-size_t kMinimumPacketsPerInterval = 10;
-// Number of gradients to average.
-size_t kAvgGradientSampleSize = 1;
-// The factor that converts average utility gradient to a rate change (in Mbps).
-float kUtilityGradientToRateChangeFactor = 1.0f * kMegabit;
-// The initial maximum proportional rate change.
-float kInitialMaximumProportionalChange = 0.05f;
-// The additional maximum proportional change each time it is incremented.
-float kMaximumProportionalChangeStepSize = 0.06f;
-// The duration of a monitor interval with respect to RTT
-float kMonitorIntervalDuration = 1.5f;
+// Duration of monitor intervals as a proportion of RTT.
+const float kMonitorIntervalDuration = 1.5;
+// Minimum number of packets in a monitor interval.
+const size_t kMinimumPacketsPerInterval = 10;
 }  // namespace
-
-bool PccSender::ReadRateControlParams() {
-    const char* arg_dur = Options::Get("-mdur=");
-    if (arg_dur != NULL) {
-        kMonitorIntervalDuration = atof(arg_dur);
-    }
-    const char* arg_grad_samples = Options::Get("-gsample=");
-    if (arg_grad_samples != NULL) {
-        kAvgGradientSampleSize = atoi(arg_grad_samples);
-    }
-    const char* arg_prop_change = Options::Get("-propchange=");
-    if (arg_prop_change != NULL) {
-        kInitialMaximumProportionalChange = atof(arg_prop_change);
-        kMaximumProportionalChangeStepSize = 1.2 * kInitialMaximumProportionalChange;
-    }
-    const char* arg_ugrcf = Options::Get("-ugrcf=");
-    if (arg_ugrcf != NULL) {
-        kUtilityGradientToRateChangeFactor = atof(arg_ugrcf);
-    }
-    const char* arg_probe_step = Options::Get("-probestep=");
-    if (arg_probe_step != NULL) {
-        kProbingStepSize = atof(arg_probe_step);
-    }
-    const char* arg_min_chg = Options::Get("-minchg=");
-    if (arg_min_chg != NULL) {
-        kMinimumRateChange = atof(arg_min_chg);
-    }
-    const char* arg_scale_all = Options::Get("-scaleall=");
-    if (arg_scale_all != NULL) {
-        float scale = atof(arg_scale_all);
-        kInitialMaximumProportionalChange *= scale;
-        kMaximumProportionalChangeStepSize = 1.2 * kInitialMaximumProportionalChange;
-        kUtilityGradientToRateChangeFactor *= scale;
-        kProbingStepSize *= scale;
-        kMinimumRateChange *= scale; 
-    }
-    const char* arg_intervals = Options::Get("-intervals=");
-    if (arg_intervals != NULL) {
-        kNumIntervalGroupsInProbing = atoi(arg_intervals);
-    }
-    const char* arg_min_pkts = Options::Get("-minpkt=");
-    if (arg_min_pkts != NULL) {
-        kMinimumPacketsPerInterval = atoi(arg_min_pkts);
-    }
-    const char* arg_min_rate = Options::Get("-minrate=");
-    if (arg_min_rate != NULL) {
-        kMinSendingRate = atoi(arg_min_rate);
-    }
-    const char* arg_p_rand_rate = Options::Get("--p-rand-rate=");
-    if (arg_p_rand_rate != NULL) {
-        kRandomChoice = atof(arg_p_rand_rate);
-    }
-
-    PccLoggableEvent event("Rate Control Parameters", "-LOG_RATE_CONTROL_PARAMS");
-    event.AddValue("Monitor Interval Duration", kMonitorIntervalDuration);
-    event.AddValue("Average Gradient Sample Size", kAvgGradientSampleSize);
-    event.AddValue("Initial Maximum Rate Change Proportion", kInitialMaximumProportionalChange);
-    event.AddValue("Maximum Rate Change Proportion Step Size", kMaximumProportionalChangeStepSize);
-    event.AddValue("Utility Gradient To Rate Change Factor", kUtilityGradientToRateChangeFactor);
-    event.AddValue("Probing Step Size", kProbingStepSize);
-    event.AddValue("Minimum Rate Change", kMinimumRateChange);
-    event.AddValue("Number Of Interval Groups In Probing", kNumIntervalGroupsInProbing);
-    event.AddValue("Minimum Packets Per Interval", kMinimumPacketsPerInterval);
-    event.AddValue("Minimum Sending Rate", kMinSendingRate);
-    event.AddValue("Probability of Random Rate", kRandomChoice);
-    this->log->LogEvent(event);
-    
-    return true;
-}
 
 #ifdef QUIC_PORT
 QuicTime::Delta PccSender::ComputeMonitorDuration(
@@ -195,48 +102,38 @@ PccSender::PccSender(QuicTime initial_rtt_us,
 #ifdef QUIC_PORT
       sending_rate_(QuicBandwidth::FromBitsPerSecond(
           initial_congestion_window * kDefaultTCPMSS * kBitsPerByte *
-          kNumMicrosPerSecond / rtt_stats->initial_rtt_us()))
+          kNumMicrosPerSecond / rtt_stats->initial_rtt_us())),
 #else
       sending_rate_(
           initial_congestion_window * kDefaultTCPMSS * kBitsPerByte *
-          kNumMicrosPerSecond / initial_rtt_us)
+          kNumMicrosPerSecond / initial_rtt_us),
 #endif
-      rounds_(1),
-      interval_queue_(/*delegate=*/this),
+      interval_analysis_group_(4),
       #ifndef QUIC_PORT
-      avg_rtt_(0),
+      avg_rtt_(0)
       #endif
-      avg_gradient_(0),
-      swing_buffer_(0),
-      rate_change_amplifier_(0),
-      rate_change_proportion_allowance_(0),
-      #ifdef QUIC_PORT
-      previous_change_(QuicBandwidth::Zero()) {
-      #else
-      previous_change_(0) {
-      #endif
-  latest_utility_info_.utility = 0.0f;
-  #ifdef QUIC_PORT
-  latest_utility_info_.sending_rate = QuicBandwidth::Zero();
-  #else
+      {
+  #ifndef QUIC_PORT
   if (Options::Get("-log=") == NULL) {
     log = new PccEventLogger("pcc_log.txt");
   } else {
     log = new PccEventLogger(Options::Get("-log="));    
   }
-  latest_utility_info_.sending_rate = 0;
-  ReadRateControlParams();
   py_helper = NULL;
   const char* py_helper_name = Options::Get("-pyhelper=");
   if (py_helper_name != NULL) {
     py_helper = new PccPythonHelper(py_helper_name);
   }
   #endif
+  utility_calculator_ = new PccVivaceUtilityCalculator();
+  rate_controller_ = new PccVivaceRateController();
 }
 
 #ifndef QUIC_PORT
 PccSender::~PccSender() {
     delete log;
+    delete utility_calculator_;
+    delete rate_controller_;
 }
 
 #endif
@@ -245,12 +142,16 @@ PccSender::~PccSender() {}
 
 #endif
 bool PccSender::ShouldCreateNewMonitorInterval(QuicTime sent_time) {
-    return interval_queue_.empty() ||
+    return interval_queue_.Empty() ||
         interval_queue_.Current().AllPacketsSent(sent_time);
 }
 
 void PccSender::UpdateCurrentRttEstimate(QuicTime rtt) {
+    #ifdef QUIC_PORT
+    return;
+    #else
     avg_rtt_ = rtt;
+    #endif
 }
 
 QuicTime PccSender::GetCurrentRttEstimate(QuicTime sent_time) {
@@ -262,7 +163,7 @@ QuicTime PccSender::GetCurrentRttEstimate(QuicTime sent_time) {
 }
 
 QuicBandwidth PccSender::UpdateSendingRate(QuicTime event_time) {
-  sending_rate_ += step_size_ * interval_analyis_group_.ComputeUtilityGradient();
+  sending_rate_ = rate_controller_->GetNextSendingRate(interval_analysis_group_, sending_rate_, event_time);
   return sending_rate_;
 }
 
@@ -274,12 +175,10 @@ void PccSender::OnPacketSent(QuicTime sent_time,
 
   if (ShouldCreateNewMonitorInterval(sent_time)) {
     // Set the monitor duration to 1.5 of smoothed rtt.
-    QuicTime rtt_estimte = GetCurrentRttEstimate(sent_time);
-    QuicTime monitor_duration = ComputeMonitorDuration(sending_rate,
-        rtt_estimate); 
+    QuicTime rtt_estimate = GetCurrentRttEstimate(sent_time);
     float sending_rate = UpdateSendingRate(sent_time);
-    interval_queue_.EnqueueMonitorInterval(
-        MonitorInterval(sending_rate, sent_time + monitor_duration));
+    QuicTime monitor_duration = ComputeMonitorDuration(sending_rate, rtt_estimate); 
+    interval_queue_.Push( MonitorInterval(sending_rate, sent_time + monitor_duration));
     
     #if defined(QUIC_PORT) && defined(QUIC_PORT_LOCAL)
     printf("S %d | st=%d r=%6.3lf rtt=%7ld\n",
@@ -311,10 +210,12 @@ void PccSender::OnCongestionEvent(UDT_UNUSED bool rtt_updated,
                                     event_time);
 
   while (interval_queue_.HasFinishedInterval()) {
+    MonitorInterval mi = interval_queue_.Pop();
+    utility_calculator_->CalculateUtility(interval_analysis_group_, mi);
     if (interval_analysis_group_.Full()) {
       interval_analysis_group_.RemoveOldestInterval();
-      interval_analysis_group_.AddNewInterval(interval_queue_.Pop());
     }
+    interval_analysis_group_.AddNewInterval(mi);
   }
 }
 
@@ -325,7 +226,7 @@ bool PccSender::CanSend(QuicByteCount bytes_in_flight) {
 #endif
 
 QuicBandwidth PccSender::PacingRate(UDT_UNUSED QuicByteCount bytes_in_flight) const {
-  QuicBandwidth result = interval_queue_.empty() ? sending_rate_
+  QuicBandwidth result = interval_queue_.Empty() ? sending_rate_
                                  : interval_queue_.Current().GetTargetSendingRate();
   return result;
 }

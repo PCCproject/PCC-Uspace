@@ -1,5 +1,5 @@
-#ifndef THIRD_PARTY_PCC_QUIC_PCC_MONITOR_QUEUE_H_
-#define THIRD_PARTY_PCC_QUIC_PCC_MONITOR_QUEUE_H_
+#ifndef THIRD_PARTY_PCC_QUIC_PCC_MONITOR_INTERVAL_ANALYSIS_GROUP_H_
+#define THIRD_PARTY_PCC_QUIC_PCC_MONITOR_INTERVAL_ANALYSIS_GROUP_H_
 
 #include <deque>
 #include <utility>
@@ -55,10 +55,12 @@ class PccMonitorIntervalAnalysisGroup {
 
  private:
   std::deque<MonitorInterval> monitor_intervals_;
+  int size_;
 };
 
 #ifdef QUIC_PORT
 } // namespace gfe_quic
 #endif
 
-#endif  // THIRD_PARTY_PCC_QUIC_PCC_MONITOR_QUEUE_H_
+#endif // THIRD_PARTY_PCC_QUIC_PCC_MONITOR_INTERVAL_ANALYSIS_GROUP_H_
+

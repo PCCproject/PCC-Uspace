@@ -69,7 +69,7 @@ class PccMonitorIntervalQueue {
   // Creates a new MonitorInterval and add it to the tail of the
   // monitor interval queue, provided the necessary variables
   // for MonitorInterval initialization.
-  void Push(MonitorInterval& mi);
+  void Push(MonitorInterval mi);
 
   // Called when a packet belonging to current monitor interval is sent.
   void OnPacketSent(QuicTime sent_time,
@@ -83,15 +83,15 @@ class PccMonitorIntervalQueue {
                          QuicTime event_time);
 
   // Returns the most recent MonitorInterval in the tail of the queue
-  const MonitorInterval& current() const;
+  const MonitorInterval& Current() const;
   bool HasFinishedInterval();
-  MonitorInterval& Pop();
+  MonitorInterval Pop();
   
-  bool empty() const;
+  bool Empty() const;
   #if defined(QUIC_PORT) && defined(QUIC_PORT_LOCAL)
-  size_t size() const { return monitor_intervals_.size(); }
+  size_t Size() const { return monitor_intervals_.size(); }
   #else
-  size_t size() const;
+  size_t Size() const;
   #endif
 
  private:

@@ -77,27 +77,31 @@ class MonitorInterval {
   ~MonitorInterval() {}
   #endif
 
-  bool OnPacketSent(QuicTime cur_time, QuicPacketNumber packet_num);
-  bool OnPacketAcked(QuicTime cur_time, QuicPacketNumber packet_num);
-  bool OnPacketLost(QuicTime cur_time, QuicPacketNumber packet_num);
+  void OnPacketSent(QuicTime cur_time, QuicPacketNumber packet_num, QuicByteCount packet_size);
+  void OnPacketAcked(QuicTime cur_time, QuicPacketNumber packet_num, QuicByteCount packet_size, QuicTime rtt);
+  void OnPacketLost(QuicTime cur_time, QuicPacketNumber packet_num, QuicByteCount packet_size);
 
-  bool AllPacketsSent(QuicTime cur_time);
+  bool AllPacketsSent(QuicTime cur_time) const;
   bool AllPacketsAccountedFor();
 
+  QuicBandwidth GetTargetSendingRate() const;
+
+  void SetUtility(float utility);
+  
   QuicBandwidth GetObsThroughput();
   QuicBandwidth GetObsSendingRate();
+  float GetObsDur();
   float GetObsRtt();
   float GetObsRttInflation();
   float GetObsLossRate();
+  float GetObsUtility();
 
-  float SetUtility();
-  float GetUtility();
 
  private:
   bool ContainsPacket(QuicPacketNumber packet_num);
 
   // Sending rate.
-  QuicBandwidth sending_rate;
+  QuicBandwidth target_sending_rate;
   // The end time for this monitor interval in microseconds.
   QuicTime end_time;
 
@@ -110,6 +114,8 @@ class MonitorInterval {
   QuicPacketNumber first_packet_number;
   // PacketNumber of the last sent packet.
   QuicPacketNumber last_packet_number;
+  // PacketNumber of the last packet whose status is known (acked/lost).
+  QuicPacketNumber last_packet_number_accounted_for;
 
   // Number of bytes which are sent in total.
   QuicByteCount bytes_sent;

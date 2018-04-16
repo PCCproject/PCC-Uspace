@@ -27,6 +27,9 @@
 #endif
 #else
 #include "../core/options.h"
+#include "pcc_rate_controller.h"
+#include "pcc_utility_calculator.h"
+#include "pcc_monitor_interval_analysis_group.h"
 #include "pcc_monitor_interval_queue.h"
 #include "pcc_logger.h"
 #include "pcc_python_helper.h"
@@ -34,10 +37,6 @@
 #define QUIC_EXPORT_PRIVATE
 
 typedef bool HasRetransmittableData;
-//namespace {
-//double FLAGS_max_rtt_fluctuation_tolerance_ratio_in_starting = 0.3;
-//double FLAGS_max_rtt_fluctuation_tolerance_ratio_in_decision_made = 0.05;
-//}
 #endif
 
 #ifdef QUIC_PORT
@@ -45,8 +44,6 @@ typedef bool HasRetransmittableData;
 namespace net {
 #else
 namespace gfe_quic {
-DECLARE_double(max_rtt_fluctuation_tolerance_ratio_in_starting);
-DECLARE_double(max_rtt_fluctuation_tolerance_ratio_in_decision_made);
 #endif
 
 namespace test {
@@ -149,95 +146,41 @@ class QUIC_EXPORT_PRIVATE PccSender
       QuicBandwidth sending_rate,
       QuicTime rtt);
   #endif
-
-  QuicBandwidth ComputeRateChange(const UtilityInfo& utility_sample_1,
-                                  const UtilityInfo& utility_sample_2);
-
-  void UpdateAverageGradient(float new_gradient);
-
-  // Implementation of PccMonitorIntervalQueueDelegate.
-  // Called when all useful intervals' utilities are available,
-  // so the sender can make a decision.
-  void OnUtilityAvailable(
-  #ifdef QUIC_PORT_LOCAL
-      const std::vector<UtilityInfo>& utility_info) override;
-  #else
-      const std::vector<UtilityInfo>& utility_info);
-  #endif
-  
-  #if defined(QUIC_PORT) && defined(QUIC_PORT_LOCAL)
-  void SetFlag(double val);
-  #endif
   
   #ifndef QUIC_PORT
-  bool ReadRateControlParams();
   PccEventLogger* log;
   PccPythonHelper* py_helper;
   #endif
+
+  QuicTime GetCurrentRttEstimate(QuicTime cur_time);
+
  private:
   #ifdef QUIC_PORT
   friend class test::PccSenderPeer;
   #endif
-  // Returns true if next created monitor interval is useful,
-  // i.e., its utility will be used when a decision can be made.
-  bool CreateUsefulInterval() const;
-  // Maybe set sending_rate_ for next created monitor interval.
-  void MaybeSetSendingRate();
+  
+  void UpdateCurrentRttEstimate(QuicTime rtt);
 
-  // Returns true if the sender can enter DECISION_MADE from PROBING mode.
-  bool CanMakeDecision(const std::vector<UtilityInfo>& utility_info) const;
-  // Returns true if the probe returned consistent data that can be used to
-  // make a (hopefully) reasonable decision.
-  bool IsProbeConclusive(const std::vector<UtilityInfo>& utility_info) const;
-  // Set the sending rate to the central rate used in PROBING mode.
-  void EnterProbing();
-  // Set the sending rate when entering DECISION_MADE from PROBING mode.
-  void EnterDecisionMade(QuicBandwidth new_rate);
+  bool ShouldCreateNewMonitorInterval(QuicTime cur_time);
+  QuicBandwidth UpdateSendingRate(QuicTime cur_time);
 
-  // Current mode of PccSender.
-  SenderMode mode_;
   // Sending rate in Mbit/s for the next monitor intervals.
   QuicBandwidth sending_rate_;
-  // Most recent utility used when making the last rate change decision.
-  UtilityInfo latest_utility_info_;
-  // Duration of the current monitor interval.
-  #ifdef QUIC_PORT
-  QuicTime::Delta monitor_duration_;
-  #else
-  QuicTime monitor_duration_;
-  #endif
-  // Current direction of rate changes.
-  RateChangeDirection direction_;
-  // Number of rounds sender remains in current mode.
-  size_t rounds_;
+  
   // Queue of monitor intervals with pending utilities.
   PccMonitorIntervalQueue interval_queue_;
-  // Maximum congestion window in bits, used to cap sending rate.
-  uint32_t max_cwnd_bits_;
-  
+  // Group of previously measured monitor intervals.
+  PccMonitorIntervalAnalysisGroup interval_analysis_group_;
+
   #ifdef QUIC_PORT
   const RttStats* rtt_stats_;
   QuicRandom* random_;
   #else
   QuicTime avg_rtt_;
   #endif
-
-  // The current average of several utility gradients.
-  float avg_gradient_;
-  // The gradient samples that have been averaged.
-  std::queue<float> gradient_samples_;
-
-
-  // The number of consecutive rate changes in a single direction
-  // before we accelerate the rate of change.
-  size_t swing_buffer_;
-  // An acceleration factor for the rate of change.
-  float rate_change_amplifier_;
-  // The maximum rate change as a proportion of the current rate.
-  size_t rate_change_proportion_allowance_;
-  // The most recent change made to the sending rate.
-  QuicBandwidth previous_change_;
-
+  
+  PccUtilityCalculator* utility_calculator_;
+  PccRateController* rate_controller_;
 };
 
 #ifdef QUIC_PORT

@@ -42,7 +42,7 @@ PacketRttSample::PacketRttSample(QuicPacketNumber packet_number,
       rtt(rtt) {}
 
 MonitorInterval::MonitorInterval(QuicBandwidth sending_rate, QuicTime end_time) {
-    this->sending_rate = sending_rate;
+    this->target_sending_rate = sending_rate;
     this->end_time = end_time;
     n_packets_sent = 0;
     n_packets_accounted_for = 0;
@@ -62,30 +62,34 @@ void MonitorInterval::OnPacketSent(QuicTime cur_time, QuicPacketNumber packet_nu
 void MonitorInterval::OnPacketAcked(QuicTime cur_time, QuicPacketNumber packet_number, QuicByteCount packet_size, QuicTime rtt) {
     if (ContainsPacket(packet_number) && packet_number > last_packet_number_accounted_for) {
         int skipped = (packet_number - last_packet_number_accounted_for) - 1;
-        n_bytes_acked += packet_size;
+        bytes_acked += packet_size;
         n_packets_accounted_for += skipped + 1;
         packet_rtt_samples.push_back(PacketRttSample(packet_number, rtt));
     } else if (packet_number > last_packet_number) {
-        n_packets_accounted_for = n_packets;
+        n_packets_accounted_for = n_packets_sent;
     }
 }
 
 void MonitorInterval::OnPacketLost(QuicTime cur_time, QuicPacketNumber packet_number, QuicByteCount packet_size) {
     if (ContainsPacket(packet_number) && packet_number > last_packet_number_accounted_for) {
         int skipped = (packet_number - last_packet_number_accounted_for) - 1;
-        n_bytes_lost += packet_size;
+        bytes_lost += packet_size;
         n_packets_accounted_for += skipped + 1;
     } else if (packet_number > last_packet_number) {
-        n_packets_accounted_for = n_packets;
+        n_packets_accounted_for = n_packets_sent;
     }
 }
 
-bool MonitorInterval::AllPacketsSent(QuicTime cur_time) {
+bool MonitorInterval::AllPacketsSent(QuicTime cur_time) const {
     return (cur_time >= end_time);
 }
 
 bool MonitorInterval::AllPacketsAccountedFor() {
     return (n_packets_accounted_for == n_packets_sent);
+}
+
+QuicBandwidth MonitorInterval::GetTargetSendingRate() const {
+    return target_sending_rate;
 }
 
 QuicBandwidth MonitorInterval::GetObsThroughput() {
@@ -112,8 +116,8 @@ float MonitorInterval::GetObsRtt() {
     if (packet_rtt_samples.empty()) {
         return 0;
     }
-    rtt_sum = 0;
-    for (sample : packet_rtt_samples) {
+    double rtt_sum = 0.0;
+    for (PacketRttSample& sample : packet_rtt_samples) {
         rtt_sum += sample.rtt;
     }
     return rtt_sum / packet_rtt_samples.size();
@@ -126,14 +130,14 @@ float MonitorInterval::GetObsRttInflation() {
     float first_half_rtt_sum = 0;
     float second_half_rtt_sum = 0;
     int half_count = packet_rtt_samples.size() / 2;
-    for (int i = 0; i < 2 * half_count) {
+    for (int i = 0; i < 2 * half_count; ++i) {
         if (i < half_count) {
             first_half_rtt_sum += packet_rtt_samples[i].rtt;
         } else {
             second_half_rtt_sum += packet_rtt_samples[i].rtt;
         }
     }
-    float rtt_inflation = 2.0 * (rtt_second_half_sum - rtt_first_half_sum) / (rtt_first_half_sum + rtt_second_half_sum);
+    float rtt_inflation = 2.0 * (second_half_rtt_sum - first_half_rtt_sum) / (first_half_rtt_sum + second_half_rtt_sum);
     return rtt_inflation;
 }
 
@@ -142,10 +146,10 @@ float MonitorInterval::GetObsLossRate() {
 }
 
 void MonitorInterval::SetUtility(float new_utility) {
-    utility = new_utiltiy;
+    utility = new_utility;
 }
 
-float MonitorInterval::GetUtility() {
+float MonitorInterval::GetObsUtility() {
     return utility;
 }
 
@@ -156,5 +160,3 @@ bool MonitorInterval::ContainsPacket(QuicPacketNumber packet_number) {
 #ifdef QUIC_PORT
 } // namespace gfe_quic
 #endif
-
-#endif  // THIRD_PARTY_PCC_QUIC_PCC_MONITOR_INTERVAL_H_

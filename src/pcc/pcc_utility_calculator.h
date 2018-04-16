@@ -1,12 +1,9 @@
-#ifdef QUIC_PORT
-#ifdef QUIC_PORT_LOCAL
-#include "net/quic/core/congestion_control/pcc_utlity_calculator.h"
-#else
-#include "gfe/quic/core/congestion_control/pcc_utlity_calculator.h"
-#endif
-#else
-#include "pcc_utlity_calculator.h"
-#endif
+
+#ifndef PCC_UTILITY_CALCULATOR_H_
+#define PCC_UTILITY_CALCULATOR_H_
+
+#include "pcc_monitor_interval.h"
+#include "pcc_monitor_interval_analysis_group.h"
 
 #ifdef QUIC_PORT
 #ifdef QUIC_PORT_LOCAL
@@ -16,29 +13,16 @@ namespace gfe_quic {
 #endif
 #endif
 
-#ifndef QUIC_PORT
-//#define DEBUG_UTILITY_CALC
-//#define DEBUG_MONITOR_INTERVAL_QUEUE_ACKS
-//#define DEBUG_MONITOR_INTERVAL_QUEUE_LOSS
-//#define DEBUG_INTERVAL_SIZE
-
-#endif
-
-namespace {
-#ifndef QUIC_PORT_LOCAL
-// Number of microseconds per second.
-const float kNumMicrosPerSecond = 1000000.0f;
-#endif
-// An exponent in the utility function.
-const size_t kBitsPerMegabit = 1024 * 1024;
-}  // namespace
-
-PccUtilityCalculator::PccUtilityCalculator() {}
-
-PccUtilityCalculator::~PccUtilityCalculator() {}
-
-float PccUtilityCalculator::CalculateUtility(const MonitorInterval& interval);
+class PccUtilityCalculator {
+  public:
+    PccUtilityCalculator() {};
+    virtual ~PccUtilityCalculator() {};
+    virtual float CalculateUtility(PccMonitorIntervalAnalysisGroup& past_monitor_intervals, MonitorInterval&
+        cur_monitor_interval) = 0;
+};
 
 #ifdef QUIC_PORT
 } // namespace gfe_quic
+#endif
+
 #endif
