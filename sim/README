@@ -1,0 +1,10 @@
+
+To train a model:
+
+./test -log=pcc_train_log.txt -pyhelper=pcc_gym_driver -pypath=/path/to/repo/python/models/gym-delta/ --inverted-exponent-utility --gamma=0.98 --model-name=/full/path/to/model --save-model --ts-per-batch=2048 --log-utility-calc-lite
+
+To test a model:
+
+./test -log=pcc_test_log.txt -pyhelper=pcc_gym_driver -pypath=/path/to/repo/python/models/gym-delta/ --inverted-exponent-utility --gamma=0.98 --model-name=/full/path/to/model --no-reset --load-model --max-reset-samples=1 --ts-per-batch=2000000 --log-utility-calc-lite
+
+You can find the results of each process in pcc_train_log.txt and pcc_test_log.txt.

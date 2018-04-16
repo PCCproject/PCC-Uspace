@@ -23,9 +23,9 @@ DEFINE_bool(use_utility_version_2, false, "Use version-2 utility function");
 
 #ifndef QUIC_PORT
 //#define DEBUG_UTILITY_CALC
-//#define DEBUG_MONITOR_INTERVAL_QUEUE_ACKS
-//#define DEBUG_MONITOR_INTERVAL_QUEUE_LOSS
-//#define DEBUG_INTERVAL_SIZE
+#define DEBUG_MONITOR_INTERVAL_QUEUE_ACKS
+#define DEBUG_MONITOR_INTERVAL_QUEUE_LOSS
+#define DEBUG_INTERVAL_SIZE
 
 #endif
 
@@ -530,6 +530,13 @@ bool PccMonitorIntervalQueue::CalculateUtility(MonitorInterval* interval) {
     event.AddValue("RTT Utility", rtt_contribution);
     event.AddValue("Loss Rate Utility", loss_contribution);
     delegate_->log->LogEvent(event);
+  
+    PccLoggableEvent event2("Calculate Utility", "--log-utility-calc-lite");
+    event2.AddValue("Utility", current_utility);
+    event2.AddValue("Actual Rate", bytes_sent * 8.0f / mi_time_seconds);
+    event2.AddValue("Loss Rate", loss_rate);
+    event2.AddValue("Avg RTT", avg_rtt);
+    delegate_->log->LogEvent(event2); 
   #endif
 
   interval->utility = current_utility;

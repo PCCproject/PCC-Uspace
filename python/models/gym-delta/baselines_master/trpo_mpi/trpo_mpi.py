@@ -9,6 +9,7 @@ from collections import deque
 from baselines_master.common.mpi_adam import MpiAdam
 from baselines_master.common.cg import cg
 from contextlib import contextmanager
+import sys
 
 _acs = []
 
@@ -185,7 +186,10 @@ def learn(env, policy_func, *,
 
     # Prepare for rollouts
     # ----------------------------------------
-    seg_gen = traj_segment_generator(pi, env, timesteps_per_batch, stochastic=True)
+    stoc = True
+    if "--deterministic" in sys.argv:
+        stoc = False
+    seg_gen = traj_segment_generator(pi, env, timesteps_per_batch, stochastic=stoc)
 
     episodes_so_far = 0
     timesteps_so_far = 0
@@ -267,6 +271,9 @@ def learn(env, policy_func, *,
             with timed("cg"):
                 stepdir = cg(fisher_vector_product, g, cg_iters=cg_iters, verbose=rank == 0)
             #print("Stepdir = " + str(stepdir))
+            if (not np.isfinite(stepdir).all()):
+                print("seg[ob]: " + str(seg["ob"]))
+                print("seg[ac]: " + str(seg["ac"]))
             assert np.isfinite(stepdir).all()
             shs = .5 * stepdir.dot(fisher_vector_product(stepdir))
             lm = np.sqrt(shs / max_kl)
