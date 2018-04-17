@@ -7,7 +7,7 @@
     "y-axis":[
         "Actual Rate",
         "Avg RTT",
-        "Inverted Exponent Utility",
+        "Utility",
         "Loss Rate"
     ]
 }

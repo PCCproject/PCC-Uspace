@@ -22,8 +22,8 @@ Copied from http://incompleteideas.net/sutton/book/code/pole.c
 permalink: https://perma.cc/C9ZM-652R
 """
    
-#HISTORY_LEN = 1
-HISTORY_LEN = 3
+HISTORY_LEN = 1
+#HISTORY_LEN = 3
 #HID_LAYERS = 1
 HID_LAYERS = 3
 #HID_SIZE = 1
@@ -57,10 +57,14 @@ MODEL_LOADED = False
 RESET_UTILITY_FRACTION = 0.01
 RESET_TARGET_RATE_MIN = 20.0
 RESET_TARGET_RATE_MAX = 20.0#180.0
+
+RESET_TARGET_RATE_MIN = 2.0
+RESET_TARGET_RATE_MAX = 1000.0
 RESET_INTERVAL = 200
 
 SAVE_COUNTER = 0
-SAVE_INTERVAL = TS_PER_BATCH / 2
+
+MAX_RESET_SAMPLES = max(HISTORY_LEN, 20)
 
 for arg in sys.argv:
     arg_val = "NULL"
@@ -77,6 +81,10 @@ for arg in sys.argv:
 
     if "--load-model" in arg:
         LOAD_MODEL = True
+
+    if "--reset-target-rate=" in arg:
+        RESET_TARGET_RATE_MIN = arg_val
+        RESET_TARGET_RATE_MAX = arg_val
 
     if "--delta-rate-scale=" in arg:
         DELTA_SCALE *= arg_val
@@ -122,6 +130,15 @@ for arg in sys.argv:
     
     if "--reset-interval=" in arg:
         RESET_INTERVAL = int(arg_val)
+    
+    if "--max-reset_samples=" in arg:
+        MAX_RESET_SAMPLES = int(arg_val)
+
+    if "--no-reset" in arg:
+        RESET_INTERVAL = 1000000000
+        RESET_UTILITY_FRACTION = -1000000000.0
+
+SAVE_INTERVAL = TS_PER_BATCH * 10
 
 MONITOR_INTERVAL_MIN_OBS = [
     0.0, # Utility
@@ -135,7 +152,7 @@ MONITOR_INTERVAL_MAX_OBS = [
     1.0, # Utility
     1.0, # Sending rate
     1.0, # Latency
-    1.0, # Loss Rate
+    100.0, # Loss Rate
     100.0  # Latency Inflation
 ]
 
@@ -145,7 +162,6 @@ STATE_RECORDING_RESET_SAMPLES = "RECORDING_RESET_VALUES"
 STATE_RUNNING = "RUNNING"
 STATE_RESET = "RESET"
 
-MAX_RESET_SAMPLES = max(HISTORY_LEN, 20)
 N_RESET_SAMPLES = 0
 RESET_SAMPLES_UTILITY_SUM = 0.0
 RESET_RATE_EXPECTED_UTILITY = 0.0
@@ -201,6 +217,7 @@ class PccMonitorInterval():
     # eb
     def as_array(self):
         #print(np.array([self.utility, self.rate, self.latency, self.loss, self.lat_infl]))
+        #return np.array([self.loss, self.lat_infl])
         return np.array([self.utility, self.rate, self.latency, self.loss, self.lat_infl])
 
 class PccHistory():
@@ -225,9 +242,9 @@ def save_model(model_name):
     global sess
     saver = tf.train.Saver()
     saver.save(sess, model_name)
-    my_vars = tf.global_variables()
-    for v in my_vars:
-        print(v.name + " = " + str(sess.run(v)))
+    #my_vars = tf.global_variables()
+    #for v in my_vars:
+    #    print(v.name + " = " + str(sess.run(v)))
 
 def load_model(model_name):
     if os.path.isfile(model_name + ".meta"):
@@ -251,7 +268,7 @@ class PccEnv(gym.Env):
         global HISTORY_LEN
         self.hist = PccHistory(HISTORY_LEN)
         self.state = self.hist.as_array()
-        self.action_space = spaces.Box(low=np.array([-1e6]), high=np.array([1e6]))
+        self.action_space = spaces.Box(low=np.array([-1e8]), high=np.array([1e8]))
         mins = []
         maxes = []
         for i in range(0, HISTORY_LEN):
@@ -271,8 +288,8 @@ class PccEnv(gym.Env):
         self.was_reset = False
         action[0] = action[0].astype(np.float32)
         if not self.action_space.contains(action):
-            print("ERROR: Action space does not contain value: " + action)
-            exit(-1)
+            print("ERROR: Action space does not contain value: " + str(action))
+            #exit(-1)
         #print("Putting rate on rate queue")
         rate_queue.put((action, should_reset))
         #print("Waiting for MI from PCC...")
