@@ -1,6 +1,6 @@
 
-#ifndef PCC_VIVACE_UTILITY_CALCULATOR_H_
-#define PCC_VIVACE_UTILITY_CALCULATOR_H_
+#ifndef PCC_IXP_UTILITY_CALCULATOR_H_
+#define PCC_IXP_UTILITY_CALCULATOR_H_
 
 #include "pcc_utility_calculator.h"
 
@@ -12,10 +12,10 @@ namespace gfe_quic {
 #endif
 #endif
 
-class PccVivaceUtilityCalculator : public PccUtilityCalculator {
+class PccIxpUtilityCalculator : public PccUtilityCalculator {
   public:
-    PccVivaceUtilityCalculator(PccEventLogger* log) {this->log = log;};
-    ~PccVivaceUtilityCalculator() {};
+    PccIxpUtilityCalculator(PccEventLogger* log) {this->log = log;};
+    ~PccIxpUtilityCalculator() {};
     float CalculateUtility(PccMonitorIntervalAnalysisGroup& past_monitor_intervals, MonitorInterval&
         cur_monitor_interval);
   private:

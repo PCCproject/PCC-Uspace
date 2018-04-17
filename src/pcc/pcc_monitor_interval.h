@@ -3,6 +3,7 @@
 
 #include <utility>
 #include <vector>
+#include <iostream>
 
 #ifdef QUIC_PORT
 #ifdef QUIC_PORT_LOCAL
@@ -85,6 +86,7 @@ class MonitorInterval {
   bool AllPacketsAccountedFor();
 
   QuicBandwidth GetTargetSendingRate() const;
+  QuicTime GetStartTime() const;
 
   void SetUtility(float utility);
   

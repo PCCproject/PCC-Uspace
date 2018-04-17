@@ -44,6 +44,9 @@ PacketRttSample::PacketRttSample(QuicPacketNumber packet_number,
 MonitorInterval::MonitorInterval(QuicBandwidth sending_rate, QuicTime end_time) {
     this->target_sending_rate = sending_rate;
     this->end_time = end_time;
+    bytes_sent = 0;
+    bytes_acked = 0;
+    bytes_lost = 0;
     n_packets_sent = 0;
     n_packets_accounted_for = 0;
 }
@@ -65,8 +68,10 @@ void MonitorInterval::OnPacketAcked(QuicTime cur_time, QuicPacketNumber packet_n
         bytes_acked += packet_size;
         n_packets_accounted_for += skipped + 1;
         packet_rtt_samples.push_back(PacketRttSample(packet_number, rtt));
+        last_packet_number_accounted_for = packet_number;
     } else if (packet_number > last_packet_number) {
         n_packets_accounted_for = n_packets_sent;
+        last_packet_number_accounted_for = last_packet_number;
     }
 }
 
@@ -75,8 +80,10 @@ void MonitorInterval::OnPacketLost(QuicTime cur_time, QuicPacketNumber packet_nu
         int skipped = (packet_number - last_packet_number_accounted_for) - 1;
         bytes_lost += packet_size;
         n_packets_accounted_for += skipped + 1;
+        last_packet_number_accounted_for = packet_number;
     } else if (packet_number > last_packet_number) {
         n_packets_accounted_for = n_packets_sent;
+        last_packet_number_accounted_for = last_packet_number;
     }
 }
 
@@ -88,6 +95,10 @@ bool MonitorInterval::AllPacketsAccountedFor() {
     return (n_packets_accounted_for == n_packets_sent);
 }
 
+QuicTime MonitorInterval::GetStartTime() const {
+    return first_packet_sent_time;
+}
+
 QuicBandwidth MonitorInterval::GetTargetSendingRate() const {
     return target_sending_rate;
 }
@@ -97,7 +108,7 @@ QuicBandwidth MonitorInterval::GetObsThroughput() {
     if (dur == 0) {
         return 0;
     }
-    return bytes_acked / dur;
+    return 8 * bytes_acked / (dur / 1000000.0);
 }
 
 QuicBandwidth MonitorInterval::GetObsSendingRate() {
@@ -105,7 +116,7 @@ QuicBandwidth MonitorInterval::GetObsSendingRate() {
     if (dur == 0) {
         return 0;
     }
-    return bytes_sent / dur;
+    return 8 * bytes_sent / (dur / 1000000.0);
 }
 
 float MonitorInterval::GetObsDur() {

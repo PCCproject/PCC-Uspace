@@ -55,6 +55,14 @@ float PccVivaceUtilityCalculator::CalculateUtility(PccMonitorIntervalAnalysisGro
   rtt_contribution *= -1.0 * 1500 * (sending_rate_bps / kBitsPerMegabit);
   
   float vivace_latency_utility = sending_factor + loss_contribution + rtt_contribution;
+    
+  PccLoggableEvent event("Calculate Utility", "--log-utility-calc-lite");
+  event.AddValue("Utility", vivace_latency_utility);
+  event.AddValue("Actual Rate", sending_rate_bps);
+  event.AddValue("Loss Rate", loss_rate);
+  event.AddValue("Avg RTT", avg_rtt);
+  log->LogEvent(event); 
+  
   return vivace_latency_utility;
 }
 

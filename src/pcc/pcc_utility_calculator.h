@@ -4,6 +4,7 @@
 
 #include "pcc_monitor_interval.h"
 #include "pcc_monitor_interval_analysis_group.h"
+#include "pcc_logger.h"
 
 #ifdef QUIC_PORT
 #ifdef QUIC_PORT_LOCAL
@@ -15,7 +16,7 @@ namespace gfe_quic {
 
 class PccUtilityCalculator {
   public:
-    PccUtilityCalculator() {};
+    PccUtilityCalculator(/*PccEventLogger* log*/) {};
     virtual ~PccUtilityCalculator() {};
     virtual float CalculateUtility(PccMonitorIntervalAnalysisGroup& past_monitor_intervals, MonitorInterval&
         cur_monitor_interval) = 0;

@@ -113,7 +113,7 @@ void* monitor(void* s) {
     UDTSOCKET u = *(UDTSOCKET*)s;
     UDT::TRACEINFO perf;
 
-    cout << "Rate (Mbps)\tRTT (ms)\tSent\tLost\tRecvACK\tRecvNAK" << endl;
+    cout << "\tRate (Mbps)\tRTT (ms)\tSent\t\tLost" << endl;
     int i = 0;
     while (true) {
         sleep(1);
@@ -123,9 +123,9 @@ void* monitor(void* s) {
             break;
         }
         cout   << i <<"\t"
-               << perf.mbpsSendRate    << "\t"
-               << perf.msRTT           << "\t"
-               << perf.pktSentTotal    << "\t"
+               << perf.mbpsSendRate    << "\t\t"
+               << perf.msRTT           << "\t\t"
+               << perf.pktSentTotal    << "\t\t"
                << perf.pktSndLossTotal << endl;
     }
     return NULL;

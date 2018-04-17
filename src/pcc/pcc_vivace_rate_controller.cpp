@@ -37,7 +37,7 @@ const QuicBandwidth kMinimumRateChange = QuicBandwidth::FromBitsPerSecond(
 #else
 QuicBandwidth kMinSendingRate = 0.1f * kMegabit;
 // The smallest amount that the rate can be changed by at a time.
-QuicBandwidth kMinimumRateChange = (int64_t)(0.5f * kMegabit);
+QuicBandwidth kMinimumRateChange = (int64_t)(0.2f * kMegabit);
 // Number of microseconds per second.
 const float kNumMicrosPerSecond = 1000000.0f;
 // Default TCPMSS used in UDT only.
@@ -69,12 +69,13 @@ QuicBandwidth PccVivaceRateController::GetNextSendingRate(
         QuicBandwidth current_rate,
         QuicTime cur_time) {
     
-  float utility_gradient = past_monitor_intervals.ComputeUtilityGradient();
+    float utility_gradient = past_monitor_intervals.ComputeUtilityGradient();
 
     if (in_startup_ and utility_gradient > 0) {
         previous_change_ = current_rate;
         return current_rate * 2.0;
     }
+    in_startup_ = false;
 
     QuicBandwidth change = kUtilityGradientToRateChangeFactor * utility_gradient;
 
@@ -174,9 +175,9 @@ QuicBandwidth PccVivaceRateController::GetNextSendingRate(
     #endif
         change = -1 * kMinimumRateChange;
     #ifdef QUIC_PORT
-    } else if (change > QuicBandwidth::Zero() && change < kMinimumRateChange) {
+    } else if (change >= QuicBandwidth::Zero() && change < kMinimumRateChange) {
     #else
-    } else if (change > 0 && change < kMinimumRateChange) {
+    } else if (change >= 0 && change < kMinimumRateChange) {
     #endif
         change = kMinimumRateChange;
     }

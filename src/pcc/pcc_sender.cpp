@@ -13,6 +13,7 @@
 #else
 #include "pcc_sender.h"
 #include "pcc_logger.h"
+#include "pcc_ixp_utility_calculator.h"
 #include "pcc_vivace_utility_calculator.h"
 #include "pcc_vivace_rate_controller.h"
 #include "stdlib.h"
@@ -47,10 +48,6 @@ const QuicBandwidth kMinSendingRate = QuicBandwidth::FromKBitsPerSecond(2000);
 const QuicBandwidth kMinimumRateChange = QuicBandwidth::FromBitsPerSecond(
     static_cast<int64_t>(0.5f * kMegabit));
 #else
-QuicBandwidth kMinSendingRate = 0.1f * kMegabit;
-// The smallest amount that the rate can be changed by at a time.
-QuicBandwidth kMinimumRateChange = (int64_t)(0.5f * kMegabit);
-// Number of microseconds per second.
 const float kNumMicrosPerSecond = 1000000.0f;
 // Default TCPMSS used in UDT only.
 const size_t kDefaultTCPMSS = 1400;
@@ -60,7 +57,7 @@ const size_t kInitialRttMicroseconds = 1 * 1000;
 // Number of bits per byte.
 const size_t kBitsPerByte = 8;
 // Duration of monitor intervals as a proportion of RTT.
-const float kMonitorIntervalDuration = 1.5;
+const float kMonitorIntervalDuration = 0.5;
 // Minimum number of packets in a monitor interval.
 const size_t kMinimumPacketsPerInterval = 10;
 }  // namespace
@@ -125,7 +122,7 @@ PccSender::PccSender(QuicTime initial_rtt_us,
     py_helper = new PccPythonHelper(py_helper_name);
   }
   #endif
-  utility_calculator_ = new PccVivaceUtilityCalculator();
+  utility_calculator_ = new PccIxpUtilityCalculator(log);
   rate_controller_ = new PccVivaceRateController();
 }
 
@@ -178,7 +175,7 @@ void PccSender::OnPacketSent(QuicTime sent_time,
     QuicTime rtt_estimate = GetCurrentRttEstimate(sent_time);
     float sending_rate = UpdateSendingRate(sent_time);
     QuicTime monitor_duration = ComputeMonitorDuration(sending_rate, rtt_estimate); 
-    interval_queue_.Push( MonitorInterval(sending_rate, sent_time + monitor_duration));
+    interval_queue_.Push(MonitorInterval(sending_rate, sent_time + monitor_duration));
     
     #if defined(QUIC_PORT) && defined(QUIC_PORT_LOCAL)
     printf("S %d | st=%d r=%6.3lf rtt=%7ld\n",
@@ -211,7 +208,7 @@ void PccSender::OnCongestionEvent(UDT_UNUSED bool rtt_updated,
 
   while (interval_queue_.HasFinishedInterval()) {
     MonitorInterval mi = interval_queue_.Pop();
-    utility_calculator_->CalculateUtility(interval_analysis_group_, mi);
+    mi.SetUtility(utility_calculator_->CalculateUtility(interval_analysis_group_, mi));
     if (interval_analysis_group_.Full()) {
       interval_analysis_group_.RemoveOldestInterval();
     }

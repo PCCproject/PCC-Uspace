@@ -30,6 +30,12 @@ namespace gfe_quic {
 using namespace net;
 #endif
 
+struct ComputedGradient {
+    QuicTime time;
+    QuicBandwidth rate;
+    float gradient;
+};
+
 class PccMonitorIntervalAnalysisGroup {
  public:
   explicit PccMonitorIntervalAnalysisGroup(int size);
@@ -51,9 +57,13 @@ class PccMonitorIntervalAnalysisGroup {
 
   bool Full();
 
+  float ComputeWeightedUtilityGradient(QuicTime cur_time, float target_rate,
+        float time_decay, float rate_decay);
   float ComputeUtilityGradient();
 
  private:
+  void ComputeUtilityGradientVector_(std::vector<ComputedGradient>* gradients);
+  
   std::deque<MonitorInterval> monitor_intervals_;
   int size_;
 };

@@ -3,6 +3,7 @@
 #include <iostream>
 #include <numeric>
 #include <vector>
+#include <cmath>
 
 #ifdef QUIC_PORT
 #ifdef QUIC_PORT_LOCAL
@@ -56,8 +57,48 @@ static double Slope_(std::vector<double>& x, std::vector<double>& y) {
     return numerator / denominator;
 }
 
-float PccMonitorIntervalAnalysisGroup::ComputeUtilityGradient() {
+void PccMonitorIntervalAnalysisGroup::ComputeUtilityGradientVector_(std::vector<ComputedGradient>* gradients) {
   
+  std::deque<MonitorInterval>::iterator it = monitor_intervals_.begin();
+  MonitorInterval& last_mi = *it;
+  for (std::deque<MonitorInterval>::iterator it = monitor_intervals_.begin();
+          it != monitor_intervals_.end(); ++it) {
+
+    MonitorInterval& cur_mi = *it;
+    ComputedGradient cg;
+    cg.gradient = 0.0;
+    cg.time = (last_mi.GetStartTime() + cur_mi.GetStartTime()) / 2.0;
+    cg.rate = (last_mi.GetTargetSendingRate() + cur_mi.GetTargetSendingRate()) / 2.0;
+    if (last_mi.GetTargetSendingRate() != cur_mi.GetTargetSendingRate()) {
+        cg.gradient = (last_mi.GetObsUtility() - cur_mi.GetObsUtility()) / (last_mi.GetTargetSendingRate() -
+                cur_mi.GetTargetSendingRate());
+    }
+    gradients->push_back(cg);
+    last_mi = cur_mi;
+  }
+    
+}
+
+float PccMonitorIntervalAnalysisGroup::ComputeWeightedUtilityGradient(QuicTime cur_time, float target_rate, float
+time_decay=1.0/1000000.0, float rate_decay=10.0/1000000.0) {
+    std::vector<ComputedGradient> gradients;
+    ComputeUtilityGradientVector_(&gradients);
+    float result = 0.0;
+    float n_gradients = gradients.size();
+    for (std::vector<ComputedGradient>::iterator it = gradients.begin(); it != gradients.end(); ++it) {
+        double weight = exp((cur_time - it->time) * time_decay +
+                abs(target_rate - it->rate) * rate_decay);
+        result += it->gradient * weight / n_gradients;
+    }
+    return result;
+}
+
+float PccMonitorIntervalAnalysisGroup::ComputeUtilityGradient() {
+
+  if (monitor_intervals_.size() < 2) {
+      return 0;
+  }
+
   std::vector<double> rates, utilities;
   
   // Compute the slope of a linear regression over the current monitor intervals.
