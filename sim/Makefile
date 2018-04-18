@@ -3,7 +3,7 @@ RM=rm -f
 CPPFLAGS= -g -I/usr/include/python3.5
 LDFLAGS= -g -L/usr/lib/python3.5/config-3.5m-x86_64-linux-gnu/ -lpython3.5 -lstdc++ -lpthread -lm
 
-SRCS=test.cpp ../src/core/md5.cpp ../src/core/common.cpp ../src/core/options.cpp ../src/pcc/pcc_logger.cpp ../src/pcc/pcc_monitor_interval_queue.cpp ../src/pcc/pcc_sender.cpp ../src/pcc/pcc_python_helper.cpp channel_simulator.cpp logging.cpp
+SRCS=test.cpp ../src/core/md5.cpp ../src/core/common.cpp ../src/core/options.cpp ../src/pcc/pcc_logger.cpp ../src/pcc/pcc_monitor_interval_queue.cpp ../src/pcc/pcc_sender.cpp ../src/pcc/pcc_python_helper.cpp channel_simulator.cpp
 OBJS=$(subst .cpp,.o,$(SRCS))
 
 all: test
