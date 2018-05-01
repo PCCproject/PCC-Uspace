@@ -2,6 +2,9 @@
 
 #include <unistd.h>
 
+const double MIN_RATE = 1.5e6;
+const double MAX_RATE = 0.85e10;
+
 const int kPacketSize = 1500 * 8;
 const double kTimeDelta = 0.000000001;
 
@@ -84,6 +87,9 @@ void Simulator::ChangeLink(double bw, double dl, double bf, double plr, bool res
         cur_queue_delay_ = 0;
     }
     plr_ = plr;
+    for (int i = 0; i < senders_.size(); ++i) {
+        senders_[i]->Reset();
+    }
    // std::cout << "bw = " << bw << ", base_rtt_ = " << base_rtt_ << ", full_queue_delay_" << full_queue_delay_ << std::endl;
 }
 
@@ -117,6 +123,7 @@ void Simulator::EnqueueEvent(EventInfo& event) {
 }
 
 void Simulator::EnqueueSendEvent(double event_time, int sender_id) {
+  //std::cout << "Enqueue send event for " << event_time << std::endl;
   event_queue_.push(EventInfo(SEND, event_time, sender_id, 0, 0.0));
 }
 
@@ -163,11 +170,11 @@ void Simulator::Run() {
     if (event_type == LINK_CHANGE) {
       ProcessLinkChangeEvent(event);
     } else if (event_type == SEND) {
-      std::cout << "Event: SEND" << std::endl;
+      //std::cout << "Event: SEND" << std::endl;
       OnPacketEnqueue(last_event_time_, sender_id);
       //std::cout << "Finished send event" << std::endl;
     } else if (event_type == ACKED) {
-      std::cout << "Event: ACK " << seq << std::endl;
+      //std::cerr << "Event: ACK " << seq << std::endl;
       CongestionEvent ce;
       ce.packet_number = seq;
       ce.bytes_acked = 1500;
@@ -178,7 +185,7 @@ void Simulator::Run() {
       LostPacketVector lost;
       senders_[sender_id]->OnCongestionEvent(true, 0, last_event_time_ * 1000000.0, rtt * 1000000.0, acks, lost);
     } else {
-      std::cout << "Event: LOSS " << seq << std::endl;
+      //std::cerr << "Event: LOSS " << seq << std::endl;
       CongestionEvent ce;
       ce.packet_number = seq;
       ce.bytes_acked = 0;
@@ -224,7 +231,7 @@ void Simulator::OnPacketEnqueue(double event_time, int sender_id) {
 
   double queue_delay = GetCurrentQueueDelay(event_time);
   if (queue_delay > full_queue_delay_) {
-    EnqueueLossEvent(event_time + 1.1 * full_queue_delay_,
+    EnqueueLossEvent(CalculateAckTime(event_time) + 0.1 * full_queue_delay_,
         sender_id, seq_no);
   } else {
     UpdateQueueDelayOnSend(event_time);
@@ -233,8 +240,14 @@ void Simulator::OnPacketEnqueue(double event_time, int sender_id) {
   }
   senders_[sender_id]->OnPacketSent(event_time * 1000000.0, 0, seq_no, packet_size_, false);
 
+  double rate = senders_[sender_id]->PacingRate(0);
+  if (rate > MAX_RATE || rate < MIN_RATE) {
+      senders_[sender_id]->Reset();
+      rate = senders_[sender_id]->PacingRate(0);
+  }
+
   double next_sent_time =
-      event_time + kPacketSize / senders_[sender_id]->PacingRate(0);
+      event_time + kPacketSize / rate;
 #ifdef DEBUG_
     fprintf(flog_, "  next sent time %.10lf\n", next_sent_time);
     fflush(flog_);
