@@ -49,13 +49,19 @@ class PccMonitorIntervalAnalysisGroup {
   ~PccMonitorIntervalAnalysisGroup() {}
   #endif
 
+  std::deque<MonitorInterval>::iterator Begin();
+  std::deque<MonitorInterval>::iterator End();
+
   // Creates a new MonitorInterval and add it to the tail of the
   // monitor interval queue, provided the necessary variables
   // for MonitorInterval initialization.
   void AddNewInterval(MonitorInterval& mi);
   void RemoveOldestInterval();
 
+  MonitorInterval& GetMostRecentInterval();
+
   bool Full();
+  bool Empty();
 
   float ComputeWeightedUtilityGradient(QuicTime cur_time, float target_rate,
         float time_decay, float rate_decay);

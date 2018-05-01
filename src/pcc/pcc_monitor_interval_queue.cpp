@@ -67,6 +67,9 @@ MonitorInterval PccMonitorIntervalQueue::Pop() {
 }
 
 bool PccMonitorIntervalQueue::HasFinishedInterval() {
+    if (monitor_intervals_.empty()) {
+        return false;
+    }
     return monitor_intervals_.front().AllPacketsAccountedFor();
 }
 

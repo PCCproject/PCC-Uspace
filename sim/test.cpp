@@ -6,8 +6,8 @@ int main(int argc, char** argv) {
   FILE* sender_config = fopen("sender.config", "r");
  
   double dur = 100;
-  if (Options::Get("--sim-long") != NULL) {
-    dur = 1000000;
+  if (Options::Get("--sim-dur=") != NULL) {
+    dur = atof(Options::Get("--sim-dur="));
   }
   
   double test_bw = 70;
@@ -20,15 +20,15 @@ int main(int argc, char** argv) {
   fclose(sender_config);
 
   LinkChangeEventData lc;
-  lc.bw = 18;
-  lc.bw_range = 10;
-  lc.dl = 0.03;
-  lc.dl_range = 0.00;
-  lc.bf = 500;
-  lc.bf_range = 0;
-  lc.plr = 0;
-  lc.plr_range = 0;
-  lc.reset_queue = false;
+  lc.bw = 100;
+  lc.bw_range = 90;
+  lc.dl = 0.06;
+  lc.dl_range = 0.05;
+  lc.bf = 10000;
+  lc.bf_range = 9000;
+  lc.plr = 0.02;
+  lc.plr_range = 0.02;
+  lc.reset_queue = true;
   lc.change_interval = 30.0;
 
   EventInfo lc_event(LINK_CHANGE, 0.0, 0, 0, 0.0);

@@ -1,6 +1,6 @@
 export CC = g++
 
-export CCFLAGS = -std=c++0x -Wall
+export CCFLAGS = -g -std=c++0x -Wall
 
 export LDFLAGS = -Lcore -L/usr/lib/python3.5/config-3.5m-x86_64-linux-gnu/ -lpython3.5 -lstdc++ -lpthread -lm
 

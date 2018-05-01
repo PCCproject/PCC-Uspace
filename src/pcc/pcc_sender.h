@@ -150,6 +150,7 @@ class QUIC_EXPORT_PRIVATE PccSender
   #ifndef QUIC_PORT
   PccEventLogger* log;
   PccPythonHelper* py_helper;
+  void Reset();
   #endif
 
   QuicTime GetCurrentRttEstimate(QuicTime cur_time);

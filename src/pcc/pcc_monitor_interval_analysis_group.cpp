@@ -28,6 +28,14 @@ PccMonitorIntervalAnalysisGroup::PccMonitorIntervalAnalysisGroup(int size) {
   size_ = size;
 }
 
+std::deque<MonitorInterval>::iterator PccMonitorIntervalAnalysisGroup::Begin() {
+    return monitor_intervals_.begin();
+}
+
+std::deque<MonitorInterval>::iterator PccMonitorIntervalAnalysisGroup::End() {
+    return monitor_intervals_.end();
+}
+
 void PccMonitorIntervalAnalysisGroup::AddNewInterval(MonitorInterval& mi) {
   monitor_intervals_.emplace_back(mi);
 }
@@ -38,6 +46,14 @@ void PccMonitorIntervalAnalysisGroup::RemoveOldestInterval() {
 
 bool PccMonitorIntervalAnalysisGroup::Full() {
   return (monitor_intervals_.size() >= size_);
+}
+  
+MonitorInterval& PccMonitorIntervalAnalysisGroup::GetMostRecentInterval() {
+  return monitor_intervals_.back();
+}
+
+bool PccMonitorIntervalAnalysisGroup::Empty() {
+  return monitor_intervals_.empty();
 }
 
 static double Slope_(std::vector<double>& x, std::vector<double>& y) {

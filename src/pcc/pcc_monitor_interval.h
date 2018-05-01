@@ -92,15 +92,21 @@ class MonitorInterval {
   
   QuicBandwidth GetObsThroughput();
   QuicBandwidth GetObsSendingRate();
-  float GetObsDur();
+  float GetObsSendDur();
+  float GetObsRecvDur();
   float GetObsRtt();
   float GetObsRttInflation();
   float GetObsLossRate();
   float GetObsUtility();
 
+  int GetId() { return id; }
 
  private:
+  static int next_id;
+
   bool ContainsPacket(QuicPacketNumber packet_num);
+
+  int id;
 
   // Sending rate.
   QuicBandwidth target_sending_rate;
@@ -111,6 +117,11 @@ class MonitorInterval {
   QuicTime first_packet_sent_time;
   // Sent time of the last packet.
   QuicTime last_packet_sent_time;
+
+  // Sent time of the first packet.
+  QuicTime first_packet_ack_time;
+  // Sent time of the last packet.
+  QuicTime last_packet_ack_time;
 
   // PacketNumber of the first sent packet.
   QuicPacketNumber first_packet_number;

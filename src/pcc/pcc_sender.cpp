@@ -16,6 +16,7 @@
 #include "pcc_ixp_utility_calculator.h"
 #include "pcc_vivace_utility_calculator.h"
 #include "pcc_vivace_rate_controller.h"
+#include "python_rate_controller.h"
 #include "stdlib.h"
 #include <random>
 #endif
@@ -57,9 +58,9 @@ const size_t kInitialRttMicroseconds = 1 * 1000;
 // Number of bits per byte.
 const size_t kBitsPerByte = 8;
 // Duration of monitor intervals as a proportion of RTT.
-const float kMonitorIntervalDuration = 0.5;
+const float kMonitorIntervalDuration = 1.5f;
 // Minimum number of packets in a monitor interval.
-const size_t kMinimumPacketsPerInterval = 10;
+const size_t kMinimumPacketsPerInterval = 40;
 }  // namespace
 
 #ifdef QUIC_PORT
@@ -105,7 +106,7 @@ PccSender::PccSender(QuicTime initial_rtt_us,
           initial_congestion_window * kDefaultTCPMSS * kBitsPerByte *
           kNumMicrosPerSecond / initial_rtt_us),
 #endif
-      interval_analysis_group_(4),
+      interval_analysis_group_(8),
       #ifndef QUIC_PORT
       avg_rtt_(0)
       #endif
@@ -123,7 +124,11 @@ PccSender::PccSender(QuicTime initial_rtt_us,
   }
   #endif
   utility_calculator_ = new PccIxpUtilityCalculator(log);
-  rate_controller_ = new PccVivaceRateController();
+  if (Options::Get("--python-rate-control") != NULL) {
+    rate_controller_ = new PccPythonRateController();
+  } else {
+    rate_controller_ = new PccVivaceRateController();
+  }
 }
 
 #ifndef QUIC_PORT
@@ -137,7 +142,14 @@ PccSender::~PccSender() {
 #if defined(QUIC_PORT) && defined(QUIC_PORT_LOCAL)
 PccSender::~PccSender() {}
 
+
 #endif
+#ifndef QUIC_PORT
+void PccSender::Reset() {
+    rate_controller_->Reset();
+}
+#endif
+
 bool PccSender::ShouldCreateNewMonitorInterval(QuicTime sent_time) {
     return interval_queue_.Empty() ||
         interval_queue_.Current().AllPacketsSent(sent_time);
@@ -161,6 +173,7 @@ QuicTime PccSender::GetCurrentRttEstimate(QuicTime sent_time) {
 
 QuicBandwidth PccSender::UpdateSendingRate(QuicTime event_time) {
   sending_rate_ = rate_controller_->GetNextSendingRate(interval_analysis_group_, sending_rate_, event_time);
+  //std::cout << "PCC: rate = " << sending_rate_ << std::endl;
   return sending_rate_;
 }
 
@@ -175,6 +188,10 @@ void PccSender::OnPacketSent(QuicTime sent_time,
     QuicTime rtt_estimate = GetCurrentRttEstimate(sent_time);
     float sending_rate = UpdateSendingRate(sent_time);
     QuicTime monitor_duration = ComputeMonitorDuration(sending_rate, rtt_estimate); 
+    //std::cout << "Create MI:" << std::endl;
+    //std::cout << "\tTime: " << sent_time << std::endl;
+    //std::cout << "\tPacket Number: " << packet_number << std::endl;
+    //std::cout << "\tDuration: " << monitor_duration << std::endl;
     interval_queue_.Push(MonitorInterval(sending_rate, sent_time + monitor_duration));
     
     #if defined(QUIC_PORT) && defined(QUIC_PORT_LOCAL)
@@ -195,9 +212,10 @@ void PccSender::OnCongestionEvent(UDT_UNUSED bool rtt_updated,
   #endif
                                   const AckedPacketVector& acked_packets,
                                   const LostPacketVector& lost_packets) {
-  
   #ifndef QUIC_PORT
-  UpdateCurrentRttEstimate(rtt);
+  if (rtt != 0) {
+    UpdateCurrentRttEstimate(rtt);
+  }
   #endif
   int64_t rtt_estimate = GetCurrentRttEstimate(event_time); 
   
@@ -205,7 +223,6 @@ void PccSender::OnCongestionEvent(UDT_UNUSED bool rtt_updated,
                                     lost_packets,
                                     rtt_estimate, 
                                     event_time);
-
   while (interval_queue_.HasFinishedInterval()) {
     MonitorInterval mi = interval_queue_.Pop();
     mi.SetUtility(utility_calculator_->CalculateUtility(interval_analysis_group_, mi));

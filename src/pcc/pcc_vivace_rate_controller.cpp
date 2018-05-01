@@ -58,7 +58,7 @@ float kMaximumProportionalChangeStepSize = 0.06f;
 PccVivaceRateController::PccVivaceRateController() {
     //rounds_ = 0;
     previous_change_ = 0;
-    //proportional_change_allowed_ = 0.14;
+    rate_change_proportion_allowance_ = 0.0;
     rate_change_amplifier_ = 0;
     swing_buffer_ = 0;
     in_startup_ = true;
