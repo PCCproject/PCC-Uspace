@@ -3,9 +3,9 @@ import os
 import time
 import random
 
-n_configs = 0
-n_workers = 8
-replicas = 5
+n_configs = 1
+n_workers = 1
+replicas = 0
 
 bw_max = 50
 bw_min = 150
@@ -21,20 +21,19 @@ lr_max = 0.02
 
 emulab_initialized = False
 
-EXPERIMENT_DUR = 3600
+EXPERIMENT_DUR = 30
 
-user = "nogar02"
-experiment_name = "basic-test"
-#project = "UIUCScheduling"
-project = "LBCC"
-
-
+user = "njay2"
+#user = "nogar02"
+experiment_name = "njay-worker-lite"
+project = "UIUCScheduling"
+#project = "LBCC"
 
 def get_worker_name(worker_id):
     return experiment_name+"-" + str(worker_id)
 
 def init_emulab_on_worker(worker_id, background):
-    init_emulab_cmd = "./experiments/run_experiment_pcc.py -u "+user+" -e " + get_worker_name(worker_id) + " -t 1 -n 1"
+    init_emulab_cmd = "./run_experiment_pcc.py -u "+user+" -e " + get_worker_name(worker_id) + " -t 1 -n 1 -ski"
     if (background):
         init_emulab_cmd += " &"
     os.system(init_emulab_cmd)
@@ -97,7 +96,7 @@ class ExperimentType:
         self.pairs = pairs
 
     def run(self, worker_name, background):
-        run_experiment_cmd = "./experiments/run_experiment_pcc.py -u "+user+" -e " + worker_name + " -n " + str(self.pairs) + " -t " + str(EXPERIMENT_DUR) + " -lb " + str(self.thpt) + " -rb " + str(self.thpt) + " -ld " + str(self.lat) + " -rd " + str(self.lat) + " -lq " + str(self.buf) + " -rq " + str(self.buf) + " -ll " + str(self.loss) + " -rl " + str(self.loss) + " -r " + str(self.reps) + " -ski -skc -skb "
+        run_experiment_cmd = "./run_experiment_pcc.py -u "+user+" -e " + worker_name + " -n " + str(self.pairs) + " -t " + str(EXPERIMENT_DUR) + " -lb " + str(self.thpt) + " -rb " + str(self.thpt) + " -ld " + str(self.lat) + " -rd " + str(self.lat) + " -lq " + str(self.buf) + " -rq " + str(self.buf) + " -ll " + str(self.loss) + " -rl " + str(self.loss) + " -r " + str(self.reps) + " -ski -skc -skb "
         if len(self.attrs.keys()) > 0:
             run_experiment_cmd += " -a \" "
             for k in self.attrs.keys():
@@ -109,20 +108,20 @@ class ExperimentType:
         os.system(run_experiment_cmd)
 
 param_sets = [
-{"--inverted-exponent-utility":"", "-pyhelper=":"pcc_gym_driver",
-"-pypath=":"/tmp/pcc_expr/python/models/gym-16-hidden-width/"},
-{"--inverted-exponent-utility":"", "-pyhelper=":"pcc_gym_driver",
-"-pypath=":"/tmp/pcc_expr/python/models/gym-16-timesteps-per-batch/"},
-{"--inverted-exponent-utility":"", "-pyhelper=":"pcc_gym_driver",
-"-pypath=":"/tmp/pcc_expr/python/models/gym-1-hidden-layer/"},
-{"--inverted-exponent-utility":"", "-pyhelper=":"pcc_gym_driver",
-"-pypath=":"/tmp/pcc_expr/python/models/gym-256-timesteps-per-batch/"},
-{"--inverted-exponent-utility":"", "-pyhelper=":"pcc_gym_driver",
-"-pypath=":"/tmp/pcc_expr/python/models/gym-3-hidden-layers/"},
-{"--inverted-exponent-utility":"", "-pyhelper=":"pcc_gym_driver",
-"-pypath=":"/tmp/pcc_expr/python/models/gym-env/"},
-{"--inverted-exponent-utility":"", "-pyhelper=":"pcc_gym_driver",
-"-pypath=":"/tmp/pcc_expr/python/models/gym-relu/"}
+#{"--inverted-exponent-utility":"", "-pyhelper=":"pcc_gym_driver",
+#"-pypath=":"/tmp/pcc_expr/python/models/gym-16-hidden-width/"},
+#{"--inverted-exponent-utility":"", "-pyhelper=":"pcc_gym_driver",
+#"-pypath=":"/tmp/pcc_expr/python/models/gym-16-timesteps-per-batch/"},
+#{"--inverted-exponent-utility":"", "-pyhelper=":"pcc_gym_driver",
+#"-pypath=":"/tmp/pcc_expr/python/models/gym-1-hidden-layer/"},
+#{"--inverted-exponent-utility":"", "-pyhelper=":"pcc_gym_driver",
+#"-pypath=":"/tmp/pcc_expr/python/models/gym-256-timesteps-per-batch/"},
+#{"--inverted-exponent-utility":"", "-pyhelper=":"pcc_gym_driver",
+#"-pypath=":"/tmp/pcc_expr/python/models/gym-3-hidden-layers/"},
+#{"--inverted-exponent-utility":"", "-pyhelper=":"pcc_gym_driver",
+#"-pypath=":"/tmp/pcc_expr/python/models/gym-env/"},
+#{"--inverted-exponent-utility":"", "-pyhelper=":"pcc_gym_driver",
+#"-pypath=":"/tmp/pcc_expr/python/models/gym-delta/"}
 #{"--inverted-exponent-utility":"", "-pyhelper=":"pcc_addon", "-pypath=":"/tmp/pcc_expr/src/", "--online-learning":""}#,
 #{"--cubed-loss-utility":""},
 #{"--inverted-exponent-utility":"", "--njay-ascent":""},
@@ -133,7 +132,7 @@ param_sets = [
 #{"-DEBUG_PCC_STATE_MACHINE":""},
 #{"--lr-utility":""},
 #{"--lr-utility":"", "--njay-ascent":""}#,
-#{"--vivace-latency-utility":""}
+{"--vivace-latency-utility":""}
 ]
 
 class LinkConfiguration:

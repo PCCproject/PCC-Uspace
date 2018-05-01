@@ -22,8 +22,8 @@ Copied from http://incompleteideas.net/sutton/book/code/pole.c
 permalink: https://perma.cc/C9ZM-652R
 """
    
-HISTORY_LEN = 1
-#HISTORY_LEN = 3
+#HISTORY_LEN = 1
+HISTORY_LEN = 3
 #HID_LAYERS = 1
 HID_LAYERS = 3
 #HID_SIZE = 1

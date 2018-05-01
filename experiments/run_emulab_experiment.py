@@ -118,8 +118,11 @@ def generate_flow_configuration(args) :
     flow_start_time.append(int(s[0]))
     flow_end_time.append(int(s[1]))
     flow_proto.append(s[2])
+    global duration
     duration = max(duration, int(s[1]))
     if s[2] == "PCC" :
+      print str(s) + " len(s) = " + str(len(s))
+      print "args = " + args.args
       if len(s) == 3 :
         flow_args.append(args.args)
       else :
@@ -339,7 +342,7 @@ def run_sender_pcc(args,
           receiver_ip + " " + dir_expr_path + " " + str(args.n) + " " +
           str(bottleneck_lbw) + " " + str(bottleneck_ldl) + " " +
           str(bottleneck_lbf) + " " + str(bottleneck_llr) +
-          " /dev/null /dev/null " + str(duration) + " " + str(flow_args) +
+          " /tmp/pcc_expr/pcc_stdout.txt /tmp/pcc_expr/pcc_stderr.txt " + str(duration) + " " + str(flow_args) +
           " -flowid=" + str(flow_id) + " -timeshift=" + str(timeshift) + " &")
 ################################################################################
 
@@ -398,11 +401,13 @@ def run_senders(args) :
 
 ################################################################################
 def copy_logs(args) :
-  os.system("mkdir -p results/" + args.l)
-  for i in range(1, args.n + 1) :
-    remote_copy(get_hostname("sender" + str(i), args.u, args.e, args.p) + ":" +
-                    dir_expr_path + "/*_log_*",
-                "./results/" + args.l + "/")
+  # TODO: Need an option not to copy logs.
+  pass
+  #os.system("mkdir -p results/" + args.l)
+  #for i in range(1, args.n + 1) :
+  #  remote_copy(get_hostname("sender" + str(i), args.u, args.e, args.p) + ":" +
+  #                  dir_expr_path + "/*_log_*",
+  #              "./results/" + args.l + "/")
 ################################################################################
 
 

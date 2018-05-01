@@ -68,11 +68,11 @@ compression = 0
 if "compression" in graph_config.keys():
     compression = graph_config["compression"]
 
-log_files = os.listdir("./" + sys.argv[1])
+log_files = os.listdir(sys.argv[1])
 experiment_logs = []
 event_counts = []
 for filename in log_files:
-    log = PccExperimentLog("./" + sys.argv[1] + "/" + filename)
+    log = PccExperimentLog(sys.argv[1] + "/" + filename)
     if len(log.dict.keys()) > 0:
         log.apply_timeshift()
         experiment_logs.append(log)
@@ -198,7 +198,7 @@ if graph_config["type"] == "summary":
             x_axis_values = log_group_x_values[j]
             y_axis_values = log_group_y_values[j]
             if len(y_axis_values) > 1:
-                if x_axis_name == "Time":
+                if "Time" in x_axis_name:
                     handle, = axes[i].plot(x_axis_values, y_axis_values[i])
                 else: 
                     handle = axes[i].scatter(x_axis_values, y_axis_values[i], s=point_size)
@@ -210,7 +210,7 @@ if graph_config["type"] == "summary":
                 handles.append(handle)
                 axes[i].set_ylabel(y_axis_name)
             else:
-                if x_axis_name == "Time":
+                if "Time" in x_axis_name:
                     handle, = axes.plot(x_axis_values, y_axis_values[i])
                 else:
                     handle = axes.scatter(x_axis_values, y_axis_values[i], s=point_size)
@@ -302,7 +302,7 @@ if graph_config["type"] == "event":
             #if y_axis_name == "Inverted Exponent Utility":
             #    y_axis_values[j][y_axis_name] = numpy.log10(y_axis_values[j][y_axis_name])
             if len(y_axis_names) > 1:
-                if x_axis_name == "Time":
+                if "Time" in x_axis_name:
                     if "point event" in graph_config.keys():
                         graph_y_min = min(y_axis_values[j][y_axis_name])
                         point_event = graph_config["point event"]
@@ -325,7 +325,7 @@ if graph_config["type"] == "event":
                 if add_model_plot:
                     axes[i].axvline(model_event_time, color='r')
             else:
-                if x_axis_name == "Time":
+                if "Time" in x_axis_name:
                     if "point event" in graph_config.keys():
                         graph_y_min = min(y_axis_values[j][y_axis_name])
                         point_event = graph_config["point event"]

@@ -536,6 +536,7 @@ bool PccMonitorIntervalQueue::CalculateUtility(MonitorInterval* interval) {
     event2.AddValue("Actual Rate", bytes_sent * 8.0f / mi_time_seconds);
     event2.AddValue("Loss Rate", loss_rate);
     event2.AddValue("Avg RTT", avg_rtt);
+    event2.AddValue("Event Time", interval->first_packet_sent_time);
     delegate_->log->LogEvent(event2); 
   #endif
 
