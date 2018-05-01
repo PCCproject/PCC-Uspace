@@ -1,43 +1,13 @@
-C++ = g++ -g -std=c++11
 
-ifndef os
-   os = LINUX
-endif
+SOURCES = $(wildcard ./*.cpp)
+OBJECTS = $(SOURCES:.cpp=.o)
 
-ifndef arch
-   arch = IA32
-endif
+CCFLAGS += -fPIC
 
-#CCFLAGS = -fPIC -Wall -Wextra -D$(os) -finline-functions -O3 -fno-strict-aliasing #-msse3
-CCFLAGS = -fPIC -Wall -Wextra -D$(os) -finline-functions -g -fno-strict-aliasing #-msse3
+%.o: %.cpp
+	$(CC) $(CCFLAGS) $< -c
 
-ifeq ($(arch), IA32)
-   CCFLAGS += -DIA32
-endif
-
-ifeq ($(arch), POWERPC)
-   CCFLAGS += -mcpu=powerpc
-endif
-
-ifeq ($(arch), SPARC)
-   CCFLAGS += -DSPARC
-endif
-
-ifeq ($(arch), IA64)
-   CCFLAGS += -DIA64
-endif
-
-ifeq ($(arch), AMD64)
-   CCFLAGS += -DAMD64
-endif
-
-OBJS = pcc_monitor_interval_queue.o pcc_sender.o pcc_logger.o pcc_python_helper.o
-DIR = $(shell pwd)
-
-all: $(OBJS)
-
-%.o: %.cpp %.h
-	$(C++) $(CCFLAGS) -I/usr/include/python3.5 $< -c -lpython3.5 -static
+all: $(OBJECTS)
 
 clean:
-	rm -f *.o
+	rm -f *.o pccclient pccserver
