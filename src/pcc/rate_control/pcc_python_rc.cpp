@@ -1,31 +1,9 @@
-#ifdef QUIC_PORT
-#ifdef QUIC_PORT_LOCAL
-#include "net/quic/core/congestion_control/pcc_sender.h"
-#include "net/quic/core/congestion_control/rtt_stats.h"
-#include "net/quic/core/quic_time.h"
-#include "net/quic/platform/api/quic_str_cat.h"
-#else
-#include "third_party/pcc_quic/pcc_sender.h"
-#include "/quic/src/core/congestion_control/rtt_stats.h"
-#include "/quic/src/net/platform/api/quic_str_cat.h"
-#include "base_commandlineflags.h"
-#endif
-#else
-#include "python_rate_controller.h"
-#endif
 
+#include "pcc_python_rc.h"
 #include <algorithm>
 
-#ifdef QUIC_PORT
-#ifdef QUIC_PORT_LOCAL
-namespace net {
-
-#else
-namespace gfe_quic {
-#endif
-#endif
-
-PccPythonRateController::PccPythonRateController() {
+PccPythonRateController::PccPythonRateController(double call_freq,
+        PccEventLogger* log) {
     Py_Initialize();
     PyRun_SimpleString("import sys");
    
@@ -56,9 +34,10 @@ PccPythonRateController::PccPythonRateController() {
         char python_path_cmd_buf[python_path_arg_len + 50];
         sprintf(&python_path_cmd_buf[0], "sys.path.append(\"%s\")", python_path_arg);
         PyRun_SimpleString(&python_path_cmd_buf[0]);
+        //std::cerr << "Adding python path: " << python_path_arg << std::endl;
     }
 
-    const char* python_filename = "pcc_rate_controller.py";
+    const char* python_filename = "pcc_rate_controller";
     const char* python_filename_arg = Options::Get("-pyhelper=");
     if (python_filename_arg != NULL) {
         python_filename = python_filename_arg;
@@ -97,6 +76,10 @@ void PccPythonRateController::Reset() {
 }
 
 void PccPythonRateController::GiveSample(double rate, double recv_rate, double lat, double loss, double lat_infl, double utility) {
+    //std::cerr << "Creating arguments to give sample" << std::endl;
+    if (PyErr_Occurred()) {
+        std::cerr << "Python error occurred" << std::endl;
+    }
     PyObject* args = PyTuple_New(6);
     PyObject* sending_rate_value = PyFloat_FromDouble(rate);
     PyObject* recv_rate_value = PyFloat_FromDouble(recv_rate);
@@ -104,16 +87,29 @@ void PccPythonRateController::GiveSample(double rate, double recv_rate, double l
     PyObject* loss_rate_value = PyFloat_FromDouble(loss);
     PyObject* latency_inflation_value = PyFloat_FromDouble(lat_infl);
     PyObject* utility_value = PyFloat_FromDouble(utility);
+    //std::cerr << "Assembling list" << std::endl;
+    if (PyErr_Occurred()) {
+        std::cerr << "Python error occurred" << std::endl;
+    }
     PyTuple_SetItem(args, 0, sending_rate_value);
     PyTuple_SetItem(args, 1, recv_rate_value);
     PyTuple_SetItem(args, 2, latency_value);
     PyTuple_SetItem(args, 3, loss_rate_value);
     PyTuple_SetItem(args, 4, latency_inflation_value);
     PyTuple_SetItem(args, 5, utility_value);
+    //std::cerr << "Calling give_sample_func" << std::endl;
+    if (PyErr_Occurred()) {
+        std::cerr << "Python error occurred" << std::endl;
+    }
     PyObject_CallObject(give_sample_func, args);
+    //std::cerr << "Done giving sample" << std::endl;
+    if (PyErr_Occurred()) {
+        std::cerr << "Python error occurred" << std::endl;
+    }
+    //std::cerr << "GiveSample finished" << std::endl;
 }
 
-void PccPythonRateController::GiveMiSample(MonitorInterval& mi) {
+void PccPythonRateController::GiveMiSample(const MonitorInterval& mi) {
     double sending_rate = mi.GetTargetSendingRate();
     double recv_rate = mi.GetObsThroughput();
     double latency = mi.GetObsRtt();
@@ -123,32 +119,25 @@ void PccPythonRateController::GiveMiSample(MonitorInterval& mi) {
     GiveSample(sending_rate, recv_rate, latency, loss_rate, latency_inflation, utility);
 }
 
-QuicBandwidth PccPythonRateController::GetNextSendingRate(
-        PccMonitorIntervalAnalysisGroup& past_monitor_intervals,
-        QuicBandwidth current_rate,
-        QuicTime cur_time) {
+void PccPythonRateController::MonitorIntervalFinished(const MonitorInterval& mi) {
+    GiveMiSample(mi);
+}
 
-    if (past_monitor_intervals.Empty()) {
-        GiveSample(0, 0, 0, 0, 0, 0);
-    } else {
-        std::deque<MonitorInterval>::iterator it = past_monitor_intervals.Begin();
-        
-        while (it != past_monitor_intervals.End() && it->GetId() <= last_given_mi_id) {
-            ++it;
-        }
+QuicBandwidth PccPythonRateController::GetNextSendingRate( QuicBandwidth current_rate, QuicTime cur_time) {
 
-        while (it != past_monitor_intervals.End()) {
-            GiveMiSample(*it);
-            last_given_mi_id = it->GetId();
-            ++it;
-        }
+    //std::cerr << "Calling get_rate_func" << std::endl;
+    if (PyErr_Occurred()) {
+        std::cerr << "Python error occurred" << std::endl;
     }
-
     PyObject* result = PyObject_CallObject(get_rate_func, NULL);
     if (result == NULL) {
         std::cout << "ERROR: Failed to call python get_rate() func" << std::endl;
         PyErr_Print();
         exit(-1);
+    }
+    //std::cerr << "Converting result to double" << std::endl;
+    if (PyErr_Occurred()) {
+        std::cerr << "Python error occurred" << std::endl;
     }
     double result_double = PyFloat_AsDouble(result);
     PyErr_Print();
@@ -156,5 +145,10 @@ QuicBandwidth PccPythonRateController::GetNextSendingRate(
         std::cout << "ERROR: Output from python get_rate() is not a float" << std::endl;
         exit(-1);
     }
+    //std::cerr << "Returning new rate" << std::endl;
+    if (PyErr_Occurred()) {
+        std::cerr << "Python error occurred" << std::endl;
+    }
+    //std::cerr << "GetNextSendingRate finished" << std::endl;
     return result_double;
 }

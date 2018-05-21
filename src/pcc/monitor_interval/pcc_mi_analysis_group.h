@@ -16,7 +16,7 @@
 #include "gfe/quic/core/quic_types.h"
 #endif
 #else
-#include "pcc_monitor_interval.h"
+#include "pcc_mi.h"
 #endif
 
 #ifdef QUIC_PORT

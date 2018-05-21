@@ -5,7 +5,7 @@
 #include "net/quic/core/congestion_control/pcc_monitor_interval.h"
 #endif
 #else
-#include "pcc_monitor_interval.h"
+#include "pcc_mi.h"
 #endif
 
 #ifndef QUIC_PORT
@@ -129,7 +129,7 @@ QuicBandwidth MonitorInterval::GetTargetSendingRate() const {
     return target_sending_rate;
 }
 
-QuicBandwidth MonitorInterval::GetObsThroughput() {
+QuicBandwidth MonitorInterval::GetObsThroughput() const {
     float dur = GetObsRecvDur();
     if (dur == 0) {
         return 0;
@@ -137,7 +137,7 @@ QuicBandwidth MonitorInterval::GetObsThroughput() {
     return 8 * bytes_acked / (dur / 1000000.0);
 }
 
-QuicBandwidth MonitorInterval::GetObsSendingRate() {
+QuicBandwidth MonitorInterval::GetObsSendingRate() const {
     float dur = GetObsSendDur();
     if (dur == 0) {
         return 0;
@@ -145,26 +145,26 @@ QuicBandwidth MonitorInterval::GetObsSendingRate() {
     return 8 * bytes_sent / (dur / 1000000.0);
 }
 
-float MonitorInterval::GetObsSendDur() {
+float MonitorInterval::GetObsSendDur() const {
     return (last_packet_sent_time - first_packet_sent_time);
 }
 
-float MonitorInterval::GetObsRecvDur() {
+float MonitorInterval::GetObsRecvDur() const {
     return (last_packet_ack_time - first_packet_ack_time);
 }
 
-float MonitorInterval::GetObsRtt() {
+float MonitorInterval::GetObsRtt() const {
     if (packet_rtt_samples.empty()) {
         return 0;
     }
     double rtt_sum = 0.0;
-    for (PacketRttSample& sample : packet_rtt_samples) {
+    for (const PacketRttSample& sample : packet_rtt_samples) {
         rtt_sum += sample.rtt;
     }
     return rtt_sum / packet_rtt_samples.size();
 }
 
-float MonitorInterval::GetObsRttInflation() {
+float MonitorInterval::GetObsRttInflation() const {
     if (packet_rtt_samples.size() < 2) {
         return 0;
     }
@@ -182,7 +182,7 @@ float MonitorInterval::GetObsRttInflation() {
     return rtt_inflation;
 }
 
-float MonitorInterval::GetObsLossRate() {
+float MonitorInterval::GetObsLossRate() const {
     return 1.0 - (bytes_acked / (float)bytes_sent);
 }
 
@@ -190,7 +190,7 @@ void MonitorInterval::SetUtility(float new_utility) {
     utility = new_utility;
 }
 
-float MonitorInterval::GetObsUtility() {
+float MonitorInterval::GetObsUtility() const {
     return utility;
 }
 

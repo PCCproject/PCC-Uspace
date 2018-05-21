@@ -7,8 +7,7 @@
 #include "gfe/quic/core/congestion_control/rtt_stats.h"
 #endif
 #else
-#include "pcc_monitor_interval_queue.h"
-#include "pcc_sender.h"
+#include "pcc_mi_queue.h"
 #include <iostream>
 #endif
 

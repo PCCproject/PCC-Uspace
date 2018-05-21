@@ -12,11 +12,6 @@
 #endif
 #else
 #include "pcc_sender.h"
-#include "pcc_logger.h"
-#include "pcc_ixp_utility_calculator.h"
-#include "pcc_vivace_utility_calculator.h"
-#include "pcc_vivace_rate_controller.h"
-#include "python_rate_controller.h"
 #include "stdlib.h"
 #include <random>
 #endif
@@ -58,9 +53,9 @@ const size_t kInitialRttMicroseconds = 1 * 1000;
 // Number of bits per byte.
 const size_t kBitsPerByte = 8;
 // Duration of monitor intervals as a proportion of RTT.
-const float kMonitorIntervalDuration = 1.5f;
+const float kMonitorIntervalDuration = 1.0f;
 // Minimum number of packets in a monitor interval.
-const size_t kMinimumPacketsPerInterval = 40;
+const size_t kMinimumPacketsPerInterval = 20;
 }  // namespace
 
 #ifdef QUIC_PORT
@@ -106,29 +101,41 @@ PccSender::PccSender(QuicTime initial_rtt_us,
           initial_congestion_window * kDefaultTCPMSS * kBitsPerByte *
           kNumMicrosPerSecond / initial_rtt_us),
 #endif
-      interval_analysis_group_(8),
+      interval_analysis_group_(3),
       #ifndef QUIC_PORT
       avg_rtt_(0)
       #endif
       {
+
+  std::cout << "Starting sending rate = " << sending_rate_ << std::endl;
   #ifndef QUIC_PORT
   if (Options::Get("-log=") == NULL) {
     log = new PccEventLogger("pcc_log.txt");
   } else {
     log = new PccEventLogger(Options::Get("-log="));    
   }
-  py_helper = NULL;
-  const char* py_helper_name = Options::Get("-pyhelper=");
-  if (py_helper_name != NULL) {
-    py_helper = new PccPythonHelper(py_helper_name);
-  }
   #endif
-  utility_calculator_ = new PccIxpUtilityCalculator(log);
-  if (Options::Get("--python-rate-control") != NULL) {
-    rate_controller_ = new PccPythonRateController();
+  
+  // CLARG: "--pcc-utility-calc=<utility_calculator>" See src/pcc/utility for more info.
+  const char* uc_name = Options::Get("--pcc-utility-calc=");
+  if (uc_name == NULL) {
+      utility_calculator_ = PccUtilityCalculatorFactory::Create("", log);
   } else {
-    rate_controller_ = new PccVivaceRateController();
+      utility_calculator_ = PccUtilityCalculatorFactory::Create(std::string(uc_name), log);
   }
+
+  // We'll tell the rate controller how many times per RTT it is called so it can run aglorithms
+  // like doubling every RTT fairly easily.
+  double call_freq = 1.0 / kMonitorIntervalDuration;
+
+  // CLARG: "--pcc-rate-control=<rate_controller>" See src/pcc/rate_controler for more info.
+  const char* rc_name = Options::Get("--pcc-rate-control=");
+  std::string rc_name_str = "";
+  if (rc_name != NULL) {
+      rc_name_str = std::string(rc_name);
+  }
+  rate_controller_ = PccRateControllerFactory::Create(rc_name_str, call_freq, log);
+    rate_control_lock_ = new std::mutex();
 }
 
 #ifndef QUIC_PORT
@@ -146,7 +153,9 @@ PccSender::~PccSender() {}
 #endif
 #ifndef QUIC_PORT
 void PccSender::Reset() {
+    rate_control_lock_->lock();
     rate_controller_->Reset();
+    rate_control_lock_->unlock();
 }
 #endif
 
@@ -172,7 +181,9 @@ QuicTime PccSender::GetCurrentRttEstimate(QuicTime sent_time) {
 }
 
 QuicBandwidth PccSender::UpdateSendingRate(QuicTime event_time) {
-  sending_rate_ = rate_controller_->GetNextSendingRate(interval_analysis_group_, sending_rate_, event_time);
+    rate_control_lock_->lock();
+  sending_rate_ = rate_controller_->GetNextSendingRate(sending_rate_, event_time);
+    rate_control_lock_->unlock();
   //std::cout << "PCC: rate = " << sending_rate_ << std::endl;
   return sending_rate_;
 }
@@ -225,11 +236,17 @@ void PccSender::OnCongestionEvent(UDT_UNUSED bool rtt_updated,
                                     event_time);
   while (interval_queue_.HasFinishedInterval()) {
     MonitorInterval mi = interval_queue_.Pop();
+    //std::cout << "MI Finished with: " << mi.n_packets_sent << ", loss " << mi.GetObsLossRate() << std::endl;
     mi.SetUtility(utility_calculator_->CalculateUtility(interval_analysis_group_, mi));
+    rate_control_lock_->lock();
+    rate_controller_->MonitorIntervalFinished(mi);
+    rate_control_lock_->unlock();
+    /*
     if (interval_analysis_group_.Full()) {
       interval_analysis_group_.RemoveOldestInterval();
     }
     interval_analysis_group_.AddNewInterval(mi);
+    */
   }
 }
 
