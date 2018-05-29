@@ -11,21 +11,10 @@ const float kRttCoefficient = 1.0/30000.0f;
 
 float PccLinearUtilityCalculator::CalculateUtility(PccMonitorIntervalAnalysisGroup& past_monitor_intervals,
         MonitorInterval& cur_mi) {
-
-  static float prev_sending_rate = 0;
-
-  static const MonitorIntervalMetric* thpt_metric =
-        MonitorIntervalMetric::GetByName("Throughput");
-  static const MonitorIntervalMetric* avg_rtt_metric =
-        MonitorIntervalMetric::GetByName("AverageRtt");
-  static const MonitorIntervalMetric* loss_metric =
-        MonitorIntervalMetric::GetByName("LossRate");
-
-  float throughput = thpt_metric->Evaluate(cur_mi);
-  float avg_rtt = avg_rtt_metric->Evaluate(cur_mi);
-  float loss_rate = loss_metric->Evaluate(cur_mi);
-
-  float loss_odds = (loss_rate) / (1.001 - loss_rate);
+  
+  float throughput = cur_mi.GetObsThroughput();
+  float avg_rtt = cur_mi.GetObsRtt();
+  float loss_rate = cur_mi.GetObsLossRate();
 
   float utility = throughput - 1000 * avg_rtt - 1e8 * loss_rate;
 

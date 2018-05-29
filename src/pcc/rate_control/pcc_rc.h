@@ -2,8 +2,8 @@
 #ifndef _PCC_RC_H_
 #define _PCC_RC_H_
 
+#include "../monitor_interval/pcc_mi.h"
 #include "../../core/options.h"
-#include "../monitor_interval/metrics/pcc_mi_metric.h"
 #include "../pcc_logger.h"
 
 class PccRateController {

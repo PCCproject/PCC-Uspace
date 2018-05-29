@@ -2,7 +2,7 @@
 #ifndef _PCC_UCALC_H_
 #define _PCC_UCALC_H_
 
-#include "../monitor_interval/metrics/pcc_mi_metric.h"
+#include "../monitor_interval/pcc_mi.h"
 #include "../monitor_interval/pcc_mi_analysis_group.h"
 #include "../pcc_logger.h"
 

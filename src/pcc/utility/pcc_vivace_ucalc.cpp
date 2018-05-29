@@ -21,10 +21,7 @@ const float kBitsPerMegabit = 1024 * 1024;
 float PccVivaceUtilityCalculator::CalculateUtility(PccMonitorIntervalAnalysisGroup& past_monitor_intervals,
         MonitorInterval& cur_mi) {
 
-  static const MonitorIntervalMetric* thpt_metric =
-        MonitorIntervalMetric::GetByName("Throughput");
-
-  float throughput = thpt_metric->Evaluate(cur_mi);
+  float throughput = cur_mi.GetObsThroughput();
   float sending_rate_bps = cur_mi.GetObsSendingRate();
   float rtt_inflation = cur_mi.GetObsRttInflation(); 
   float avg_rtt = cur_mi.GetObsRtt();
@@ -36,10 +33,10 @@ float PccVivaceUtilityCalculator::CalculateUtility(PccMonitorIntervalAnalysisGro
   loss_contribution *= -1.0 * sending_rate_bps;
   rtt_contribution *= -1.0 * throughput;
   
-  float vivace_latency_utility = sending_factor + loss_contribution + rtt_contribution;
+  float utility = sending_factor + loss_contribution + rtt_contribution;
   
   PccLoggableEvent event("Calculate Utility", "--log-utility-calc-lite");
-  event.AddValue("Utility", vivace_latency_utility);
+  event.AddValue("Utility", utility);
   event.AddValue("MI Start Time", cur_mi.GetStartTime());
   event.AddValue("Target Rate", cur_mi.GetTargetSendingRate());
   event.AddValue("Actual Rate", cur_mi.GetObsSendingRate());
@@ -47,5 +44,5 @@ float PccVivaceUtilityCalculator::CalculateUtility(PccMonitorIntervalAnalysisGro
   event.AddValue("Avg RTT", avg_rtt);
   log->LogEvent(event); 
   
-  return vivace_latency_utility;
+  return utility;
 }
