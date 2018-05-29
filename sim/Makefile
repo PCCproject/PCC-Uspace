@@ -9,10 +9,13 @@ OBJS=$(subst .cpp,.o,$(SRCS))
 %.o: %.cpp
 	$(CXX) $(CPPFLAGS) $< -c
 
-all: test
+all: test sim_test
 
 test: $(OBJS)
 	$(CXX) $(CPPFLAGS) -o test $(OBJS) $(LDFLAGS)
+
+sim_test: test
+	cp test sim_test
 
 clean:
 	$(RM) $(OBJS) test

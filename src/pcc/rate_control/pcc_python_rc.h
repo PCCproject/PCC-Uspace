@@ -31,7 +31,7 @@ class PccPythonRateController : public PccRateController {
   PyObject* reset_func;
 
   int last_given_mi_id;
-
+  std::vector<MonitorInterval> mi_cache;
 };
 
 #endif

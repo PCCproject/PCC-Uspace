@@ -53,7 +53,7 @@ const size_t kInitialRttMicroseconds = 1 * 1000;
 // Number of bits per byte.
 const size_t kBitsPerByte = 8;
 // Duration of monitor intervals as a proportion of RTT.
-const float kMonitorIntervalDuration = 1.0f;
+const float kMonitorIntervalDuration = 1.5f;
 // Minimum number of packets in a monitor interval.
 const size_t kMinimumPacketsPerInterval = 20;
 }  // namespace
@@ -199,10 +199,10 @@ void PccSender::OnPacketSent(QuicTime sent_time,
     QuicTime rtt_estimate = GetCurrentRttEstimate(sent_time);
     float sending_rate = UpdateSendingRate(sent_time);
     QuicTime monitor_duration = ComputeMonitorDuration(sending_rate, rtt_estimate); 
-    //std::cout << "Create MI:" << std::endl;
-    //std::cout << "\tTime: " << sent_time << std::endl;
-    //std::cout << "\tPacket Number: " << packet_number << std::endl;
-    //std::cout << "\tDuration: " << monitor_duration << std::endl;
+    //std::cerr << "Create MI:" << std::endl;
+    //std::cerr << "\tTime: " << sent_time << std::endl;
+    //std::cerr << "\tPacket Number: " << packet_number << std::endl;
+    //std::cerr << "\tDuration: " << monitor_duration << std::endl;
     interval_queue_.Push(MonitorInterval(sending_rate, sent_time + monitor_duration));
     
     #if defined(QUIC_PORT) && defined(QUIC_PORT_LOCAL)
@@ -236,17 +236,11 @@ void PccSender::OnCongestionEvent(UDT_UNUSED bool rtt_updated,
                                     event_time);
   while (interval_queue_.HasFinishedInterval()) {
     MonitorInterval mi = interval_queue_.Pop();
-    //std::cout << "MI Finished with: " << mi.n_packets_sent << ", loss " << mi.GetObsLossRate() << std::endl;
+    //std::cerr << "MI Finished with: " << mi.n_packets_sent << ", loss " << mi.GetObsLossRate() << std::endl;
     mi.SetUtility(utility_calculator_->CalculateUtility(interval_analysis_group_, mi));
     rate_control_lock_->lock();
     rate_controller_->MonitorIntervalFinished(mi);
     rate_control_lock_->unlock();
-    /*
-    if (interval_analysis_group_.Full()) {
-      interval_analysis_group_.RemoveOldestInterval();
-    }
-    interval_analysis_group_.AddNewInterval(mi);
-    */
   }
 }
 

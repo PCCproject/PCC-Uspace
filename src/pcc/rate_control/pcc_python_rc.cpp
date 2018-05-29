@@ -120,10 +120,16 @@ void PccPythonRateController::GiveMiSample(const MonitorInterval& mi) {
 }
 
 void PccPythonRateController::MonitorIntervalFinished(const MonitorInterval& mi) {
+    //mi_cache.push_back(MonitorInterval(mi));
     GiveMiSample(mi);
 }
 
 QuicBandwidth PccPythonRateController::GetNextSendingRate( QuicBandwidth current_rate, QuicTime cur_time) {
+
+    for (int i = 0; i < mi_cache.size(); ++i) {
+        GiveMiSample(mi_cache[i]);
+    }
+    mi_cache.clear();
 
     //std::cerr << "Calling get_rate_func" << std::endl;
     if (PyErr_Occurred()) {

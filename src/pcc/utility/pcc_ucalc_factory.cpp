@@ -4,6 +4,8 @@ PccUtilityCalculator* PccUtilityCalculatorFactory::Create(const std::string& nam
         PccEventLogger* log) {
     if (name == "vivace") {
         return new PccVivaceUtilityCalculator(log);
+    } else if (name == "linear") {
+        return new PccLinearUtilityCalculator(log);
     } else if (name == "ixp") {
         return new PccIxpUtilityCalculator(log);
     }

@@ -3,7 +3,6 @@ import sys
 
 img_name = "graph.png"
 img_dir = "./test_imgs/"
-test_bw  = 70.0
 reset_bw = 20.0
 show = False
 
@@ -19,9 +18,6 @@ for arg in sys.argv:
     if ("=" in arg):
         arg_val = arg[arg.find("=") + 1:]
 
-    if "--test-bw=" in arg:
-        test_bw = float(arg_val)
-
     if "--test-reset-bw=" in arg:
         reset_bw = float(arg_val)
 
@@ -35,19 +31,36 @@ if ("--ml"in sys.argv):
 
     log = "pcc_log.txt"
     log_dir = "/home/njay2/PCC/restructure/sim/test_logs/"
-    pyhelper = "pcc_gym_driver"
-    pypath = "/home/njay2/PCC/deep-learning/python/models/gym-expr/"
+    pyhelper = "training_client"
+    pypath = "/home/njay2/PCC/deep-learning/python/models/gym-rpc/"
     gamma = "0.98"
-    train_model_name = "/home/njay2/PCC/restructure/sim/cur_model"
-    model_name = "/home/njay2/PCC/restructure/sim/test_models/cur_model"
+    train_model_name = "/home/njay2/PCC/deep-learning/python/models/gym-rpc/cur_model"
+    model_path = "/home/njay2/PCC/restructure/sim/test_models/"
+    model_name = "cur_model"
 
     if (should_cp):
-        cmd = "cp " + train_model_name + "* " + model_name[:model_name.rfind("/")]
+        cmd = "cp " + train_model_name + "* " + model_path
         print(cmd)
         os.system(cmd)
 
-    cmd = "./sim_test --sim-dur=30 --test-bw=" + str(test_bw) + " -log=" + log_dir + log + " --reset-target-rate=" + str(reset_bw) + " -pyhelper=" + pyhelper + " -pypath=" + pypath + " --deterministic --inverted-exponent-utility --gamma=" + gamma + " --model-name=" + model_name + " --load-model --no-training --log-utility-calc-lite --python-rate-control --no-reset"
-    #cmd = "./sim_test --sim-dur=30 --test-bw=" + str(test_bw) + " -log=" + log_dir + log + " --reset-target-rate=" + str(reset_bw) + " -pyhelper=" + pyhelper + " -pypath=" + pypath + " --inverted-exponent-utility --gamma=" + gamma + " --model-name=" + model_name + " --load-model --no-training --log-utility-calc-lite --python-rate-control --no-reset"
+    cmd = "./sim_test"
+    cmd += " --sim-dur=30"
+    cmd += " -log=" + log_dir + log
+    cmd += " --reset-target-rate=" + str(reset_bw)
+    cmd += " --pcc-utility-calc=linear"
+    cmd += " --gamma=" + gamma
+    cmd += " --model-name=" + model_name
+    cmd += " --model-path=" + model_path
+    cmd += " --no-training"
+    cmd += " --log-utility-calc-lite"
+    cmd += " --pcc-rate-control=python"
+    cmd += " -pyhelper=" + pyhelper
+    cmd += " -pypath=" + pypath
+    cmd += " --no-reset"
+    cmd += " --deterministic"
+    for arg in sys.argv:
+        if "--test" in arg:
+            cmd += " " + arg
     print(cmd)
     os.system(cmd)
 

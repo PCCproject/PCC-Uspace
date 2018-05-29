@@ -4,7 +4,7 @@ import sys
 def movie_name(start, bw):
     return str(start) + "_" + str(bw) + ".mp4"
 
-bws = [30, 50, 70]
+bws = [30, 50, 70, 120]
 starts = [20, 100]
 movie_dir = "./movies/final/"
 

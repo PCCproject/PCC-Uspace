@@ -1,5 +1,5 @@
 
-#include "pcc_ixp_ucalc.h"
+#include "pcc_lin_ucalc.h"
 #include <cmath>
 
 namespace {
@@ -9,7 +9,7 @@ const float kLossCoefficient = 5.0f;
 const float kRttCoefficient = 1.0/30000.0f;
 }  // namespace
 
-float PccIxpUtilityCalculator::CalculateUtility(PccMonitorIntervalAnalysisGroup& past_monitor_intervals,
+float PccLinearUtilityCalculator::CalculateUtility(PccMonitorIntervalAnalysisGroup& past_monitor_intervals,
         MonitorInterval& cur_mi) {
 
   static float prev_sending_rate = 0;
@@ -21,26 +21,16 @@ float PccIxpUtilityCalculator::CalculateUtility(PccMonitorIntervalAnalysisGroup&
   static const MonitorIntervalMetric* loss_metric =
         MonitorIntervalMetric::GetByName("LossRate");
 
-  //std::cout << "Getting observations" << std::endl;
   float throughput = thpt_metric->Evaluate(cur_mi);
   float avg_rtt = avg_rtt_metric->Evaluate(cur_mi);
   float loss_rate = loss_metric->Evaluate(cur_mi);
-  //std::cout << "Got observations" << std::endl;
 
-  float ixp_utility = throughput / exp(kRttCoefficient * avg_rtt + kLossCoefficient * loss_rate);
+  float loss_odds = (loss_rate) / (1.001 - loss_rate);
 
-  float cur_sending_rate = cur_mi.GetTargetSendingRate();
-  //ixp_utility *= (1 / (1 + 8 * abs(prev_sending_rate - cur_sending_rate) / (prev_sending_rate + cur_sending_rate)));
+  float utility = throughput - 1000 * avg_rtt - 1e8 * loss_rate;
 
-  prev_sending_rate = cur_sending_rate;
-
-  //std::cout << "r = " << cur_monitor_interval.GetTargetSendingRate() << ", u = " << ixp_utility << std::endl;
-
-  float bandwidth_diff_utility = 2.0 * throughput - cur_mi.GetTargetSendingRate();
-  
   PccLoggableEvent event("Calculate Utility", "--log-utility-calc-lite");
-  event.AddValue("Utility", ixp_utility);
-  //event.AddValue("Utility", bandwidth_diff_utility);
+  event.AddValue("Utility", utility);
   event.AddValue("MI Start Time", cur_mi.GetStartTime());
   event.AddValue("Target Rate", cur_mi.GetTargetSendingRate());
   event.AddValue("Actual Rate", cur_mi.GetObsSendingRate());
@@ -49,6 +39,5 @@ float PccIxpUtilityCalculator::CalculateUtility(PccMonitorIntervalAnalysisGroup&
   event.AddValue("Avg RTT", avg_rtt);
   log->LogEvent(event);
 
-  //return bandwidth_diff_utility;
-  return ixp_utility;
+  return utility;
 }
