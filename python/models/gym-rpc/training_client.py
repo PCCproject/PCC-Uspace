@@ -42,7 +42,7 @@ RESET_INTERVAL = 900
 MODEL_PATH= "/tmp/"
 MODEL_NAME = "pcc_model_" + str(int(round(time.time() * 1000)))
 
-LOG_NAME = "/home/njay2/PCC/restructure/sim/train_log.txt"
+LOG_NAME = None
 
 for arg in sys.argv:
     arg_val = "NULL"
