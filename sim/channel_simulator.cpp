@@ -183,14 +183,14 @@ void Simulator::Run() {
   long long seq;
   double rtt;
   double last_log_time = 0;
-  printf("Simulation Progress:\n");
+  //printf("Simulation Progress:\n");
   while(last_event_time_ < duration_) {
     //std::cout << " --- STEP --- " << std::endl;
     if (last_event_time_ - last_log_time > 50) {
-      printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
-      printf("====> %5.0lf sec (%5.1lf%%)",
-          last_event_time_, 100.0 * last_event_time_ / duration_);
-      fflush(stdout);
+      //printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
+      //printf("====> %5.0lf sec (%5.1lf%%)",
+      //    last_event_time_, 100.0 * last_event_time_ / duration_);
+      //fflush(stdout);
       last_log_time = last_event_time_;
     }
 
@@ -285,7 +285,6 @@ void Simulator::OnPacketEnqueue(double event_time, int sender_id) {
   senders_[sender_id]->OnPacketSent(event_time * 1000000.0, 0, seq_no, packet_size_, false);
 
   if (consecutive_lost > max_consecutive_lost) {
-      std::cout << "Consecutive lost: " << max_consecutive_lost << std::endl;
       max_consecutive_lost = consecutive_lost;
   }
 

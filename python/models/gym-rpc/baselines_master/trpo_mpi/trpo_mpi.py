@@ -15,14 +15,7 @@ _acs = []
 
 def traj_segment_generator(agg):
     while True:
-        #print("Getting dataset")
         data = agg.get_dataset()
-        #print("Got dataset")
-        #for i in range(0, len(data["ob"])):
-        #    print(data["ob"][i])
-        #    print(data["ac"][i])
-        #    print(data["rew"][i])
-        #exit(-1)
         yield data
 
 def add_vtarg_and_adv(seg, gamma, lam):
@@ -130,7 +123,6 @@ class TrpoTrainer():
         MPI.COMM_WORLD.Bcast(th_init, root=0)
         self.set_from_flat(th_init)
         self.vfadam.sync()
-        #print("Init param sum", th_init.sum(), flush=True)
         self.cg_damping = cg_damping
     
     def train(self, model_name):
@@ -177,90 +169,54 @@ class TrpoTrainer():
             logger.log("********** Iteration %i ************" % iters_so_far)
 
             if ("--no-training" not in sys.argv):
-                print("model saved to " + model_name)
                 saver.save(tf.get_default_session(), model_name)
-            #print("Getting dataset")
+            
             with timed("sampling"):
                 seg = seg_gen.__next__()
-            #print("Got dataset")
+            
             add_vtarg_and_adv(seg, self.gamma, self.lam)
 
-            # ob, ac, atarg, ret, td1ret = map(np.concatenate, (obs, acs, atargs, rets, td1rets))
-            #print("Extracting vars from dataset")
             ob, ac, atarg, tdlamret = seg["ob"], seg["ac"], seg["adv"], seg["tdlamret"]
       
-            """
-            print(len(ac))
-            print(len(seg["rew"]))
-            for i in range(0, len(ac)):
-                print("ob = " + str(ob[i]))
-                print("ac = " + str(ac[i]))
-                print("rw = " + str(seg["rew"][i]))
-            """
-            #print("prediction and atarg")
             vpredbefore = seg["vpred"]  # predicted value function before udpate
             atarg = (atarg - atarg.mean()) / atarg.std()  # standardized advantage function estimate
 
-            #print("Updating policy running values")
             if hasattr(self.pi, "ret_rms"): self.pi.ret_rms.update(tdlamret)
             if hasattr(self.pi, "ob_rms"): self.pi.ob_rms.update(ob)  # update running mean/std for policy
 
-            #atarg *= 0.0
-            #print("Constructing args")
             args = seg["ob"], seg["ac"], atarg
-            #print("atarg = " + str(atarg))
             fvpargs = [arr[::5] for arr in args]
 
             def fisher_vector_product(p):
                 return allmean(self.compute_fvp(p, *fvpargs)) + self.cg_damping * p
 
-            #print("Assigning new to old")
             self.assign_old_eq_new()  # set old parameter values to new parameter values
-            #print("args = " + str(len(args)))
-            #print("Computing gradient")
-            with timed("computegrad"):
-                *lossbefore, g = self.compute_lossandgrad(*args)
+            
+            *lossbefore, g = self.compute_lossandgrad(*args)
             lossbefore = allmean(np.array(lossbefore))
-            #print("Raw gradient = " + str(g))
+            
             g = allmean(g)
 
-            #print("Gradient = " + str(g))
-            #print(var_list)
-            #print(len(var_list))
-            #print(len(g))
-            s = tf.get_default_session()
-
-            #my_vars = tf.global_variables()
-            #print(my_vars)
-            #exit(1)
-            #for v in var_list:
-            #    print(v.name + " = " + str(s.run(v)))
-            
             if np.allclose(g, 0):
                 logger.log("Got zero gradient. not updating")
             else:
-                with timed("cg"):
-                    stepdir = cg(fisher_vector_product, g, cg_iters=self.cg_iters, verbose=rank == 0)
-                #print("Stepdir = " + str(stepdir))
+                stepdir = cg(fisher_vector_product, g, cg_iters=self.cg_iters, verbose=rank == 0)
+                
                 if (not np.isfinite(stepdir).all()):
                     print("seg[ob]: " + str(seg["ob"]))
                     print("seg[ac]: " + str(seg["ac"]))
                 assert np.isfinite(stepdir).all()
                 shs = .5 * stepdir.dot(fisher_vector_product(stepdir))
                 lm = np.sqrt(shs / self.max_kl)
-                # logger.log("lagrange multiplier:", lm, "gnorm:", np.linalg.norm(g))
+                
                 fullstep = stepdir / lm
-                #print("Full step = " + str(fullstep))
                 expectedimprove = g.dot(fullstep)
                 surrbefore = lossbefore[0]
                 stepsize = 1.0
                 thbefore = self.get_flat()
-                #print("thbefore = " + str(thbefore))
+                
                 for _ in range(10):
-                    #print("stepsize = " + str(stepsize))
-                    #print("this step = " + str(fullstep * stepsize))
                     thnew = thbefore + fullstep * stepsize
-                    #print("thnew = " + str(thnew))
                     self.set_from_flat(thnew)
                     meanlosses = surr, kl, *_ = allmean(np.array(self.compute_losses(*args)))
                     improve = surr - surrbefore
@@ -282,20 +238,16 @@ class TrpoTrainer():
                     paramsums = MPI.COMM_WORLD.allgather((thnew.sum(), self.vfadam.getflat().sum()))  # list of tuples
                     assert all(np.allclose(ps, paramsums[0]) for ps in paramsums[1:])
 
-            #for v in var_list:
-            #    print(v.name + " = " + str(s.run(v)))
-            for (lossname, lossval) in zip(self.loss_names, meanlosses):
-                logger.record_tabular(lossname, lossval)
+            #for (lossname, lossval) in zip(self.loss_names, meanlosses):
+            #    logger.record_tabular(lossname, lossval)
 
-            with timed("vf"):
+            for _ in range(self.vf_iters):
+                for (mbob, mbret) in dataset.iterbatches((seg["ob"], seg["tdlamret"]),
+                                                         include_final_partial_batch=False, batch_size=64):
+                    g = allmean(self.compute_vflossandgrad(mbob, mbret))
+                    self.vfadam.update(g, self.vf_stepsize)
 
-                for _ in range(self.vf_iters):
-                    for (mbob, mbret) in dataset.iterbatches((seg["ob"], seg["tdlamret"]),
-                                                             include_final_partial_batch=False, batch_size=64):
-                        g = allmean(self.compute_vflossandgrad(mbob, mbret))
-                        self.vfadam.update(g, self.vf_stepsize)
-
-            logger.record_tabular("ev_tdlam_before", explained_variance(vpredbefore, tdlamret))
+            #logger.record_tabular("ev_tdlam_before", explained_variance(vpredbefore, tdlamret))
 
             lrlocal = (seg["ep_lens"], seg["ep_rets"])  # local values
             listoflrpairs = MPI.COMM_WORLD.allgather(lrlocal)  # list of tuples
@@ -305,15 +257,15 @@ class TrpoTrainer():
 
             logger.record_tabular("DensityRew", np.mean(rewbuffer) / np.mean(lenbuffer))
             logger.record_tabular("EpLenMean", np.mean(lenbuffer))
-            logger.record_tabular("EpRewMean", np.mean(rewbuffer))
-            logger.record_tabular("EpThisIter", len(lens))
+            #logger.record_tabular("EpRewMean", np.mean(rewbuffer))
+            #logger.record_tabular("EpThisIter", len(lens))
             episodes_so_far += len(lens)
             timesteps_so_far += sum(lens)
             iters_so_far += 1
 
-            logger.record_tabular("EpisodesSoFar", episodes_so_far)
-            logger.record_tabular("TimestepsSoFar", timesteps_so_far)
-            logger.record_tabular("TimeElapsed", time.time() - tstart)
+            #logger.record_tabular("EpisodesSoFar", episodes_so_far)
+            #logger.record_tabular("TimestepsSoFar", timesteps_so_far)
+            #logger.record_tabular("TimeElapsed", time.time() - tstart)
 
             if rank == 0:
                 logger.dump_tabular()

@@ -73,14 +73,13 @@ class DataAggregator():
         self.wait_for_new_model(this_replica)
 
     def wait_for_new_model(self, this_replica):
-        print("waiting for new model " + str(this_replica))
+        print("Simulator " + str(this_replica) + " finished generating data")
         while (not (self.next_released_replica >= this_replica and self.run_stash.pull() >= self.next_run)):
             time.sleep(0.05)
         self.next_released_replica = this_replica + 1
         if (self.next_released_replica == self.replicas):
             self.next_run += 1
             self.next_released_replica = 0
-        print("finished waiting for new model " + str(this_replica))
 
     def get_dataset(self):
         self.next_run += 1

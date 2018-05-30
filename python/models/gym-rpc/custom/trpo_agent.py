@@ -75,11 +75,6 @@ class TrpoDataset():
         result = {"ob": self.obs.tolist(), "rew": self.rews.tolist(), "vpred": self.vpreds.tolist(), "new": self.news.tolist(),
                   "ac": self.acs.tolist(), "prevac": self.prevacs.tolist(), "nextvpred": 0,
                   "ep_rets": self.ep_rets, "ep_lens": self.ep_lens}
-        for reset in self.resets:
-            print("Reset at " + str(reset))
-        if (len(self.resets) > 22):
-            print("ERROR: too many resets")
-            #exit(-1)
         return result
 
     def avg_reward(self):
@@ -88,16 +83,12 @@ class TrpoDataset():
         return np.sum(self.ep_rets) / np.sum(self.ep_lens)
 
     def record_reward(self, action_id, reward):
-        #sys.stderr.write("-- RECORDING REWARD %d --\n" % action_id)
-        #sys.stderr.flush()
         self.rews[action_id] = reward
         self.n_rewards += 1
         self.cur_ep_ret += reward
         self.cur_ep_len += 1
 
     def record_action(self, action_id, ob, vpred, ac, prevac):
-        #sys.stderr.write("-- RECORDING ACTION %d --\n" % action_id)
-        #sys.stderr.flush()
         i = action_id
         self.obs[i] = ob
         self.vpreds[i] = vpred
@@ -128,23 +119,23 @@ class TrpoAgent():
     def init(self, model, batch_size, example_ob, example_ac):
         self.dataset = TrpoDataset(batch_size, example_ob, example_ac)
         self.model = model
-        #self.load_model()
 
     def load_model(self):
-        print("LOADING MODEL " + self.model_name)
         if os.path.isfile(self.model_name + ".meta"):
             saver = tf.train.Saver()
             saver.restore(tf.get_default_session(), self.model_name)
         else:
             print("ERROR: Could not load model " + self.model_name)
             exit(-1)
-       
+      
+        """
         if self.server is None:
             my_vars = tf.global_variables()
             for v in my_vars:
                 if not "oldpi" in v.name:
                     val = tf.get_default_session().run(v)
                     print(v.name + ", max = " + str(np.max(val)) + ", min = " + str(np.min(val)))
+        """
 
     def give_reward(self, action_id, action, reward):
         if (action_id >= 0):
@@ -162,12 +153,10 @@ class TrpoAgent():
                 self.load_model()
 
     def reset(self):
-        #print("Agent was reset!")
         action_id = self.next_action_id
         self.dataset.reset_near_action(action_id)
 
     def act(self, ob):
-        #print("TrpoAgent.act()")
 
         if (not self.model_loaded):
             self.load_model()
@@ -182,9 +171,7 @@ class TrpoAgent():
             self.next_action_id += 1
             self.actions[action_id] = ac
         else:
-            print("-- RUNNING WITH FULL DATASET --")
-            #sys.stderr.write("-- RUNNING WITH FULL DATASET --\n")
-            #sys.stderr.flush()
+            pass
 
         self.prevac = ac
 

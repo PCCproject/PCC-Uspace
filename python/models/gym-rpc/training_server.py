@@ -36,12 +36,17 @@ if not hasattr(sys, 'argv'):
 MODEL_PATH = "/tmp/"
 MODEL_NAME = "pcc_model_" + str(int(round(time.time() * 1000)))
 
+TRAINING_CLIENTS = 1
+
 for arg in sys.argv:
     arg_val = "NULL"
     try:
         arg_val = float(arg[arg.rfind("=") + 1:])
     except:
         pass
+
+    if "--ml-training-clients=" in arg:
+        TRAINING_CLIENTS = int(arg_val)
 
     if "--model-name=" in arg:
         MODEL_NAME = arg[arg.rfind("=") + 1:]
@@ -54,7 +59,7 @@ env = pcc_env.PccEnv(model_params)
 stoc = True
 if "--deterministic" in sys.argv:
     stoc = False
-data_agg = data_aggregator.DataAggregator(4, model_params, env.observation_space.sample(), env.action_space.sample())
+data_agg = data_aggregator.DataAggregator(TRAINING_CLIENTS, model_params, env.observation_space.sample(), env.action_space.sample())
 
 def policy_fn(name, ob_space, ac_space): #pylint: disable=W0613
     return MlpPolicy(

@@ -1,26 +1,35 @@
 
 import os
 import sys
+import subprocess
+import time
 from config import pcc_config_njay as cfg
 
-cmd = cfg.PCC_CONFIG["SIM_DIR"] + "/test"
-cmd += " -pyhelper=training_client"
-cmd += " -pypath=" + cfg.PCC_CONFIG["PYTHON_ML_DIR"]
-cmd += " --pcc-utility-calc=linear"
-cmd += " --model-path=" + cfg.PCC_CONFIG["ML_MODEL_PATH"]
-cmd += " --model-name=cur_model"
-cmd += " --pcc-rate-control=python"
-cmd += " --sim-dur=1000000"
+dur = 60
+
+cmd = [
+    cfg.PCC_CONFIG["SIM_DIR"] + "/test",
+    " -pyhelper=training_client",
+    " -pypath=" + cfg.PCC_CONFIG["PYTHON_ML_DIR"],
+    " --pcc-utility-calc=linear",
+    " --model-path=" + cfg.PCC_CONFIG["ML_MODEL_PATH"],
+    " --model-name=cur_model",
+    " --pcc-rate-control=python",
+    " --sim-dur=1000000"
+]
 
 def run_endless_training(link):
-   this_cmd = cmd
-   this_cmd += " --test-bw=" + str(link["bw"])
-   this_cmd += " --test-dl=" + str(link["dl"])
-   this_cmd += " --test-buf=" + str(link["buf"])
-   this_cmd += " --test-plr=" + str(link["plr"])
+   this_cmd = list(cmd)
+   this_cmd.append(" --test-bw=" + str(link["bw"]))
+   this_cmd.append(" --test-dl=" + str(link["dl"]))
+   this_cmd.append(" --test-buf=" + str(link["buf"]))
+   this_cmd.append(" --test-plr=" + str(link["plr"]))
    log_path = cfg.PCC_CONFIG["ML_MODEL_PATH"] + "/logs/"
-   this_cmd += " --ml-log=" + log_path + "train_log_%dbw_%fdl_%dbuf_%fplr" % (link["bw"], link["dl"], link["buf"], link["plr"])
-   os.system("python " + cfg.PCC_CONFIG["PYTHON_EXPR_DIR"] + "/endless_trainer.py " + this_cmd + " &")
+   os.system("mkdir " + log_path)
+   this_cmd.append(" --ml-log=" + log_path + "train_log_%dbw_%fdl_%dbuf_%fplr" % (link["bw"], link["dl"], link["buf"], link["plr"]))
+   full_cmd = ["python", cfg.PCC_CONFIG["EXPR_DIR"] + "sim/endless_trainer.py"] + this_cmd
+   print(full_cmd)
+   return subprocess.Popen(full_cmd)
 
 """
 bws = [1, 16, 64, 256]
@@ -42,5 +51,29 @@ for bw in bws:
             for plr in plrs:
                 link_configs.append({"bw":bw, "dl":dl, "buf":buf, "plr":plr})
 
+server_cmd = [
+    "python3",
+    cfg.PCC_CONFIG["PYTHON_ML_DIR"] + "training_server.py",
+    "--model-path=" + cfg.PCC_CONFIG["ML_MODEL_PATH"],
+    "--model-name=cur_model",
+    "--gamma=0.98",
+    "--ml-training-clients=" + str(len(link_configs))
+]
+
+print(server_cmd)
+server_proc = subprocess.Popen(server_cmd)
+
+time.sleep(5)
+
+client_procs = []
 for link_config in link_configs:
-    run_endless_training(link_config)
+    client_procs.append(run_endless_training(link_config))
+
+time.sleep(dur)
+server_proc.kill()
+
+for proc in client_procs:
+    proc.kill()
+
+time.sleep(5)
+print("Training finished")

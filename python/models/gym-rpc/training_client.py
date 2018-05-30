@@ -162,7 +162,6 @@ driver = PccGymDriver()
 
 def give_sample(sending_rate, recv_rate, latency, loss, lat_infl, utility, stop=False):
     global driver
-    #print("Give sample")
     driver.record_observation(
         pcc_env.PccMonitorInterval(
             sending_rate,
@@ -173,14 +172,8 @@ def give_sample(sending_rate, recv_rate, latency, loss, lat_infl, utility, stop=
             utility
         )
     )
-    #if (latency == 0):
-        #print("Give sample \\")
-    #    return
-    #print("Give Sample")
     action_id = driver.get_next_waiting_action_id()
-    #print("Give reward " + str(utility) + ", id = " + str(action_id))
     agent.give_reward(action_id, driver.get_action(action_id), utility)
-    #print("Give sample \\")
 
 def apply_rate_delta(rate, rate_delta):
     global MIN_RATE
@@ -208,7 +201,6 @@ def apply_rate_delta(rate, rate_delta):
 def reset():
     global agent
     global RESET_COUNTER
-    #print("pcc_gym_driver.py: reset()")
     agent.reset()
     driver.reset_rate()
     driver.reset_history()
@@ -218,22 +210,15 @@ def get_rate():
     global driver
     global RESET_COUNTER
     global RESET_INTERVAL
-    #print("Get rate")
     prev_rate = driver.get_current_rate()
-    #print("Python: get_rate() prev_rate = " + str(prev_rate))
     action_id, rate_delta = agent.act(driver.get_current_observation())
-    #print("Python: get_rate() rate_delta = " + str(rate_delta) + ", id = " + str(action_id))
     driver.push_waiting_action_id(action_id, rate_delta)
     rate = apply_rate_delta(prev_rate, rate_delta)
-    #print("Python: get_rate() new_rate = " + str(rate))
     RESET_COUNTER += 1
     if (RESET_COUNTER >= RESET_INTERVAL):
-        #print("pcc_gym_driver.py: calling reset() due to reset counter")
         reset()
         rate = driver.get_current_rate()
-        #print("Python: get_rate() reset, new_rate = " + str(rate))
+    
     driver.set_current_rate(rate)
-    #print("Python: get_rate() returned rate = " + str(rate * 1e6))
-    #print("Rate: " + str(rate * 1e6))
     return float(rate * 1e6)
 

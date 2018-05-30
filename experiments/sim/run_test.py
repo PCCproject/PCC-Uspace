@@ -18,13 +18,14 @@ cmd += " -pyhelper=" + pyhelper
 cmd += " -pypath=" + pypath
 cmd += " --deterministic"
 cmd += " --pcc-utility-calc=lin"
+cmd += " --model-path=" + cfg.PCC_CONFIG["ML_MODEL_PATH"]
 cmd += " --model-name=" + model_name
 cmd += " --no-training"
 cmd += " --log-utility-calc-lite"
 cmd += " --pcc-rate-control=python"
 cmd += " --no-reset"
 
-for arg in sys.argv:
+for arg in sys.argv[1:]:
     if not arg.startswith("--env"):
         cmd += " " + arg
 
@@ -38,7 +39,7 @@ os.system(cmd)
 grapher = cfg.PCC_CONFIG["REPO_DIR"] + "vis/pcc_grapher.py"
 graph_config = cfg.PCC_CONFIG["REPO_DIR"] + "vis/graphs/basic.json"
 
-cmd = "python " + grapher + " " + log_dir + " " + graph_config
+cmd = "python " + grapher + " " + log_dir + " " + graph_config + " --output=graph.png"
 
 print(cmd)
 os.system(cmd)

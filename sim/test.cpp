@@ -30,10 +30,6 @@ int main(int argc, char** argv) {
     test_plr = atof(Options::Get("--test-plr="));
   }
   
-  std::cout << "bw = " << test_bw << std::endl;
-  std::cout << "dl = " << test_dl << std::endl;
-  std::cout << "buf = " << test_buf << std::endl;
-  std::cout << "plr = " << test_plr << std::endl;
   Simulator simulator = Simulator(sender_config, test_bw, test_dl, test_buf, test_plr, dur);
 
   fclose(sender_config);
