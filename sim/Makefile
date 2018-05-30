@@ -19,4 +19,4 @@ sim_test: test
 	cp test sim_test
 
 clean:
-	$(RM) $(OBJS) test
+	$(RM) $(OBJS) test sim_test
