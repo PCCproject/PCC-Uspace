@@ -12,7 +12,7 @@
 #include "gfe/quic/core/congestion_control/pcc_monitor_interval_analysis_group.h"
 #endif
 #else
-#include "pcc_monitor_interval_analysis_group.h"
+#include "pcc_mi_analysis_group.h"
 #endif
 
 #ifdef QUIC_PORT
@@ -85,9 +85,11 @@ void PccMonitorIntervalAnalysisGroup::ComputeUtilityGradientVector_(std::vector<
     cg.gradient = 0.0;
     cg.time = (last_mi.GetStartTime() + cur_mi.GetStartTime()) / 2.0;
     cg.rate = (last_mi.GetTargetSendingRate() + cur_mi.GetTargetSendingRate()) / 2.0;
-    if (last_mi.GetTargetSendingRate() != cur_mi.GetTargetSendingRate()) {
+    if (abs(last_mi.GetTargetSendingRate() - cur_mi.GetTargetSendingRate()) > 4096.0) {
         cg.gradient = (last_mi.GetObsUtility() - cur_mi.GetObsUtility()) / (last_mi.GetTargetSendingRate() -
                 cur_mi.GetTargetSendingRate());
+    } else {
+        cg.gradient = 0;
     }
     gradients->push_back(cg);
     last_mi = cur_mi;
@@ -109,25 +111,38 @@ time_decay=1.0/1000000.0, float rate_decay=10.0/1000000.0) {
     return result;
 }
 
+/*
+double PccMonitorIntervalAnalysisGroup::ComputeUtilityGradientVariance() {
+    if (monitor_intervals_.size() < 2) {
+        return 0;
+    }
+    
+    std::vector<ComputedGradient> gradients;
+    ComputeUtilityGradientVector_(&gradients);
+    double graident = ComputeUtilityGradient();
+    double n_gradients = gradients.size();
+    double result = 0;
+    for (std::vector<ComputedGradient>::iterator it = gradients.begin(); it != gradients.end(); ++it) {
+        result += (it->gradient - gradient) * (it->gradient - gradient);
+    }
+    return result / n_gradients;
+}
+*/
+
 float PccMonitorIntervalAnalysisGroup::ComputeUtilityGradient() {
 
-  if (monitor_intervals_.size() < 2) {
-      return 0;
-  }
-
-  std::vector<double> rates, utilities;
-  
-  // Compute the slope of a linear regression over the current monitor intervals.
-  for (std::deque<MonitorInterval>::iterator it = monitor_intervals_.begin();
-          it != monitor_intervals_.end(); ++it) {
-
-    rates.push_back(it->GetObsSendingRate());
-    utilities.push_back(it->GetObsUtility());
-
-  }
-
-  double slope = Slope_(rates, utilities);
-  return slope;
+    if (monitor_intervals_.size() < 2) {
+        return 0;
+    }
+    
+    std::vector<ComputedGradient> gradients;
+    ComputeUtilityGradientVector_(&gradients);
+    double n_gradients = gradients.size();
+    double result = 0;
+    for (std::vector<ComputedGradient>::iterator it = gradients.begin(); it != gradients.end(); ++it) {
+        result += it->gradient;
+    }
+    return result / n_gradients;
 }
 
 #ifdef QUIC_PORT

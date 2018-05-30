@@ -11,6 +11,7 @@
 #include <map>
 #include <vector>
 #include <string>
+#include <time.h>
 
 using namespace std;
 
@@ -40,6 +41,7 @@ struct LinkChangeEventData {
     double plr, plr_range;
     bool reset_queue;
     double change_interval;
+    int strata, cur_strata;
 };
 
 struct EventInfo {

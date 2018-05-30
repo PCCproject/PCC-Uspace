@@ -127,4 +127,5 @@ void PccEventLogger::LogEvent(const PccLoggableEvent& event) {
         output_file_ << std::endl << "    \"" << val.value_name << "\": \"" << val.value << "\"";
     }
     output_file_ << std::endl << "}}";
+    output_file_.flush();
 }

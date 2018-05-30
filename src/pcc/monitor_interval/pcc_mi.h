@@ -66,8 +66,9 @@ struct PacketRttSample {
 // of a PCC monitor interval (MonitorInterval) that can be used to
 // - pinpoint a acked/lost packet to the corresponding MonitorInterval,
 // - calculate the MonitorInterval's utility value.
-class MonitorInterval {
- public:
+struct MonitorInterval {
+ //friend class MonitorIntervalMetric;
+ //public:
   MonitorInterval(QuicBandwidth sending_rate, QuicTime end_time);
   #if defined(QUIC_PORT) && defined(QUIC_PORT_LOCAL)
   explicit MonitorInterval(const MonitorInterval&);
@@ -90,18 +91,18 @@ class MonitorInterval {
 
   void SetUtility(float utility);
   
-  QuicBandwidth GetObsThroughput();
-  QuicBandwidth GetObsSendingRate();
-  float GetObsSendDur();
-  float GetObsRecvDur();
-  float GetObsRtt();
-  float GetObsRttInflation();
-  float GetObsLossRate();
-  float GetObsUtility();
+  QuicBandwidth GetObsThroughput() const;
+  QuicBandwidth GetObsSendingRate() const;
+  float GetObsSendDur() const;
+  float GetObsRecvDur() const;
+  float GetObsRtt() const;
+  float GetObsRttInflation() const;
+  float GetObsLossRate() const;
+  float GetObsUtility() const;
 
   int GetId() { return id; }
 
- private:
+ //private:
   static int next_id;
 
   bool ContainsPacket(QuicPacketNumber packet_num);

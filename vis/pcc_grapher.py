@@ -107,6 +107,11 @@ pypath = None
 if "pypath" in graph_config.keys():
     pypath = graph_config["pypath"]
 
+scatter = False
+if "points" in graph_config.keys():
+    if graph_config["points"] == "scatter":
+        scatter = True
+
 def give_net_context(context):
     pcc_addon.give_sample(
         context["Target Rate"],
@@ -305,7 +310,9 @@ if graph_config["type"] == "event":
             #if y_axis_name == "Inverted Exponent Utility":
             #    y_axis_values[j][y_axis_name] = numpy.log10(y_axis_values[j][y_axis_name])
             if len(y_axis_names) > 1:
-                if "Time" in x_axis_name:
+                if scatter:
+                    handle = axes[i].scatter(x_axis_values[j], y_axis_values[j][y_axis_name], s=point_size)
+                else:
                     if "point event" in graph_config.keys():
                         graph_y_min = min(y_axis_values[j][y_axis_name])
                         point_event = graph_config["point event"]
@@ -319,15 +326,15 @@ if graph_config["type"] == "event":
                             point_event_y_values.append(graph_y_min)
                         axes[i].scatter(point_event_x_values, point_event_y_values)
                     handle, = axes[i].plot(x_axis_values[j], y_axis_values[j][y_axis_name])
-                else:
-                    handle = axes[i].scatter(x_axis_values[j], y_axis_values[j][y_axis_name], s=point_size)
                 handles.append(handle)
                 plt.legend(handles, legend)
                 axes[i].set_ylabel(y_axis_name)
                 if add_model_plot:
                     axes[i].axvline(model_event_time, color='r')
             else:
-                if "Time" in x_axis_name:
+                if scatter:
+                    handle = axes.scatter(x_axis_values[j], y_axis_values[j][y_axis_name], s=point_size)
+                else:
                     if "point event" in graph_config.keys():
                         graph_y_min = min(y_axis_values[j][y_axis_name])
                         point_event = graph_config["point event"]
@@ -341,8 +348,6 @@ if graph_config["type"] == "event":
                             point_event_y_values.append(graph_y_min)
                         axes[i].scatter(point_event_x_values, point_event_y_values)
                     handle, = axes.plot(x_axis_values[j], y_axis_values[j][y_axis_name])
-                else:
-                    handle = axes.scatter(x_axis_values[j], y_axis_values[j][y_axis_name], s=point_size)
                 handles.append(handle)
                 plt.legend(handles, legend)
                 axes.set_ylabel(y_axis_name)
@@ -357,7 +362,7 @@ if graph_config["type"] == "event":
             axes[-1].set_xlabel(x_axis_name)
         else:
             axes.set_xlabel(x_axis_name)
-    #fig.suptitle(title)
+    fig.suptitle(title)
     if file_output:
         plt.savefig(output_filename, figsize=(20, 6), dpi=300)
     else:

@@ -2,7 +2,7 @@
 
 #include <unistd.h>
 
-const double MIN_RATE = 1.5e6;
+const double MIN_RATE = 1.5e5;
 const double MAX_RATE = 0.85e10;
 
 const int kPacketSize = 1500 * 8;
@@ -35,6 +35,8 @@ Simulator::Simulator(FILE* sender_config,
   flog_ = fopen("log.txt", "w");
 #endif
 
+  srand(time(NULL));
+
   packet_size_ = 1500;
   cur_queue_delay_ = 0;
   last_queue_update_time_ = 0;
@@ -64,7 +66,7 @@ Simulator::Simulator(FILE* sender_config,
 
     EnqueueSendEvent(start_time, sender_id);
     if (std::string(sender_type).compare("PCC") == 0) {
-      senders_.push_back(new PccSender(10000, 10, 0));
+      senders_.push_back(new PccSender(10000, 5, 0));
       seq_numbers_.push_back(0);
     }
 
@@ -81,12 +83,36 @@ Simulator::~Simulator() {
 
 void Simulator::ChangeLink(double bw, double dl, double bf, double plr, bool reset_queue) {
     bandwidth_ = bw;
+    double rtt_diff = dl - base_rtt_;
     base_rtt_ = dl;
     full_queue_delay_ = (bf - 1) * 1500 / (bw * 1024 * 1024);
     if (reset_queue) {
         cur_queue_delay_ = 0;
+        last_queue_update_time_ = 0;
     }
     plr_ = plr;
+    
+    if (rtt_diff < 0) {
+        std::vector<EventInfo> events;
+        while (!event_queue_.empty()) {
+            EventInfo event = event_queue_.top();
+            event_queue_.pop();
+            if (event.event_type == ACKED || event.event_type == LOST) {
+                event.time += rtt_diff;
+                std::cerr << "event time change: ";
+                if (event.event_type == ACKED) {
+                    std::cerr << "ACK: ";
+                } else {
+                    std::cerr << "LOSS: ";
+                }
+                std::cerr << event.seq_no << ", " << event.time - rtt_diff << " -> " << event.time << std::endl;
+            }
+            events.push_back(event);
+        }
+        for (EventInfo& event : events) {
+            event_queue_.push(event);
+        }
+    }
     for (int i = 0; i < senders_.size(); ++i) {
         senders_[i]->Reset();
     }
@@ -96,6 +122,11 @@ void Simulator::ChangeLink(double bw, double dl, double bf, double plr, bool res
 void Simulator::ProcessLinkChangeEvent(EventInfo& event_info) {
     //std::cout << "Processing link change event" << std::endl;
     LinkChangeEventData* data = (LinkChangeEventData*)event_info.data;
+    double bw_min = data->bw - data->bw_range;
+    double dl_min = data->dl - data->dl_range;
+    double bf_min = data->bf - data->bf_range;
+    double plr_min = data->plr - data->plr_range;
+
     double new_bw = data->bw + (rand0_1() - 0.5) * (data->bw_range);
     double new_dl = data->dl + (rand0_1() - 0.5) * (data->dl_range);
     double new_bf = data->bf + (rand0_1() - 0.5) * (data->bf_range);
@@ -112,6 +143,10 @@ void Simulator::ProcessLinkChangeEvent(EventInfo& event_info) {
     }
     if (new_plr < 0) {
         new_plr = 0;
+    }
+    ++data->cur_strata;
+    if (data->cur_strata >= data->strata) {
+        data->cur_strata = 0;
     }
     ChangeLink(new_bw, new_dl, new_bf, new_plr, data->reset_queue);
     event_info.time += data->change_interval;
@@ -130,6 +165,7 @@ void Simulator::EnqueueSendEvent(double event_time, int sender_id) {
 void Simulator::EnqueueLossEvent(double event_time,
                              int sender_id,
                              long long seq) {
+  //std::cerr << "Enqueue: LOSS " << seq << " " << event_time << std::endl;
   event_queue_.push(EventInfo(LOST, event_time, sender_id, seq, 0.0));
 }
 
@@ -137,6 +173,7 @@ void Simulator::EnqueueAckEvent(double event_time,
                              int sender_id,
                              long long seq,
                              double rtt) {
+  //std::cerr << "Enqueue: ACK " << seq << " " << event_time << std::endl;
   event_queue_.push(EventInfo(ACKED, event_time, sender_id, seq, rtt));
 }
 
@@ -174,7 +211,7 @@ void Simulator::Run() {
       OnPacketEnqueue(last_event_time_, sender_id);
       //std::cout << "Finished send event" << std::endl;
     } else if (event_type == ACKED) {
-      //std::cerr << "Event: ACK " << seq << std::endl;
+      //std::cerr << "Event: ACK " << seq << ", " << last_event_time_ << std::endl;
       CongestionEvent ce;
       ce.packet_number = seq;
       ce.bytes_acked = 1500;
@@ -228,20 +265,33 @@ void Simulator::Analyze() {
 
 void Simulator::OnPacketEnqueue(double event_time, int sender_id) {
   long long seq_no = ++seq_numbers_[sender_id];
-
+  static int consecutive_lost = 0;
+  static int max_consecutive_lost = 0;
   double queue_delay = GetCurrentQueueDelay(event_time);
-  if (queue_delay > full_queue_delay_) {
-    EnqueueLossEvent(CalculateAckTime(event_time) + 0.1 * full_queue_delay_,
+  if (rand0_1() < plr_) {
+      ++consecutive_lost;
+    EnqueueLossEvent(CalculateAckTime(event_time) + 0.1 * queue_delay,
+        sender_id, seq_no);
+  } else if (queue_delay > full_queue_delay_) {
+      ++consecutive_lost;
+    EnqueueLossEvent(CalculateAckTime(event_time) + 0.1 * queue_delay,
         sender_id, seq_no);
   } else {
+    consecutive_lost = 0;
     UpdateQueueDelayOnSend(event_time);
     double ack_time = CalculateAckTime(event_time);
     EnqueueAckEvent(ack_time, sender_id, seq_no, ack_time - event_time);
   }
   senders_[sender_id]->OnPacketSent(event_time * 1000000.0, 0, seq_no, packet_size_, false);
 
+  if (consecutive_lost > max_consecutive_lost) {
+      std::cout << "Consecutive lost: " << max_consecutive_lost << std::endl;
+      max_consecutive_lost = consecutive_lost;
+  }
+
   double rate = senders_[sender_id]->PacingRate(0);
   if (rate > MAX_RATE || rate < MIN_RATE) {
+      std::cout << "Rate from sender: " << rate << std::endl;
       senders_[sender_id]->Reset();
       rate = senders_[sender_id]->PacingRate(0);
   }

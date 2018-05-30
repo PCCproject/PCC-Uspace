@@ -3,11 +3,11 @@
     "legend param":"Monitor Interval Duration",
     "type":"event",
     "event":"Calculate Utility",
-    "x-axis":"Time",
+    "x-axis":"MI Start Time",
     "y-axis":[
-        "Actual Rate",
-        "Avg RTT",
+        "Target Rate",
         "Utility",
+        "Avg RTT",
         "Loss Rate"
     ]
 }

@@ -1,16 +1,8 @@
 
-#ifndef PCC_IXP_UTILITY_CALCULATOR_H_
-#define PCC_IXP_UTILITY_CALCULATOR_H_
+#ifndef _PCC_IXP_UCALC_H_
+#define _PCC_IXP_UCALC_H_
 
-#include "pcc_utility_calculator.h"
-
-#ifdef QUIC_PORT
-#ifdef QUIC_PORT_LOCAL
-namespace net {
-#else
-namespace gfe_quic {
-#endif
-#endif
+#include "pcc_ucalc.h"
 
 class PccIxpUtilityCalculator : public PccUtilityCalculator {
   public:
@@ -21,9 +13,5 @@ class PccIxpUtilityCalculator : public PccUtilityCalculator {
   private:
     PccEventLogger* log;
 };
-
-#ifdef QUIC_PORT
-} // namespace gfe_quic
-#endif
 
 #endif

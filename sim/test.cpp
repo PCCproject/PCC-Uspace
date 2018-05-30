@@ -3,7 +3,7 @@
 
 int main(int argc, char** argv) {
   Options::Parse(argc, argv);
-  FILE* sender_config = fopen("sender.config", "r");
+  FILE* sender_config = fopen("/home/njay2/PCC/restructure/sim/sender.config", "r");
  
   double dur = 100;
   if (Options::Get("--sim-dur=") != NULL) {
@@ -15,7 +15,26 @@ int main(int argc, char** argv) {
     test_bw = atof(Options::Get("--test-bw="));
   }
   
-  Simulator simulator = Simulator(sender_config, test_bw, 0.03, 500, 0.0, dur);
+  double test_dl = 0.03;
+  if (Options::Get("--test-dl=") != NULL) {
+    test_dl = atof(Options::Get("--test-dl="));
+  }
+  
+  double test_buf = 500;
+  if (Options::Get("--test-buf=") != NULL) {
+    test_buf = atof(Options::Get("--test-buf="));
+  }
+  
+  double test_plr = 0.00;
+  if (Options::Get("--test-plr=") != NULL) {
+    test_plr = atof(Options::Get("--test-plr="));
+  }
+  
+  std::cout << "bw = " << test_bw << std::endl;
+  std::cout << "dl = " << test_dl << std::endl;
+  std::cout << "buf = " << test_buf << std::endl;
+  std::cout << "plr = " << test_plr << std::endl;
+  Simulator simulator = Simulator(sender_config, test_bw, test_dl, test_buf, test_plr, dur);
 
   fclose(sender_config);
 
@@ -29,7 +48,9 @@ int main(int argc, char** argv) {
   lc.plr = 0.02;
   lc.plr_range = 0.02;
   lc.reset_queue = true;
-  lc.change_interval = 30.0;
+  lc.change_interval = 5.0;
+  lc.strata = 10;
+  lc.cur_strata = 0;
 
   EventInfo lc_event(LINK_CHANGE, 0.0, 0, 0, 0.0);
   lc_event.data = (void*)(&lc);

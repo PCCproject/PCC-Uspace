@@ -5,6 +5,7 @@
 
 #include <vector>
 #include <queue>
+#include <mutex>
 
 #ifdef QUIC_PORT
 #include "base/macros.h"
@@ -27,12 +28,13 @@
 #endif
 #else
 #include "../core/options.h"
-#include "pcc_rate_controller.h"
-#include "pcc_utility_calculator.h"
-#include "pcc_monitor_interval_analysis_group.h"
-#include "pcc_monitor_interval_queue.h"
+#include "rate_control/pcc_rc.h"
+#include "rate_control/pcc_rc_factory.h"
+#include "utility/pcc_ucalc.h"
+#include "utility/pcc_ucalc_factory.h"
+#include "monitor_interval/pcc_mi_analysis_group.h"
+#include "monitor_interval/pcc_mi_queue.h"
 #include "pcc_logger.h"
-#include "pcc_python_helper.h"
 #include <iostream>
 #define QUIC_EXPORT_PRIVATE
 
@@ -149,7 +151,6 @@ class QUIC_EXPORT_PRIVATE PccSender
   
   #ifndef QUIC_PORT
   PccEventLogger* log;
-  PccPythonHelper* py_helper;
   void Reset();
   #endif
 
@@ -182,6 +183,7 @@ class QUIC_EXPORT_PRIVATE PccSender
   
   PccUtilityCalculator* utility_calculator_;
   PccRateController* rate_controller_;
+  std::mutex* rate_control_lock_;
 };
 
 #ifdef QUIC_PORT
