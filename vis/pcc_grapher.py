@@ -23,7 +23,7 @@ def smooth(array, period):
     ret[period:] = ret[period:] - ret[:-period]
     ret[period - 1:] = ret[period - 1:] / period
     ret[:period] = array[:period]
-    return ret
+    return ret[period:]
 
 from analysis.pcc_experiment_log import *
 from analysis.pcc_filter import *
@@ -189,6 +189,7 @@ if graph_config["type"] == "summary":
         log_group_y_values.append(y_axis_values)
 
     fig, axes = plt.subplots(len(y_axis_values), sharex=True)
+    fig.set_size_inches(1, 1)
     for i in range(0, len(y_axis_values)):
         handles = []
         y_axis_obj = y_axis_objs[i]
@@ -225,7 +226,7 @@ if graph_config["type"] == "summary":
     
     fig.suptitle(title)
     if file_output:
-        plt.savefig(output_filename)
+        plt.savefig(output_filename, figsize=(20, 6), dpi=300)
     else:
         plt.show()
 
@@ -274,7 +275,6 @@ if graph_config["type"] == "event":
             elif event_num == model_event_num:
                 model_even_time = float(event["Time"])
             event_num += 1
-        x_axis_values.append(this_log_x_axis_values)
         if (should_smooth):
             for k in this_log_y_axis_values.keys():
                 x = this_log_x_axis_values
@@ -287,6 +287,8 @@ if graph_config["type"] == "event":
                 #window_size = smooth_window_size
                 #order = 3
                 #this_log_y_axis_values[k] = savgol_filter(y, window_size, order)
+            this_log_x_axis_values = this_log_x_axis_values[smooth_window_size:]
+        x_axis_values.append(this_log_x_axis_values)
         y_axis_values.append(this_log_y_axis_values) 
         
 
@@ -295,6 +297,7 @@ if graph_config["type"] == "event":
     if add_model_plot:
         n_plots += 1
     fig, axes = plt.subplots(n_plots)#, sharex=True)
+    fig.set_size_inches(10, 8)
     for i in range(0, len(y_axis_names)):
         y_axis_name = y_axis_names[i]
         handles = []
@@ -321,7 +324,6 @@ if graph_config["type"] == "event":
                 handles.append(handle)
                 plt.legend(handles, legend)
                 axes[i].set_ylabel(y_axis_name)
-                #axes[i].set_xticklabels([])
                 if add_model_plot:
                     axes[i].axvline(model_event_time, color='r')
             else:
@@ -355,8 +357,8 @@ if graph_config["type"] == "event":
             axes[-1].set_xlabel(x_axis_name)
         else:
             axes.set_xlabel(x_axis_name)
-    fig.suptitle(title)
+    #fig.suptitle(title)
     if file_output:
-        plt.savefig(output_filename)
+        plt.savefig(output_filename, figsize=(20, 6), dpi=300)
     else:
         plt.show()

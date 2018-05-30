@@ -177,6 +177,7 @@ class TrpoTrainer():
             logger.log("********** Iteration %i ************" % iters_so_far)
 
             if ("--no-training" not in sys.argv):
+                print("model saved to " + model_name)
                 saver.save(tf.get_default_session(), model_name)
             #print("Getting dataset")
             with timed("sampling"):

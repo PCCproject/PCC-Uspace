@@ -2,7 +2,20 @@
 import multiprocessing
 import numpy as np
 import time
-from custom import trpo_agent
+
+class AsyncStash():
+    def __init__(self, obj):
+        self.queue = multiprocessing.Queue()
+        self.queue.put(obj)
+
+    def push(self, obj):
+        self.queue.get()
+        self.queue.put(obj)
+
+    def pull(self):
+        obj = self.queue.get()
+        self.queue.put(obj)
+        return obj
 
 class DataAggregator():
 
@@ -27,7 +40,7 @@ class DataAggregator():
         self.next_run_updated = False
         self.next_run = -1
         self.next_released_replica = 0
-        self.run_stash = trpo_agent.AsyncStash(0)
+        self.run_stash = AsyncStash(0)
         self.queue = multiprocessing.Queue()
         self.lock = multiprocessing.Lock()
         #self.lock = threading.Lock()

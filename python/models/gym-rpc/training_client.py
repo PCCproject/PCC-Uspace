@@ -1,8 +1,7 @@
-print("STARTED MODULE LOAD")
 from custom import model_param_set
 from custom import pcc_env
 from custom import trpo_agent
-import multiprocessing
+from custom import pcc_event_log
 from collections import deque
 import os.path
 import time
@@ -29,7 +28,7 @@ from baselines_master.trpo_mpi import trpo_mpi
 if not hasattr(sys, 'argv'):
     sys.argv  = ['']
 
-MIN_RATE = 2.0
+MIN_RATE = 0.5
 MAX_RATE = 500.0
 #DELTA_SCALE = 0.01
 DELTA_SCALE = 0.04
@@ -38,10 +37,12 @@ RESET_RATE_MIN = 5.0
 RESET_RATE_MAX = 100.0
 
 RESET_COUNTER = 0
-RESET_INTERVAL = 1200
+RESET_INTERVAL = 900
 
 MODEL_PATH= "/tmp/"
 MODEL_NAME = "pcc_model_" + str(int(round(time.time() * 1000)))
+
+LOG_NAME = "/home/njay2/PCC/restructure/sim/train_log.txt"
 
 for arg in sys.argv:
     arg_val = "NULL"
@@ -69,6 +70,10 @@ for arg in sys.argv:
     if "--no-reset" in arg:
         RESET_INTERVAL = 1e9
 
+    if "--ml-log=" in arg:
+        LOG_NAME =  arg[arg.rfind("=") + 1:]
+
+
 s = None
 if ("--no-training" not in sys.argv):
     s = xmlrpc.client.ServerProxy('http://localhost:8000')
@@ -79,7 +84,12 @@ env = pcc_env.PccEnv(model_params)
 stoc = True
 if "--deterministic" in sys.argv:
     stoc = False
-agent = trpo_agent.TrpoAgent(s, model_name=MODEL_PATH + MODEL_NAME, stochastic=stoc)
+
+log = None
+if not LOG_NAME is None:
+    log = pcc_event_log.PccEventLog(LOG_NAME)
+
+agent = trpo_agent.TrpoAgent(s, model_name=MODEL_PATH + MODEL_NAME, stochastic=stoc, log=log)
 
 def policy_fn(name, ob_space, ac_space): #pylint: disable=W0613
     return MlpPolicy(
@@ -163,9 +173,9 @@ def give_sample(sending_rate, recv_rate, latency, loss, lat_infl, utility, stop=
             utility
         )
     )
-    if (latency == 0):
+    #if (latency == 0):
         #print("Give sample \\")
-        return
+    #    return
     #print("Give Sample")
     action_id = driver.get_next_waiting_action_id()
     #print("Give reward " + str(utility) + ", id = " + str(action_id))

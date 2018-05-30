@@ -1,4 +1,4 @@
-import multiprocessing
+from custom import pcc_event_log
 from baselines_master.common import explained_variance, zipsame, dataset
 from baselines import logger
 import baselines.common.tf_util as U
@@ -12,20 +12,6 @@ from baselines_master.common.cg import cg
 from contextlib import contextmanager
 import sys
 import os
-
-class AsyncStash():
-    def __init__(self, obj):
-        self.queue = multiprocessing.Queue()
-        self.queue.put(obj)
-
-    def push(self, obj):
-        self.queue.get()
-        self.queue.put(obj)
-
-    def pull(self):
-        obj = self.queue.get()
-        self.queue.put(obj)
-        return obj
 
 class TrpoDataset():
     def __init__(self, batch_size, example_ob, example_ac):
@@ -96,13 +82,22 @@ class TrpoDataset():
             #exit(-1)
         return result
 
+    def avg_reward(self):
+        if len(self.ep_rets) == 0:
+            return 0
+        return np.sum(self.ep_rets) / np.sum(self.ep_lens)
+
     def record_reward(self, action_id, reward):
+        #sys.stderr.write("-- RECORDING REWARD %d --\n" % action_id)
+        #sys.stderr.flush()
         self.rews[action_id] = reward
         self.n_rewards += 1
         self.cur_ep_ret += reward
         self.cur_ep_len += 1
 
     def record_action(self, action_id, ob, vpred, ac, prevac):
+        #sys.stderr.write("-- RECORDING ACTION %d --\n" % action_id)
+        #sys.stderr.flush()
         i = action_id
         self.obs[i] = ob
         self.vpreds[i] = vpred
@@ -114,7 +109,7 @@ class TrpoDataset():
         self.term_vpred = vpred
 
 class TrpoAgent():
-    def __init__(self, server, model_name, stochastic=True):
+    def __init__(self, server, model_name, stochastic=True, log=None):
         self.model_name = model_name
         self.model_loaded = False
         self.server = server
@@ -125,6 +120,8 @@ class TrpoAgent():
         self.model = None
         self.stochastic = stochastic
         self.prevac = None
+
+        self.log = log
 
         self.actions = {}
 
@@ -141,11 +138,13 @@ class TrpoAgent():
         else:
             print("ERROR: Could not load model " + self.model_name)
             exit(-1)
-        
-        #my_vars = tf.global_variables()
-        #for v in my_vars:
-        #    if ("polfinal" in v.name):
-        #        print(v.name + " = " + str(tf.get_default_session().run(v)))
+       
+        if self.server is None:
+            my_vars = tf.global_variables()
+            for v in my_vars:
+                if not "oldpi" in v.name:
+                    val = tf.get_default_session().run(v)
+                    print(v.name + ", max = " + str(np.max(val)) + ", min = " + str(np.min(val)))
 
     def give_reward(self, action_id, action, reward):
         if (action_id >= 0):
@@ -154,6 +153,9 @@ class TrpoAgent():
                 exit(-1)
             self.dataset.record_reward(action_id, reward)
             if (self.dataset.finished()):
+                if not (self.log is None):
+                    self.log.log_event({"Name":"Training Epoch", "Episode Reward":self.dataset.avg_reward()})
+                    self.log.flush()
                 self.server.give_dataset(self.dataset.as_dict())
                 self.dataset.reset()
                 self.next_action_id = 0
@@ -181,6 +183,8 @@ class TrpoAgent():
             self.actions[action_id] = ac
         else:
             print("-- RUNNING WITH FULL DATASET --")
+            #sys.stderr.write("-- RUNNING WITH FULL DATASET --\n")
+            #sys.stderr.flush()
 
         self.prevac = ac
 
