@@ -10,8 +10,21 @@ from baselines_master.common.mpi_adam import MpiAdam
 from baselines_master.common.cg import cg
 from contextlib import contextmanager
 import sys
+import os
+import glob
 
-_acs = []
+def create_checkpoint(model_name, checkpoint_dir, checkpoint_num):
+    if checkpoint_num == 0:
+        os.system("mkdir -p " + checkpoint_dir)
+    filenames = []
+    filenames = glob.glob(model_name + "*")
+    for filename in filenames:
+        dot_pos = filename.rfind(".")
+        slash_pos = filename.rfind("/")
+        prefix = filename[slash_pos + 1:dot_pos]
+        suffix = filename[dot_pos:]
+        new_name = checkpoint_dir + prefix + "_" + str(checkpoint_num) + suffix
+        os.system("cp %s %s" % (filename, new_name))
 
 def traj_segment_generator(agg):
     while True:
@@ -42,9 +55,14 @@ class TrpoTrainer():
             vf_stepsize=3e-4,
             vf_iters=3,
             max_timesteps=0, max_episodes=0, max_iters=0,
-            callback=None
+            callback=None,
+            checkpoint_dir=None,
+            checkpoint_freq=0
             ):
 
+        self.checkpoint_dir = checkpoint_dir
+        self.checkpoint_freq = checkpoint_freq
+        self.checkpoint_num = 0
         self.agg = data_agg
 
         self.timesteps_per_batch = timesteps_per_batch
@@ -170,6 +188,11 @@ class TrpoTrainer():
 
             if ("--no-training" not in sys.argv):
                 saver.save(tf.get_default_session(), model_name)
+
+            if self.checkpoint_freq > 0 and self.checkpoint_dir is not None:
+                if iters_so_far % self.checkpoint_freq == 0:
+                    create_checkpoint(model_name, self.checkpoint_dir, self.checkpoint_num)
+                    self.checkpoint_num += 1
             
             with timed("sampling"):
                 seg = seg_gen.__next__()

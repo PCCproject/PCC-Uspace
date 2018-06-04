@@ -5,17 +5,17 @@ import subprocess
 import time
 from config import pcc_config_njay as cfg
 
-dur = 60
+dur = 120000000
 
 cmd = [
     cfg.PCC_CONFIG["SIM_DIR"] + "/test",
-    " -pyhelper=training_client",
-    " -pypath=" + cfg.PCC_CONFIG["PYTHON_ML_DIR"],
-    " --pcc-utility-calc=linear",
-    " --model-path=" + cfg.PCC_CONFIG["ML_MODEL_PATH"],
-    " --model-name=cur_model",
-    " --pcc-rate-control=python",
-    " --sim-dur=1000000"
+    "-pyhelper=training_client",
+    "-pypath=" + cfg.PCC_CONFIG["PYTHON_ML_DIR"],
+    "--pcc-utility-calc=linear",
+    "--model-path=" + cfg.PCC_CONFIG["ML_MODEL_PATH"],
+    "--model-name=cur_model",
+    "--pcc-rate-control=python",
+    "--sim-dur=1000000"
 ]
 
 def run_endless_training(link):
@@ -57,7 +57,10 @@ server_cmd = [
     "--model-path=" + cfg.PCC_CONFIG["ML_MODEL_PATH"],
     "--model-name=cur_model",
     "--gamma=0.98",
-    "--ml-training-clients=" + str(len(link_configs))
+    "--ml-cp-freq=5",
+    "--ml-cp-dir=/home/njay2/PCC/deep-learning/python/models/gym-rpc/models/checkpoints/",
+    "--ml-training-clients=" + str(len(link_configs)),
+    "--ml-max-iters=3"
 ]
 
 print(server_cmd)
@@ -69,11 +72,18 @@ client_procs = []
 for link_config in link_configs:
     client_procs.append(run_endless_training(link_config))
 
-time.sleep(dur)
-server_proc.kill()
+time_slept = 0
+sleep_increment = 1
+
+while (time_slept < dur and server_proc.poll() is None):
+    time.sleep(sleep_increment)
+    time_slept += sleep_increment
 
 for proc in client_procs:
     proc.kill()
+
+if server_proc.poll() is None:
+    server_proc.kill()
 
 time.sleep(5)
 print("Training finished")
