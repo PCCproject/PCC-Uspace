@@ -3,7 +3,7 @@
 
 int main(int argc, char** argv) {
   Options::Parse(argc, argv);
-  FILE* sender_config = fopen("/home/njay2/PCC/restructure/sim/sender.config", "r");
+  FILE* sender_config = fopen("/home/njay2/PCC/deep-learning/sim/sender.config", "r");
  
   double dur = 100;
   if (Options::Get("--sim-dur=") != NULL) {
