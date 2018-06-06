@@ -8,7 +8,7 @@ class ModelParameterSet:
     _default_hidden_layers = 3
     _default_hidden_size = 32
     _default_ts_per_batch = 4096
-    _default_max_kl = 0.0001
+    _default_max_kl = 0.001
     _default_cg_iters = 10
     _default_cg_damping = 1e-3
     _default_gamma = 0.0
