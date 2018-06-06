@@ -19,21 +19,13 @@ class PccExperimentLog:
             self.dict = {}
             return
 
-        self.event_types = ["Calculate Utility"]
-        """
-        self.event_types = []
-        for event in self.dict["events"]:
-            event_type = event.keys()[0]
-            if event_type not in self.event_types:
-                self.event_types.append(event_type)
-        """
         self.event_dict = {}
-        for event_type in self.event_types:
-            self.event_dict[event_type] = []
-            for event in self.dict["events"]:
-                if event_type in event.keys():
-                    ev = dict_str_to_num(event[event_type])
-                    self.event_dict[event_type].append(ev)
+        for event in self.dict["Events"]:
+            event_type = event["Name"]
+            if event_type not in self.event_dict.keys():
+                self.event_dict[event_type] = []
+            ev = dict_str_to_num(event)
+            self.event_dict[event_type].append(ev)
     
     def get_param(self, param):
         if "Experiment Parameters" not in self.dict.keys():
@@ -50,14 +42,14 @@ class PccExperimentLog:
         return self.event_dict[event_type]
 
     def get_event_types(self):
-        return self.event_types
+        return self.event_dict.keys()
 
     def apply_timeshift(self):
         timeshift_str = self.get_param("Time Shift")
         if timeshift_str == "":
             return
         timeshift = float(timeshift_str)
-        for event_type in self.event_types:
+        for event_type in self.get_event_types():
             events = self.get_event_list(event_type)
             for event in events:
                 if "Time" in event.keys():

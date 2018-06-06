@@ -80,7 +80,7 @@ void PccPythonRateController::GiveSample(double rate, double recv_rate, double l
     if (PyErr_Occurred()) {
         std::cerr << "Python error occurred" << std::endl;
     }
-    PyObject* args = PyTuple_New(6);
+    static PyObject* args = PyTuple_New(6);
     PyObject* sending_rate_value = PyFloat_FromDouble(rate);
     PyObject* recv_rate_value = PyFloat_FromDouble(recv_rate);
     PyObject* latency_value = PyFloat_FromDouble(lat);
@@ -107,6 +107,13 @@ void PccPythonRateController::GiveSample(double rate, double recv_rate, double l
         std::cerr << "Python error occurred" << std::endl;
     }
     //std::cerr << "GiveSample finished" << std::endl;
+    //Py_DECREF(args);
+    //Py_DECREF(sending_rate_value);
+    //Py_DECREF(recv_rate_value);
+    //Py_DECREF(latency_value);
+    //Py_DECREF(loss_rate_value);
+    //Py_DECREF(latency_inflation_value);
+    //Py_DECREF(utility_value);
 }
 
 void PccPythonRateController::GiveMiSample(const MonitorInterval& mi) {

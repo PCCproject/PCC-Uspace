@@ -20,6 +20,18 @@ PccIxpRateController::PccIxpRateController(double call_freq, PccEventLogger* log
     last_change_pos_ = true;
 }
 
+PccIxpRateController::~PccIxpRateController() {
+    if (cur_mi_ != NULL) {
+        delete cur_mi_;
+    }
+    if (cur_rs_ != NULL) {
+        delete cur_rs_;
+    }
+    for (int i = 0; i < rate_samples_.size(); ++i) {
+        delete rate_samples_[i];
+    }
+}
+
 QuicBandwidth PccIxpRateController::GetNextSendingRate(
         QuicBandwidth current_rate,
         QuicTime cur_time) {

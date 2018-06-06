@@ -112,29 +112,6 @@ if "points" in graph_config.keys():
     if graph_config["points"] == "scatter":
         scatter = True
 
-def give_net_context(context):
-    pcc_addon.give_sample(
-        context["Target Rate"],
-        context["Avg RTT"],
-        context["Loss Rate"],
-        context["Latency Inflation"],
-        context["Vivace Latency Utility"],
-        False)
-
-def graph_net_estimates(plot):
-    x_values = []
-    y_values = []
-    for i in range(0, 200):
-        x = 1000000.0 * i
-        y = pcc_addon.predict_utility(x / 1000000000.0)
-        x_values.append(x)
-        y_values.append(y)
-    y_axis_name = "Expected Utility"
-    x_axis_name = "Next Sending Rate"
-    plot.set_ylabel(y_axis_name)
-    plot.set_xlabel(x_axis_name)
-    plot.plot(x_values, y_values)
-
 if graph_config["type"] == "summary":
     legend = []
     log_groups = []
@@ -235,7 +212,6 @@ if graph_config["type"] == "summary":
     else:
         plt.show()
 
-model_event_num = 0
 if graph_config["type"] == "event":
     group_filters = []
     if "groups" in graph_config.keys():
@@ -269,17 +245,11 @@ if graph_config["type"] == "event":
         this_log_y_axis_values = {}
         for y_axis_name in y_axis_names:
             this_log_y_axis_values[y_axis_name] = []
-        event_num = 0
         for event in experiment_log.get_event_list(event_type):
             this_event = event
             this_log_x_axis_values.append(float(this_event[x_axis_name]))
             for k in this_log_y_axis_values.keys():
                 this_log_y_axis_values[k].append(float(this_event[k]))
-            if event_num < model_event_num:
-                give_net_context(event) 
-            elif event_num == model_event_num:
-                model_even_time = float(event["Time"])
-            event_num += 1
         if (should_smooth):
             for k in this_log_y_axis_values.keys():
                 x = this_log_x_axis_values
@@ -351,6 +321,7 @@ if graph_config["type"] == "event":
                 handles.append(handle)
                 plt.legend(handles, legend)
                 axes.set_ylabel(y_axis_name)
+                axes.axhline(4e7 - 4.5e7, linestyle="dashed", color="b")
     
     if add_model_plot:
         graph_net_estimates(axes[-1]) 

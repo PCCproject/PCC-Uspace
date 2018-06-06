@@ -143,6 +143,7 @@ PccSender::~PccSender() {
     delete log;
     delete utility_calculator_;
     delete rate_controller_;
+    delete rate_control_lock_;
 }
 
 #endif
