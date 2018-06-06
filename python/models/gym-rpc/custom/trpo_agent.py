@@ -147,7 +147,9 @@ class TrpoAgent():
                 if not (self.log is None):
                     self.log.log_event({"Name":"Training Epoch", "Episode Reward":self.dataset.avg_reward()})
                     self.log.flush()
-                self.server.give_dataset(self.dataset.as_dict())
+                data_dict = self.dataset.as_dict()
+                if self.server is not None:
+                    self.server.give_dataset(data_dict)
                 self.dataset.reset()
                 self.next_action_id = 0
                 self.load_model()
