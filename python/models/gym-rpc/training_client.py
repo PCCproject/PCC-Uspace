@@ -5,24 +5,12 @@ from custom import pcc_event_log
 from collections import deque
 import os.path
 import time
-from mpi4py import MPI
-from baselines.common import set_global_seeds
-import gym
-from gym import spaces
-from gym.utils import seeding
-import numpy as np
-import math
-import tensorflow as tf
 import sys
 import baselines.common.tf_util as U
 import random
 import xmlrpc.client
     
-from policies.basic_nn import BasicNNPolicy
-#from policies.nosharing_cnn_policy import CnnPolicy
-from policies.simple_cnn import CnnPolicy
 from policies.mlp_policy import MlpPolicy
-from policies.simple_policy import SimplePolicy
 from baselines_master.trpo_mpi import trpo_mpi
 
 if not hasattr(sys, 'argv'):

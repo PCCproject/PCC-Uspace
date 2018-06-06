@@ -1,4 +1,3 @@
-from mpi4py import MPI
 import baselines.common.tf_util as U
 import tensorflow as tf
 import numpy as np
@@ -16,16 +15,12 @@ class MpiAdam(object):
         self.t = 0
         self.setfromflat = U.SetFromFlat(var_list)
         self.getflat = U.GetFlat(var_list)
-        self.comm = MPI.COMM_WORLD if comm is None else comm
 
     def update(self, localg, stepsize):
         if self.t % 100 == 0:
             self.check_synced()
         localg = localg.astype('float32')
-        globalg = np.zeros_like(localg)
-        self.comm.Allreduce(localg, globalg, op=MPI.SUM)
-        if self.scale_grad_by_procs:
-            globalg /= self.comm.Get_size()
+        globalg = localg
 
         self.t += 1
         a = stepsize * np.sqrt(1 - self.beta2**self.t)/(1 - self.beta1**self.t)
@@ -36,18 +31,10 @@ class MpiAdam(object):
 
     def sync(self):
         theta = self.getflat()
-        self.comm.Bcast(theta, root=0)
         self.setfromflat(theta)
 
     def check_synced(self):
-        if self.comm.Get_rank() == 0: # this is root
-            theta = self.getflat()
-            self.comm.Bcast(theta, root=0)
-        else:
-            thetalocal = self.getflat()
-            thetaroot = np.empty_like(thetalocal)
-            self.comm.Bcast(thetaroot, root=0)
-            assert (thetaroot == thetalocal).all(), (thetaroot, thetalocal)
+        theta = self.getflat()
 
 @U.in_session
 def test_MpiAdam():

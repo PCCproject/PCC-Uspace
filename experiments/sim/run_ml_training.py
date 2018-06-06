@@ -65,7 +65,7 @@ server_cmd = [
     "--ml-cp-freq=5",
     "--ml-cp-dir=/home/njay2/PCC/deep-learning/python/models/gym-rpc/models/checkpoints/",
     "--ml-training-clients=" + str(len(link_configs)),
-    "--ml-max-iters=6000"
+    "--ml-max-iters=60"
 ]
 
 server_cmd += sys.argv

@@ -3,28 +3,13 @@ from custom import pcc_env
 from custom import model_param_set
 from custom import data_aggregator
 import multiprocessing
-from collections import deque
 import os.path
-import time
-from mpi4py import MPI
-from baselines.common import set_global_seeds
-import gym
-from gym import spaces
-from gym.utils import seeding
 import numpy as np
-import math
-import tensorflow as tf
 import sys
 import baselines.common.tf_util as U
-import random
     
-from policies.basic_nn import BasicNNPolicy
-#from policies.nosharing_cnn_policy import CnnPolicy
-from policies.simple_cnn import CnnPolicy
 from policies.mlp_policy import MlpPolicy
-from policies.simple_policy import SimplePolicy
 from baselines_master.trpo_mpi import trpo_mpi
-
 
 from xmlrpc.server import SimpleXMLRPCServer
 from xmlrpc.server import SimpleXMLRPCRequestHandler
@@ -126,27 +111,9 @@ finished_queue = multiprocessing.Queue()
 p = multiprocessing.Process(target=train, args=[data_agg, env, policy_fn, finished_queue])
 p.start()
 
-"""
-sess = U.single_threaded_session()
-sess.__enter__()
-trainer = trpo_mpi.TrpoTrainer(agent, env, policy_fn, 
-    timesteps_per_batch=model_params.ts_per_batch,
-    max_kl=model_params.max_kl,
-    cg_iters=model_params.cg_iters,
-    cg_damping=model_params.cg_damping,
-    max_timesteps=1e9,
-    gamma=model_params.gamma,
-    lam=model_params.lambda,
-    vf_iters=model_params.vf_iters,
-    vf_stepsize=model_params.vf_stepsize,
-    entcoeff=model_params.entcoeff
-)
-"""
-
 def give_dataset(dataset):
     data_agg.give_dataset(dataset)
     return 0
-
 
 #server = SimpleXMLRPCServer(("localhost", 8000), requestHandler=RequestHandler)
 server.register_introspection_functions()

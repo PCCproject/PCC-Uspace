@@ -1,15 +1,7 @@
 from custom import pcc_event_log
-from baselines_master.common import explained_variance, zipsame, dataset
-from baselines import logger
-import baselines.common.tf_util as U
-import tensorflow as tf, numpy as np
+import tensorflow as tf
+import numpy as np
 import time
-from baselines_master.common import colorize
-from mpi4py import MPI
-from collections import deque
-from baselines_master.common.mpi_adam import MpiAdam
-from baselines_master.common.cg import cg
-from contextlib import contextmanager
 import sys
 import os
 
@@ -147,7 +139,9 @@ class TrpoAgent():
                 if not (self.log is None):
                     self.log.log_event({"Name":"Training Epoch", "Episode Reward":self.dataset.avg_reward()})
                     self.log.flush()
-                self.server.give_dataset(self.dataset.as_dict())
+                data_dict = self.dataset.as_dict()
+                if self.server is not None:
+                    self.server.give_dataset(data_dict)
                 self.dataset.reset()
                 self.next_action_id = 0
                 self.load_model()

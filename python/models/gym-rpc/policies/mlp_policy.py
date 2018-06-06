@@ -7,7 +7,6 @@ import tensorflow as tf
 import gym
 
 import baselines.common.tf_util as U
-from baselines.common.mpi_running_mean_std import RunningMeanStd
 from baselines.common.distributions import make_pdtype
 from baselines.acktr.utils import dense
 
@@ -30,16 +29,12 @@ class MlpPolicy(object):
 
         ob = U.get_placeholder(name="ob", dtype=tf.float32, shape=[sequence_length] + list(ob_space.shape))
 
-        #with tf.variable_scope("obfilter"):
-        #    self.ob_rms = RunningMeanStd(shape=ob_space.shape)
-
-        #obz = tf.clip_by_value((ob - self.ob_rms.mean) / self.ob_rms.std, -5.0, 5.0)
-        last_out = ob#z
+        last_out = ob
         for i in range(num_hid_layers):
             last_out = tf.nn.relu(dense(last_out, hid_size, "vffc%i" % (i+1), weight_init=U.normc_initializer(1.0)))
         self.vpred = dense(last_out, 1, "vffinal", weight_init=U.normc_initializer(1.0))[:, 0]
 
-        last_out = ob#z
+        last_out = ob
         for i in range(num_hid_layers):
             last_out = tf.nn.relu(dense(last_out, hid_size, "polfc%i" % (i+1), weight_init=U.normc_initializer(1.0)))
 
@@ -62,19 +57,7 @@ class MlpPolicy(object):
         self._act = U.function([stochastic, ob], [ac, self.vpred])
 
     def act(self, stochastic, ob):
-        #print("stochastic = " + str(stochastic))
-        #print("ob = " + str(ob))
-        #print("ob[None] = " + str(ob[None]))
-        #my_vars = tf.global_variables()
-        #for v in my_vars:
-        #    if ("polfinal" in v.name):
-        #        print(v.name + " = " + str(tf.get_default_session().run(v)))
-        #exit(-1)
         ac1, vpred1 = self._act(stochastic, ob[None])
-        #if ac1[0] < 0:
-        #    ac1[0] = 0
-        #if ac1[0] > 1e9:
-        #    ac1[0] = 1e9
         return ac1[0], vpred1[0]
 
     def get_variables(self):

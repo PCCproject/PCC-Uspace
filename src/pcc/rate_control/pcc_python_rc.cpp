@@ -158,6 +158,7 @@ QuicBandwidth PccPythonRateController::GetNextSendingRate( QuicBandwidth current
         std::cout << "ERROR: Output from python get_rate() is not a float" << std::endl;
         exit(-1);
     }
+    Py_DECREF(result);
     //std::cerr << "Returning new rate" << std::endl;
     if (PyErr_Occurred()) {
         std::cerr << "Python error occurred" << std::endl;

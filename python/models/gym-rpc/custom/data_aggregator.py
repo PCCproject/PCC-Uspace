@@ -1,4 +1,3 @@
-#import threading
 import multiprocessing
 import numpy as np
 import time
@@ -29,6 +28,8 @@ class DataAggregator():
         self.news = np.zeros(self.batch_size, 'int32')
         self.acs = np.array([example_ac for _ in range(self.batch_size)])
         self.prevacs = self.acs.copy()
+
+        self.norm_rewards = norm_rewards
        
         self.cur_ep_ret = 0
         self.cur_ep_len = 0
@@ -52,7 +53,7 @@ class DataAggregator():
         news = np.array(dataset["new"])
         acs = np.array(dataset["ac"])
         prevacs = np.array(dataset["prevac"])
-        if (norm_rewards):
+        if (self.norm_rewards):
             min_rew = np.min(rews)
             max_rew = np.max(rews)
             rews = (rews - min_rew) / (max_rew - min_rew)
