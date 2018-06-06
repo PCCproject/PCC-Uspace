@@ -186,7 +186,10 @@ class TrpoTrainer():
             
             with timed("sampling"):
                 seg = seg_gen.__next__()
-            
+           
+            if seg["stop"]:
+                break
+
             add_vtarg_and_adv(seg, self.gamma, self.lam)
 
             ob, ac, atarg, tdlamret = seg["ob"], seg["ac"], seg["adv"], seg["tdlamret"]

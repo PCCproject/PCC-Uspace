@@ -115,11 +115,8 @@ def give_dataset(dataset):
     data_agg.give_dataset(dataset)
     return 0
 
-#server = SimpleXMLRPCServer(("localhost", 8000), requestHandler=RequestHandler)
 server.register_introspection_functions()
 
-# Register pow() function; this will use the value of
-# pow.__name__ as the name, which is just 'pow'.
 server.register_function(give_dataset)
 
 # Run the server's main loop

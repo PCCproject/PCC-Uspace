@@ -44,7 +44,8 @@ class DataAggregator():
         self.run_stash = AsyncStash(0)
         self.queue = multiprocessing.Queue()
         self.lock = multiprocessing.Lock()
-        #self.lock = threading.Lock()
+        
+        self.replicas_done_training = 0
 
     def give_dataset(self, dataset):
         obs = np.array(dataset["ob"])
@@ -72,12 +73,16 @@ class DataAggregator():
         self.ep_rets += dataset["ep_rets"]
         self.ep_lens += dataset["ep_lens"]
         self.cur_replica += 1
+        if dataset["done_training"]:
+            self.replicas_done_training += 1
         if (self.cur_replica == self.replicas):
+            all_done_training = (self.replicas_done_training == self.replicas)
             self.cur_replica = 0
             dataset = {"ob": self.obs, "rew": self.rews, "vpred": self.vpreds, "new": self.news,
                       "ac": self.acs, "prevac": self.prevacs, "nextvpred": 0,
-                      "ep_rets": self.ep_rets, "ep_lens": self.ep_lens}
+                      "ep_rets": self.ep_rets, "ep_lens": self.ep_lens, "stop":all_done_training}
             self.queue.put(dataset)
+            self.replicas_done_training = 0
             self.ep_rets = []
             self.ep_lens = []
         self.lock.release()

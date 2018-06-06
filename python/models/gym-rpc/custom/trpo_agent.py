@@ -28,6 +28,8 @@ class TrpoDataset():
         self.term_vpred = 0
         self.term_new = 0
 
+        self.epoch_rews = []
+
     def reset(self):
         self.n_actions = 0
         self.n_rewards = 0
@@ -63,10 +65,30 @@ class TrpoDataset():
         self.cur_ep_len = 0
         self.resets.append(action_id)
 
+    def is_rew_stable(self):
+        dur = 200
+
+        if len(self.epoch_rews) < 2 * dur:
+            return False
+
+        first_mean = sum(self.epoch_rews[-2 * dur:-1 * dur]) / dur
+        second_mean = sum(self.epoch_rews[-1 * dur:]) / dur
+
+        stable = (abs(2.0 * (first_mean - second_mean) / (first_mean + second_mean)) < 0.01)
+
+        if stable:
+            print("Reward stable: %f, %f" % (first_mean, second_mean))
+        else:
+            print("Reward unstable: %f, %f" % (first_mean, second_mean))
+        return stable
+
     def as_dict(self):
+        stop_training = False
+        if self.is_rew_stable():
+            stop_training = True
         result = {"ob": self.obs.tolist(), "rew": self.rews.tolist(), "vpred": self.vpreds.tolist(), "new": self.news.tolist(),
                   "ac": self.acs.tolist(), "prevac": self.prevacs.tolist(), "nextvpred": 0,
-                  "ep_rets": self.ep_rets, "ep_lens": self.ep_lens}
+                  "ep_rets": self.ep_rets, "ep_lens": self.ep_lens, "done_training":stop_training}
         return result
 
     def avg_reward(self):
@@ -79,6 +101,8 @@ class TrpoDataset():
         self.n_rewards += 1
         self.cur_ep_ret += reward
         self.cur_ep_len += 1
+        if self.finished():
+            self.epoch_rews.append(np.mean(self.rews))
 
     def record_action(self, action_id, ob, vpred, ac, prevac):
         i = action_id

@@ -2,8 +2,9 @@
 #ifndef _PCC_PYTHON_RC_H_
 #define _PCC_PYTHON_RC_H_
 
-#include <vector>
+#include <mutex>
 #include <queue>
+#include <vector>
 
 #include "pcc_rc.h"
 #include <python3.5/Python.h>
@@ -12,6 +13,7 @@
 
 class PccPythonRateController : public PccRateController {
  public:
+
 
   PccPythonRateController(double call_freq, PccEventLogger* log);
   ~PccPythonRateController() {};
@@ -22,16 +24,21 @@ class PccPythonRateController : public PccRateController {
   void Reset();
  private:
   
+  static void InitializePython();
+  static int GetNextId();
+  static std::mutex interpreter_lock_;
+  static bool python_initialized_;
+
   void GiveSample(double rate, double recv_rate, double lat, double loss, double lat_infl, double utility);
   void GiveMiSample(const MonitorInterval& mi);
-  
+
+  int id;
+
   PyObject* module;
   PyObject* give_sample_func;
   PyObject* get_rate_func;
   PyObject* reset_func;
 
-  int last_given_mi_id;
-  std::vector<MonitorInterval> mi_cache;
 };
 
 #endif
