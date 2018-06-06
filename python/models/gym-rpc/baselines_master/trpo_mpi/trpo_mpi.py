@@ -4,7 +4,6 @@ import baselines.common.tf_util as U
 import tensorflow as tf, numpy as np
 import time
 from baselines_master.common import colorize
-from mpi4py import MPI
 from collections import deque
 from baselines_master.common.mpi_adam import MpiAdam
 from baselines_master.common.cg import cg
@@ -138,32 +137,23 @@ class TrpoTrainer():
 
         U.initialize()
         th_init = self.get_flat()
-        MPI.COMM_WORLD.Bcast(th_init, root=0)
         self.set_from_flat(th_init)
         self.vfadam.sync()
         self.cg_damping = cg_damping
     
     def train(self, model_name):
-        nworkers = MPI.COMM_WORLD.Get_size()
-        rank = MPI.COMM_WORLD.Get_rank()
         seg_gen = traj_segment_generator(self.agg)
         
         @contextmanager
         def timed(msg):
-            if rank == 0:
-                print(colorize(msg, color='magenta'))
-                tstart = time.time()
-                yield
-                print(colorize("done in %.3f seconds" % (time.time() - tstart), color='magenta'))
-            else:
-                yield
+            print(colorize(msg, color='magenta'))
+            tstart = time.time()
+            yield
+            print(colorize("done in %.3f seconds" % (time.time() - tstart), color='magenta'))
 
         def allmean(x):
             assert isinstance(x, np.ndarray)
-            out = np.empty_like(x)
-            MPI.COMM_WORLD.Allreduce(x, out, op=MPI.SUM)
-            out /= nworkers
-            return out
+            return x
 
 
         episodes_so_far = 0
@@ -223,7 +213,7 @@ class TrpoTrainer():
             if np.allclose(g, 0):
                 logger.log("Got zero gradient. not updating")
             else:
-                stepdir = cg(fisher_vector_product, g, cg_iters=self.cg_iters, verbose=rank == 0)
+                stepdir = cg(fisher_vector_product, g, cg_iters=self.cg_iters, verbose=True)
                 
                 if (not np.isfinite(stepdir).all()):
                     print("seg[ob]: " + str(seg["ob"]))
@@ -257,9 +247,6 @@ class TrpoTrainer():
                 else:
                     logger.log("couldn't compute a good step")
                     self.set_from_flat(thbefore)
-                if nworkers > 1 and iters_so_far % 20 == 0:
-                    paramsums = MPI.COMM_WORLD.allgather((thnew.sum(), self.vfadam.getflat().sum()))  # list of tuples
-                    assert all(np.allclose(ps, paramsums[0]) for ps in paramsums[1:])
 
             #for (lossname, lossval) in zip(self.loss_names, meanlosses):
             #    logger.record_tabular(lossname, lossval)
@@ -272,11 +259,9 @@ class TrpoTrainer():
 
             #logger.record_tabular("ev_tdlam_before", explained_variance(vpredbefore, tdlamret))
 
-            lrlocal = (seg["ep_lens"], seg["ep_rets"])  # local values
-            listoflrpairs = MPI.COMM_WORLD.allgather(lrlocal)  # list of tuples
-            lens, rews = lrlocal #map(flatten_lists, zip(*listoflrpairs))
+            lens = seg["ep_lens"]
             lenbuffer.extend(lens)
-            rewbuffer.extend(rews)
+            rewbuffer.extend(seg["ep_rets"])
 
             logger.record_tabular("DensityRew", np.mean(rewbuffer) / np.mean(lenbuffer))
             logger.record_tabular("EpLenMean", np.mean(lenbuffer))
@@ -290,8 +275,7 @@ class TrpoTrainer():
             #logger.record_tabular("TimestepsSoFar", timesteps_so_far)
             #logger.record_tabular("TimeElapsed", time.time() - tstart)
 
-            if rank == 0:
-                logger.dump_tabular()
+            logger.dump_tabular()
 
 def flatten_lists(listoflists):
     return [el for list_ in listoflists for el in list_]

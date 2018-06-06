@@ -5,7 +5,6 @@ from custom import pcc_event_log
 from collections import deque
 import os.path
 import time
-from mpi4py import MPI
 from baselines.common import set_global_seeds
 import gym
 from gym import spaces
