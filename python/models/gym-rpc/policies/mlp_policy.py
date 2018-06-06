@@ -62,19 +62,7 @@ class MlpPolicy(object):
         self._act = U.function([stochastic, ob], [ac, self.vpred])
 
     def act(self, stochastic, ob):
-        #print("stochastic = " + str(stochastic))
-        #print("ob = " + str(ob))
-        #print("ob[None] = " + str(ob[None]))
-        #my_vars = tf.global_variables()
-        #for v in my_vars:
-        #    if ("polfinal" in v.name):
-        #        print(v.name + " = " + str(tf.get_default_session().run(v)))
-        #exit(-1)
         ac1, vpred1 = self._act(stochastic, ob[None])
-        #if ac1[0] < 0:
-        #    ac1[0] = 0
-        #if ac1[0] > 1e9:
-        #    ac1[0] = 1e9
         return ac1[0], vpred1[0]
 
     def get_variables(self):

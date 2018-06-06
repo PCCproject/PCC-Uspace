@@ -1,5 +1,23 @@
 The following steps will allow you to train a model and test it:
 
+Clone the repo:
+git clone https://github.com/netarch/PCC.git .
+git checkout deep-learning
+
+Install dependencies:
+
+// python development libraries
+sudo apt-get install libpython3.5-dev
+
+// pip, only if you don't have it.
+sudo apt-get install python3-pip
+
+// numpy, scipy, tensorflow, mpi4py and gym
+python3 -m pip install numpy --user
+python3 -m pip install scipy --user
+python3 -m pip install tensorflow --user
+python3 -m pip install gym --user
+
 From the base of the repo, build the simulator with:
 cd ./sim
 python build.py

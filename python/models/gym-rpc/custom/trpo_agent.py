@@ -1,15 +1,7 @@
 from custom import pcc_event_log
-from baselines_master.common import explained_variance, zipsame, dataset
-from baselines import logger
-import baselines.common.tf_util as U
-import tensorflow as tf, numpy as np
+import tensorflow as tf
+import numpy as np
 import time
-from baselines_master.common import colorize
-from mpi4py import MPI
-from collections import deque
-from baselines_master.common.mpi_adam import MpiAdam
-from baselines_master.common.cg import cg
-from contextlib import contextmanager
 import sys
 import os
 
