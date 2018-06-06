@@ -7,16 +7,22 @@ from config import pcc_config_njay as cfg
 
 dur = 120000000
 
+model_name = "cur_model"
+for arg in sys.argv:
+    if "--model-name=" in arg:
+        model_name = arg[arg.find("=") + 1:]
+
 cmd = [
     cfg.PCC_CONFIG["SIM_DIR"] + "/test",
     "-pyhelper=training_client",
     "-pypath=" + cfg.PCC_CONFIG["PYTHON_ML_DIR"],
     "--pcc-utility-calc=linear",
     "--model-path=" + cfg.PCC_CONFIG["ML_MODEL_PATH"],
-    "--model-name=cur_model",
     "--pcc-rate-control=python",
-    "--sim-dur=1000000"
+    "--sim-dur=100000"
 ]
+
+cmd += sys.argv
 
 def run_endless_training(link):
    this_cmd = list(cmd)
@@ -26,7 +32,7 @@ def run_endless_training(link):
    this_cmd.append(" --test-plr=" + str(link["plr"]))
    log_path = cfg.PCC_CONFIG["ML_MODEL_PATH"] + "/logs/"
    os.system("mkdir " + log_path)
-   this_cmd.append(" --ml-log=" + log_path + "train_log_%dbw_%fdl_%dbuf_%fplr" % (link["bw"], link["dl"], link["buf"], link["plr"]))
+   this_cmd.append(" --ml-log=" + log_path + "train_log_" + model_name + "_%dbw_%fdl_%dbuf_%fplr" % (link["bw"], link["dl"], link["buf"], link["plr"]))
    full_cmd = ["python", cfg.PCC_CONFIG["EXPR_DIR"] + "sim/endless_trainer.py"] + this_cmd
    print(full_cmd)
    return subprocess.Popen(full_cmd)
@@ -55,18 +61,19 @@ server_cmd = [
     "python3",
     cfg.PCC_CONFIG["PYTHON_ML_DIR"] + "training_server.py",
     "--model-path=" + cfg.PCC_CONFIG["ML_MODEL_PATH"],
-    "--model-name=cur_model",
     "--gamma=0.98",
     "--ml-cp-freq=5",
     "--ml-cp-dir=/home/njay2/PCC/deep-learning/python/models/gym-rpc/models/checkpoints/",
     "--ml-training-clients=" + str(len(link_configs)),
-    "--ml-max-iters=3"
+    "--ml-max-iters=6000"
 ]
+
+server_cmd += sys.argv
 
 print(server_cmd)
 server_proc = subprocess.Popen(server_cmd)
 
-time.sleep(5)
+time.sleep(10)
 
 client_procs = []
 for link_config in link_configs:

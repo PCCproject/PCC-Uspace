@@ -34,12 +34,13 @@ if not hasattr(sys, 'argv'):
     sys.argv  = ['']
 
 MODEL_PATH = "/tmp/"
-MODEL_NAME = "pcc_model_" + str(int(round(time.time() * 1000)))
+MODEL_NAME = "cur_model"
         
 MODEL_CHECKPOINT_FREQ = 0
 MODEL_CHECKPOINT_DIR = None
 
 MAX_ITERS = 1e9
+PORT = 8000
 
 TRAINING_CLIENTS = 1
 
@@ -49,6 +50,9 @@ for arg in sys.argv:
         arg_val = float(arg[arg.rfind("=") + 1:])
     except:
         pass
+
+    if "--ml-port=" in arg:
+        PORT = int(arg_val)
 
     if "--ml-training-clients=" in arg:
         TRAINING_CLIENTS = int(arg_val)
@@ -115,7 +119,7 @@ class RPCThreading(socketserver.ThreadingMixIn, SimpleXMLRPCServer):
     pass
 
 # Create server
-server = RPCThreading(("localhost", 8000), requestHandler=RequestHandler, logRequests=False)
+server = RPCThreading(("localhost", PORT), requestHandler=RequestHandler, logRequests=False)
 server.timeout = 1
 finished_queue = multiprocessing.Queue()
 

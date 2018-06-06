@@ -12,3 +12,8 @@ udt
 results/*
 vis/graphs/*.json
 vis/logs/*
+sim/test
+sim/sim_test
+*.index
+*.meta
+*.data-*

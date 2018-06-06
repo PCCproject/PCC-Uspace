@@ -40,9 +40,10 @@ RESET_COUNTER = 0
 RESET_INTERVAL = 900
 
 MODEL_PATH= "/tmp/"
-MODEL_NAME = "pcc_model_" + str(int(round(time.time() * 1000)))
+MODEL_NAME = "cur_model"
 
 LOG_NAME = None
+PORT = 8000
 
 for arg in sys.argv:
     arg_val = "NULL"
@@ -73,10 +74,12 @@ for arg in sys.argv:
     if "--ml-log=" in arg:
         LOG_NAME =  arg[arg.rfind("=") + 1:]
 
+    if "--ml-port=" in arg:
+        PORT = int(arg_val)
 
 s = None
 if ("--no-training" not in sys.argv):
-    s = xmlrpc.client.ServerProxy('http://localhost:8000')
+    s = xmlrpc.client.ServerProxy('http://localhost:%s' % PORT)
 
 
 model_params = model_param_set.ModelParameterSet(MODEL_NAME, MODEL_PATH)
