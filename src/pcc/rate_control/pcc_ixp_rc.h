@@ -28,7 +28,7 @@ class PccIxpRateController : public PccRateController {
  public:
 
   PccIxpRateController(double call_freq, PccEventLogger* log);
-  ~PccIxpRateController() {};
+  ~PccIxpRateController();
 
   QuicBandwidth GetNextSendingRate(QuicBandwidth current_rate, QuicTime cur_time);
   void MonitorIntervalFinished(const MonitorInterval& mi);

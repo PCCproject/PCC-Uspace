@@ -98,7 +98,7 @@ PccEventLogger::PccEventLogger(const std::string& filename) {
         output_file_ << "\n  \"Flow ID\":\"" << arg_flowid << "\"";
         needs_comma = true;
     }
-    output_file_ << "\n},\n\"events\":[";
+    output_file_ << "\n},\n\"Events\":[";
 }
 PccEventLogger::~PccEventLogger() {
     output_file_ << "\n]}" << std::endl;
@@ -115,8 +115,9 @@ void PccEventLogger::LogEvent(const PccLoggableEvent& event) {
         first_line = false;
     }
     float cur_time = ((float)(CTimer::getTime() - start_time)) / 1000000.0f;
-    output_file_ << std::endl << "{" << std::endl << "  \"" << event.name << "\": {";
-    output_file_ << std::endl << "    \"Time\": \"" << cur_time << "\"";
+    output_file_ << std::endl << "{" << std::endl;
+    output_file_ << "    \"Name\": \"" << event.name << "\"," << std::endl;
+    output_file_ << "    \"Time\": \"" << cur_time << "\"";
     bool needs_comma = true;
     for (const PccLoggableEventValue& val : event.values) {
         if (needs_comma) {
@@ -126,6 +127,6 @@ void PccEventLogger::LogEvent(const PccLoggableEvent& event) {
         }
         output_file_ << std::endl << "    \"" << val.value_name << "\": \"" << val.value << "\"";
     }
-    output_file_ << std::endl << "}}";
+    output_file_ << std::endl << "}";
     output_file_.flush();
 }

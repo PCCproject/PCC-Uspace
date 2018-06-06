@@ -19,7 +19,7 @@ class AsyncStash():
 
 class DataAggregator():
 
-    def __init__(self, replicas, model_params, example_ob, example_ac):
+    def __init__(self, replicas, model_params, example_ob, example_ac, norm_rewards=False):
         self.replicas = replicas
         self.replica_size = model_params.ts_per_batch
         self.batch_size = self.replica_size * replicas
@@ -46,18 +46,28 @@ class DataAggregator():
         #self.lock = threading.Lock()
 
     def give_dataset(self, dataset):
+        obs = np.array(dataset["ob"])
+        rews = np.array(dataset["rew"])
+        vpreds = np.array(dataset["vpred"])
+        news = np.array(dataset["new"])
+        acs = np.array(dataset["ac"])
+        prevacs = np.array(dataset["prevac"])
+        if (norm_rewards):
+            min_rew = np.min(rews)
+            max_rew = np.max(rews)
+            rews = (rews - min_rew) / (max_rew - min_rew)
         self.lock.acquire()
         this_replica = self.cur_replica
         if (self.next_run == -1):
             self.next_run = 1
         start = self.cur_replica * self.replica_size
         end = start + self.replica_size
-        np.copyto(self.obs[start:end], np.array(dataset["ob"]))
-        np.copyto(self.rews[start:end], np.array(dataset["rew"]))
-        np.copyto(self.vpreds[start:end], np.array(dataset["vpred"]))
-        np.copyto(self.news[start:end], np.array(dataset["new"]))
-        np.copyto(self.acs[start:end], np.array(dataset["ac"]))
-        np.copyto(self.prevacs[start:end], np.array(dataset["prevac"]))
+        np.copyto(self.obs[start:end], obs)
+        np.copyto(self.rews[start:end], rews)
+        np.copyto(self.vpreds[start:end], vpreds)
+        np.copyto(self.news[start:end], news)
+        np.copyto(self.acs[start:end], acs)
+        np.copyto(self.prevacs[start:end], prevacs)
         self.ep_rets += dataset["ep_rets"]
         self.ep_lens += dataset["ep_lens"]
         self.cur_replica += 1
