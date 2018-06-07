@@ -33,37 +33,42 @@ MODEL_NAME = "cur_model"
 LOG_NAME = None
 PORT = 8000
 
+NONCE = None
+
 for arg in sys.argv:
-    arg_val = "NULL"
+    arg_str = "NULL"
     try:
-        arg_val = float(arg[arg.rfind("=") + 1:])
+        arg_str = arg[arg.rfind("=") + 1:]
     except:
         pass
 
+    if "--nonce=" in arg:
+        NONCE = int(arg_str)
+
     if "--model-name=" in arg:
-        MODEL_NAME = arg[arg.rfind("=") + 1:]
+        MODEL_NAME = arg_str
 
     if "--model-path=" in arg:
-        MODEL_PATH = arg[arg.rfind("=") + 1:]
+        MODEL_PATH = arg_str
 
     if "--reset-target-rate=" in arg:
-        RESET_RATE_MIN = arg_val
-        RESET_RATE_MAX = arg_val
+        RESET_RATE_MIN = float(arg_str)
+        RESET_RATE_MAX = float(arg_str)
 
     if "--delta-rate-scale=" in arg:
-        DELTA_SCALE *= arg_val
+        DELTA_SCALE *= float(arg_str)
 
     if "--all-rate-scale=" in arg:
-        MAX_RATE *= arg_val
+        MAX_RATE *= float(arg_str)
     
     if "--no-reset" in arg:
         RESET_INTERVAL = 1e9
 
     if "--ml-log=" in arg:
-        LOG_NAME =  arg[arg.rfind("=") + 1:]
+        LOG_NAME = arg_str
 
     if "--ml-port=" in arg:
-        PORT = int(arg_val)
+        PORT = int(arg_str)
 
 s = None
 if ("--no-training" not in sys.argv):
@@ -77,8 +82,8 @@ if "--deterministic" in sys.argv:
     stoc = False
 
 log = None
-if not LOG_NAME is None:
-    log = pcc_event_log.PccEventLog(LOG_NAME)
+if LOG_NAME is not None:
+    log = pcc_event_log.PccEventLog(LOG_NAME, nonce=NONCE)
 
 agent = trpo_agent.TrpoAgent(s, model_name=MODEL_PATH + MODEL_NAME, stochastic=stoc, log=log)
 

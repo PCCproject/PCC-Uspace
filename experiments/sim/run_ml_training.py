@@ -4,6 +4,9 @@ import sys
 import subprocess
 import time
 from config import pcc_config_njay as cfg
+import random
+
+random.seed(int(time.time() * 1000000))
 
 dur = 120000000
 
@@ -26,10 +29,11 @@ cmd += sys.argv
 
 def run_endless_training(link):
    this_cmd = list(cmd)
-   this_cmd.append(" --test-bw=" + str(link["bw"]))
-   this_cmd.append(" --test-dl=" + str(link["dl"]))
-   this_cmd.append(" --test-buf=" + str(link["buf"]))
-   this_cmd.append(" --test-plr=" + str(link["plr"]))
+   this_cmd.append("--test-bw=%d" % link["bw"])
+   this_cmd.append("--test-dl=%f" % link["dl"])
+   this_cmd.append("--test-buf=%d" % link["buf"])
+   this_cmd.append("--test-plr=%f" % link["plr"])
+   this_cmd.append("--nonce=%d" % random.randint(1, 2e9))
    log_path = cfg.PCC_CONFIG["ML_MODEL_PATH"] + "/logs/"
    os.system("mkdir " + log_path)
    this_cmd.append(" --ml-log=" + log_path + "train_log_" + model_name + "_%dbw_%fdl_%dbuf_%fplr" % (link["bw"], link["dl"], link["buf"], link["plr"]))
