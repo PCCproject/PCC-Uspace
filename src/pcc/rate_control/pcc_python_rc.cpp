@@ -69,19 +69,34 @@ PccPythonRateController::PccPythonRateController(double call_freq,
         PyErr_Print();
         exit(-1);
     }
-    //Py_DECREF(module_name);
+    
+    PyObject* init_func = PyObject_GetAttrString(module, "init");
+    if (init_func == NULL) {
+        std::cerr << "ERROR: Could not load python function: init" << std::endl;
+        PyErr_Print();
+        exit(-1);
+    }
+    PyObject* id_obj = PyLong_FromLong(id);
+    static PyObject* args = PyTuple_New(1);
+    PyTuple_SetItem(args, 0, id_obj);
+    
+    PyObject* init_result = PyObject_CallObject(init_func, args);
+    PyErr_Print();
+    
     give_sample_func = PyObject_GetAttrString(module, "give_sample");
     if (give_sample_func == NULL) {
         std::cerr << "ERROR: Could not load python function: give_sample" << std::endl;
         PyErr_Print();
         exit(-1);
     }
+    
     get_rate_func = PyObject_GetAttrString(module, "get_rate");
     if (get_rate_func == NULL) {
         std::cerr << "ERROR: Could not load python function: get_rate" << std::endl;
         PyErr_Print();
         exit(-1);
     }
+    
     reset_func = PyObject_GetAttrString(module, "reset");
     if (reset_func == NULL) {
         std::cerr << "ERROR: Could not load python function: reset" << std::endl;
@@ -92,13 +107,18 @@ PccPythonRateController::PccPythonRateController(double call_freq,
 
 void PccPythonRateController::Reset() {
     std::lock_guard<std::mutex> lock(interpreter_lock_);
-    PyObject* result = PyObject_CallObject(reset_func, NULL);
+    PyObject* id_obj = PyLong_FromLong(id);
+    static PyObject* args = PyTuple_New(1);
+    PyTuple_SetItem(args, 0, id_obj);
+    
+    PyObject* result = PyObject_CallObject(reset_func, args);
     PyErr_Print();
 }
 
 void PccPythonRateController::GiveSample(double rate, double recv_rate, double lat, double loss, double lat_infl, double utility) {
     std::lock_guard<std::mutex> lock(interpreter_lock_);
-    static PyObject* args = PyTuple_New(6);
+    PyObject* id_obj = PyLong_FromLong(id);
+    static PyObject* args = PyTuple_New(7);
     PyObject* sending_rate_value = PyFloat_FromDouble(rate);
     PyObject* recv_rate_value = PyFloat_FromDouble(recv_rate);
     PyObject* latency_value = PyFloat_FromDouble(lat);
@@ -106,12 +126,13 @@ void PccPythonRateController::GiveSample(double rate, double recv_rate, double l
     PyObject* latency_inflation_value = PyFloat_FromDouble(lat_infl);
     PyObject* utility_value = PyFloat_FromDouble(utility);
     
-    PyTuple_SetItem(args, 0, sending_rate_value);
-    PyTuple_SetItem(args, 1, recv_rate_value);
-    PyTuple_SetItem(args, 2, latency_value);
-    PyTuple_SetItem(args, 3, loss_rate_value);
-    PyTuple_SetItem(args, 4, latency_inflation_value);
-    PyTuple_SetItem(args, 5, utility_value);
+    PyTuple_SetItem(args, 0, id_obj);
+    PyTuple_SetItem(args, 1, sending_rate_value);
+    PyTuple_SetItem(args, 2, recv_rate_value);
+    PyTuple_SetItem(args, 3, latency_value);
+    PyTuple_SetItem(args, 4, loss_rate_value);
+    PyTuple_SetItem(args, 5, latency_inflation_value);
+    PyTuple_SetItem(args, 6, utility_value);
     
     PyObject_CallObject(give_sample_func, args);
 }
@@ -134,7 +155,11 @@ QuicBandwidth PccPythonRateController::GetNextSendingRate( QuicBandwidth current
 
     std::lock_guard<std::mutex> lock(interpreter_lock_);
     
-    PyObject* result = PyObject_CallObject(get_rate_func, NULL);
+    PyObject* id_obj = PyLong_FromLong(id);
+    static PyObject* args = PyTuple_New(1);
+    PyTuple_SetItem(args, 0, id_obj);
+    
+    PyObject* result = PyObject_CallObject(get_rate_func, args);
     if (result == NULL) {
         std::cout << "ERROR: Failed to call python get_rate() func" << std::endl;
         PyErr_Print();
@@ -148,6 +173,6 @@ QuicBandwidth PccPythonRateController::GetNextSendingRate( QuicBandwidth current
         exit(-1);
     }
     Py_DECREF(result);
-    
+
     return result_double;
 }

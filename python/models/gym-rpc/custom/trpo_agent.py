@@ -116,15 +116,18 @@ class TrpoDataset():
         self.term_vpred = vpred
 
 class TrpoAgent():
-    def __init__(self, server, model_name, stochastic=True, log=None):
+
+    n_finished = 0
+    all_agents = []
+
+    def __init__(self, env, server, model_name, model_params, model, stochastic=True, log=None):
         self.model_name = model_name
         self.model_loaded = False
         self.server = server
 
         self.next_action_id = 0
         
-        self.dataset = None
-        self.model = None
+        self.model = model
         self.stochastic = stochastic
         self.prevac = None
 
@@ -132,9 +135,11 @@ class TrpoAgent():
 
         self.actions = {}
 
-    def init(self, model, batch_size, example_ob, example_ac):
-        self.dataset = TrpoDataset(batch_size, example_ob, example_ac)
-        self.model = model
+        self.dataset = TrpoDataset(model_params.ts_per_batch,
+            env.observation_space.sample(), env.action_space.sample())
+        self.load_model()
+
+        TrpoAgent.all_agents.append(self)
 
     def load_model(self):
         if os.path.isfile(self.model_name + ".meta"):
@@ -143,15 +148,6 @@ class TrpoAgent():
         else:
             print("ERROR: Could not load model " + self.model_name)
             exit(-1)
-      
-        """
-        if self.server is None:
-            my_vars = tf.global_variables()
-            for v in my_vars:
-                if not "oldpi" in v.name:
-                    val = tf.get_default_session().run(v)
-                    print(v.name + ", max = " + str(np.max(val)) + ", min = " + str(np.min(val)))
-        """
 
     def give_reward(self, action_id, action, reward):
         if (action_id >= 0):
@@ -159,16 +155,28 @@ class TrpoAgent():
                 print("ERROR: Mismatch in actions and IDs")
                 exit(-1)
             self.dataset.record_reward(action_id, reward)
-            if (self.dataset.finished()):
-                if not (self.log is None):
-                    self.log.log_event({"Name":"Training Epoch", "Episode Reward":self.dataset.avg_reward()})
-                    self.log.flush()
-                data_dict = self.dataset.as_dict()
-                if self.server is not None:
-                    self.server.give_dataset(data_dict)
-                self.dataset.reset()
-                self.next_action_id = 0
-                self.load_model()
+            if self.dataset.finished():
+                self.finish_epoch()
+
+    def finish_epoch(self):
+        if not (self.log is None):
+            self.log.log_event({"Name":"Training Epoch", "Episode Reward":self.dataset.avg_reward()})
+            self.log.flush()
+
+        data_dict = self.dataset.as_dict()
+        if self.server is not None:
+            TrpoAgent.n_finished += 1
+            last_agent = (TrpoAgent.n_finished == len(TrpoAgent.all_agents))
+            self.server.give_dataset(data_dict, last_agent)
+            if last_agent:
+                TrpoAgent.start_new_epoch()
+
+    def start_new_epoch():
+        for agent in TrpoAgent.all_agents:
+            agent.dataset.reset()
+            agent.load_model()
+            agent.next_action_id = 0
+        TrpoAgent.n_finished = 0
 
     def reset(self):
         action_id = self.next_action_id
@@ -176,9 +184,6 @@ class TrpoAgent():
 
     def act(self, ob):
 
-        if (not self.model_loaded):
-            self.load_model()
-            self.model_loaded = True
         ac, vpred = self.model.act(self.stochastic, ob)
         action_id = -1
 

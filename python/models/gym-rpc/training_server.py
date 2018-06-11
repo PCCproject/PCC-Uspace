@@ -28,6 +28,7 @@ MAX_ITERS = 1e9
 PORT = 8000
 
 TRAINING_CLIENTS = 1
+TRAINING_FLOWS = 1
 
 for arg in sys.argv:
     arg_val = "NULL"
@@ -38,6 +39,9 @@ for arg in sys.argv:
 
     if "--ml-port=" in arg:
         PORT = int(arg_val)
+
+    if "--ml-training-flows=" in arg:
+        TRAINING_FLOWS = int(arg_val)
 
     if "--ml-training-clients=" in arg:
         TRAINING_CLIENTS = int(arg_val)
@@ -56,13 +60,16 @@ for arg in sys.argv:
     
     if "--ml-cp-dir=" in arg:
         MODEL_CHECKPOINT_DIR = arg[arg.rfind("=") + 1:]
-   
+
+if TRAINING_FLOWS < TRAINING_CLIENTS:
+    TRAINING_FLOWS = TRAINING_CLIENTS
+
 model_params = model_param_set.ModelParameterSet(MODEL_NAME, MODEL_PATH)
 env = pcc_env.PccEnv(model_params)
 stoc = True
 if "--deterministic" in sys.argv:
     stoc = False
-data_agg = data_aggregator.DataAggregator(TRAINING_CLIENTS, model_params, env.observation_space.sample(), env.action_space.sample())
+data_agg = data_aggregator.DataAggregator(TRAINING_FLOWS, TRAINING_CLIENTS, model_params, env.observation_space.sample(), env.action_space.sample())
 
 def policy_fn(name, ob_space, ac_space): #pylint: disable=W0613
     return MlpPolicy(
@@ -77,8 +84,7 @@ def policy_fn(name, ob_space, ac_space): #pylint: disable=W0613
 def train(data_agg, env, policy_fn, finished_queue):
     sess = U.single_threaded_session()
     sess.__enter__()
-    trainer = trpo_mpi.TrpoTrainer(data_agg, None, env, policy_fn, 
-        timesteps_per_batch=model_params.ts_per_batch,
+    trainer = trpo_mpi.TrpoTrainer(data_agg, env, policy_fn, 
         max_kl=model_params.max_kl,
         cg_iters=model_params.cg_iters,
         cg_damping=model_params.cg_damping,
@@ -111,8 +117,8 @@ finished_queue = multiprocessing.Queue()
 p = multiprocessing.Process(target=train, args=[data_agg, env, policy_fn, finished_queue])
 p.start()
 
-def give_dataset(dataset):
-    data_agg.give_dataset(dataset)
+def give_dataset(dataset, block):
+    data_agg.give_dataset(dataset, block)
     return 0
 
 server.register_introspection_functions()

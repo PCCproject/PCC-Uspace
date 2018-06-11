@@ -18,10 +18,11 @@ class AsyncStash():
 
 class DataAggregator():
 
-    def __init__(self, replicas, model_params, example_ob, example_ac, norm_rewards=False):
+    def __init__(self, flows, replicas, model_params, example_ob, example_ac, norm_rewards=False):
+        self.flows = flows
         self.replicas = replicas
-        self.replica_size = model_params.ts_per_batch
-        self.batch_size = self.replica_size * replicas
+        self.flow_size = model_params.ts_per_batch
+        self.batch_size = self.flow_size * self.flows
         self.obs = np.array([example_ob for _ in range(self.batch_size)])
         self.rews = np.zeros(self.batch_size, 'float32')
         self.vpreds = np.zeros(self.batch_size, 'float32')
@@ -37,6 +38,7 @@ class DataAggregator():
         self.ep_rets = []
         self.ep_lens = []
         
+        self.cur_flow = 0
         self.cur_replica = 0
         self.next_run_updated = False
         self.next_run = -1
@@ -45,9 +47,9 @@ class DataAggregator():
         self.queue = multiprocessing.Queue()
         self.lock = multiprocessing.Lock()
         
-        self.replicas_done_training = 0
+        self.flows_done_training = 0
 
-    def give_dataset(self, dataset):
+    def give_dataset(self, dataset, block=False):
         obs = np.array(dataset["ob"])
         rews = np.array(dataset["rew"])
         vpreds = np.array(dataset["vpred"])
@@ -59,11 +61,11 @@ class DataAggregator():
             max_rew = np.max(rews)
             rews = (rews - min_rew) / (max_rew - min_rew)
         self.lock.acquire()
-        this_replica = self.cur_replica
+        this_flow = self.cur_flow
         if (self.next_run == -1):
             self.next_run = 1
-        start = self.cur_replica * self.replica_size
-        end = start + self.replica_size
+        start = self.cur_flow * self.flow_size
+        end = start + self.flow_size
         np.copyto(self.obs[start:end], obs)
         np.copyto(self.rews[start:end], rews)
         np.copyto(self.vpreds[start:end], vpreds)
@@ -72,25 +74,32 @@ class DataAggregator():
         np.copyto(self.prevacs[start:end], prevacs)
         self.ep_rets += dataset["ep_rets"]
         self.ep_lens += dataset["ep_lens"]
-        self.cur_replica += 1
+        self.cur_flow += 1
         if dataset["done_training"]:
-            self.replicas_done_training += 1
-        if (self.cur_replica == self.replicas):
-            all_done_training = (self.replicas_done_training == self.replicas)
-            self.cur_replica = 0
+            self.flows_done_training += 1
+        if (self.cur_flow == self.flows):
+            all_done_training = (self.flows_done_training == self.flows)
+            self.cur_flow = 0
             dataset = {"ob": self.obs, "rew": self.rews, "vpred": self.vpreds, "new": self.news,
                       "ac": self.acs, "prevac": self.prevacs, "nextvpred": 0,
                       "ep_rets": self.ep_rets, "ep_lens": self.ep_lens, "stop":all_done_training}
             self.queue.put(dataset)
-            self.replicas_done_training = 0
+            self.flows_done_training = 0
             self.ep_rets = []
             self.ep_lens = []
+        this_replica = -1
+        if block:
+            this_replica = self.cur_replica
+            self.cur_replica += 1
+            if self.cur_replica == self.replicas:
+                self.cur_replica = 0
         self.lock.release()
-        self.wait_for_new_model(this_replica)
+        if (block):
+            self.wait_for_new_model(this_replica)
 
     def wait_for_new_model(self, this_replica):
         print("Simulator " + str(this_replica) + " finished generating data")
-        while (not (self.next_released_replica >= this_replica and self.run_stash.pull() >= self.next_run)):
+        while (self.next_released_replica != this_replica or self.run_stash.pull() < self.next_run):
             time.sleep(0.05)
         self.next_released_replica = this_replica + 1
         if (self.next_released_replica == self.replicas):

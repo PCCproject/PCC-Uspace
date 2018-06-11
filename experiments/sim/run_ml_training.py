@@ -10,6 +10,8 @@ random.seed(int(time.time() * 1000000))
 
 dur = 120000000
 
+flows_per_link = 2
+
 model_name = "cur_model"
 for arg in sys.argv:
     if "--model-name=" in arg:
@@ -33,6 +35,7 @@ def run_endless_training(link):
    this_cmd.append("--test-dl=%f" % link["dl"])
    this_cmd.append("--test-buf=%d" % link["buf"])
    this_cmd.append("--test-plr=%f" % link["plr"])
+   this_cmd.append("--sim-n-copies=%d" % flows_per_link)
    this_cmd.append("--nonce=%d" % random.randint(1, 2e9))
    log_path = cfg.PCC_CONFIG["ML_MODEL_PATH"] + "/logs/"
    os.system("mkdir " + log_path)
@@ -68,7 +71,8 @@ server_cmd = [
     "--gamma=0.98",
     "--ml-cp-freq=5",
     "--ml-cp-dir=/home/njay2/PCC/deep-learning/python/models/gym-rpc/models/checkpoints/",
-    "--ml-training-clients=" + str(len(link_configs)),
+    "--ml-training-clients=%d" % len(link_configs),
+    "--ml-training-flows=%d" % (len(link_configs) * flows_per_link),
     "--ml-max-iters=6000"
 ]
 

@@ -33,7 +33,7 @@ class PccPythonRateController : public PccRateController {
   void GiveMiSample(const MonitorInterval& mi);
 
   int id;
-
+  
   PyObject* module;
   PyObject* give_sample_func;
   PyObject* get_rate_func;

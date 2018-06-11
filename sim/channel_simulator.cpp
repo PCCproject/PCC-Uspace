@@ -49,29 +49,37 @@ Simulator::Simulator(FILE* sender_config,
 
   double start_time = -1.0;
   
-  int sender_id = 0;
-  char sender_type[15];
-  char utility_tag[15];
-  char tmp;
-  while(fscanf(sender_config, "%s %lf", sender_type, &start_time) != EOF) {
-    printf("%s Sender %d: start at %4.0lf sec\n",
-        sender_type, sender_id, start_time);
-    fscanf(sender_config, "%c", &tmp);
-    if (tmp == ' ') {
-      fscanf(sender_config, "%s\n", utility_tag);
-      printf("  (Using %s utility function)\n", utility_tag);
-    } else {
-      utility_tag[0] = '\0';
+    int sender_id = 0;
+    char sender_type[15];
+    char utility_tag[15];
+    char tmp;
+    int n_copies = 1;
+    const char* sim_n_copies_str = Options::Get("--sim-n-copies=");
+    if (sim_n_copies_str != NULL) {
+        n_copies = atoi(sim_n_copies_str);
     }
 
-    EnqueueSendEvent(start_time, sender_id);
-    if (std::string(sender_type).compare("PCC") == 0) {
-      senders_.push_back(new PccSender(10000, 5, 0));
-      seq_numbers_.push_back(0);
-    }
+    while(fscanf(sender_config, "%s %lf", sender_type, &start_time) != EOF) {
+        for (int i = 0; i < n_copies; ++i) {
+            printf("%s Sender %d: start at %4.0lf sec\n",
+                sender_type, sender_id, start_time);
+            fscanf(sender_config, "%c", &tmp);
+            if (tmp == ' ') {
+              fscanf(sender_config, "%s\n", utility_tag);
+              printf("  (Using %s utility function)\n", utility_tag);
+            } else {
+              utility_tag[0] = '\0';
+            }
 
-    sender_id += 1;
-  }
+            EnqueueSendEvent(start_time, sender_id);
+            if (std::string(sender_type).compare("PCC") == 0) {
+              senders_.push_back(new PccSender(10000, 5, 0));
+              seq_numbers_.push_back(0);
+            }
+
+            sender_id += 1;
+        }
+    }
 }
 
 Simulator::~Simulator() {

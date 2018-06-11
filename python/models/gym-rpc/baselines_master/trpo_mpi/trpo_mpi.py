@@ -45,8 +45,7 @@ def add_vtarg_and_adv(seg, gamma, lam):
     seg["tdlamret"] = seg["adv"] + seg["vpred"]
 
 class TrpoTrainer():
-    def __init__(self, data_agg, agent, env, policy_func, *,
-            timesteps_per_batch,
+    def __init__(self, data_agg, env, policy_func, *,
             max_kl, cg_iters,
             gamma, lam,
             entcoeff=0.0,
@@ -64,7 +63,6 @@ class TrpoTrainer():
         self.checkpoint_num = 0
         self.agg = data_agg
 
-        self.timesteps_per_batch = timesteps_per_batch
         self.max_kl = max_kl
         self.cg_iters = cg_iters
         self.max_iters = max_iters
@@ -81,8 +79,6 @@ class TrpoTrainer():
         self.ac_space = env.action_space
 
         self.pi = policy_func("pi", self.ob_space, self.ac_space)
-        if (not agent is None):
-            agent.init(self.pi, timesteps_per_batch, self.ob_space.sample(), self.ac_space.sample())
         self.oldpi = policy_func("oldpi", self.ob_space, self.ac_space)
         self.atarg = tf.placeholder(dtype=tf.float32, shape=[None])  # Target advantage function (if applicable)
         self.ret = tf.placeholder(dtype=tf.float32, shape=[None])  # Empirical return
@@ -140,7 +136,10 @@ class TrpoTrainer():
         self.set_from_flat(th_init)
         self.vfadam.sync()
         self.cg_damping = cg_damping
-    
+   
+    def get_model(self):
+        return self.pi
+
     def train(self, model_name):
         seg_gen = traj_segment_generator(self.agg)
         

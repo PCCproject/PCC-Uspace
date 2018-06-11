@@ -17,7 +17,7 @@ cmd += " -log=" + log_dir + log
 cmd += " -pyhelper=" + pyhelper
 cmd += " -pypath=" + pypath
 cmd += " --deterministic"
-cmd += " --pcc-utility-calc=lin"
+cmd += " --pcc-utility-calc=linear"
 cmd += " --model-path=" + cfg.PCC_CONFIG["ML_MODEL_PATH"]
 cmd += " --model-name=" + model_name
 cmd += " --no-training"
@@ -39,7 +39,8 @@ os.system(cmd)
 grapher = cfg.PCC_CONFIG["REPO_DIR"] + "vis/pcc_grapher.py"
 graph_config = cfg.PCC_CONFIG["REPO_DIR"] + "vis/graphs/basic.json"
 
-cmd = "python " + grapher + " " + log_dir + " " + graph_config + " --output=graph.png"
+cmd = "python " + grapher + " " + log_dir + " " + graph_config
+#cmd += " --output=graph.png"
 
 print(cmd)
 os.system(cmd)

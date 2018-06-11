@@ -8,13 +8,13 @@ class ModelParameterSet:
     _default_hidden_layers = 3
     _default_hidden_size = 32
     _default_ts_per_batch = 4096
-    _default_max_kl = 0.0002
+    _default_max_kl = 0.0001
     _default_cg_iters = 10
     _default_cg_damping = 1e-3
     _default_gamma = 0.0
     _default_lam = 1.0
     _default_vf_iters = 3
-    _default_vf_stepsize = 1e-4
+    _default_vf_stepsize = 1e-5
     _default_entcoeff = 0.0
 
     def __init__(self, name, path, args=sys.argv):

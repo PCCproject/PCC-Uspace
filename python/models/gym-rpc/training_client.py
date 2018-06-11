@@ -24,7 +24,6 @@ DELTA_SCALE = 0.04
 RESET_RATE_MIN = 5.0
 RESET_RATE_MAX = 100.0
 
-RESET_COUNTER = 0
 RESET_INTERVAL = 900
 
 MODEL_PATH= "/tmp/"
@@ -74,7 +73,6 @@ s = None
 if ("--no-training" not in sys.argv):
     s = xmlrpc.client.ServerProxy('http://localhost:%s' % PORT)
 
-
 model_params = model_param_set.ModelParameterSet(MODEL_NAME, MODEL_PATH)
 env = pcc_env.PccEnv(model_params)
 stoc = True
@@ -84,8 +82,6 @@ if "--deterministic" in sys.argv:
 log = None
 if LOG_NAME is not None:
     log = pcc_event_log.PccEventLog(LOG_NAME, nonce=NONCE)
-
-agent = trpo_agent.TrpoAgent(s, model_name=MODEL_PATH + MODEL_NAME, stochastic=stoc, log=log)
 
 def policy_fn(name, ob_space, ac_space): #pylint: disable=W0613
     return MlpPolicy(
@@ -99,8 +95,7 @@ def policy_fn(name, ob_space, ac_space): #pylint: disable=W0613
     
 sess = U.single_threaded_session()
 sess.__enter__()
-trainer = trpo_mpi.TrpoTrainer(None, agent, env, policy_fn, 
-    timesteps_per_batch=model_params.ts_per_batch,
+trainer = trpo_mpi.TrpoTrainer(None, env, policy_fn, 
     max_kl=model_params.max_kl,
     cg_iters=model_params.cg_iters,
     cg_damping=model_params.cg_damping,
@@ -113,15 +108,32 @@ trainer = trpo_mpi.TrpoTrainer(None, agent, env, policy_fn,
 )
 
 class PccGymDriver():
-    def __init__(self):
+    
+    flow_lookup = {}
+    
+    def __init__(self, flow_id):
         global RESET_RATE_MIN
         global RESET_RATE_MAX
         global HISTORY_LEN
+
+        self.reset_counter = 0
 
         self.waiting_action_ids = deque([])
         self.current_rate = random.uniform(RESET_RATE_MIN, RESET_RATE_MAX)
         self.history = pcc_env.PccHistory(model_params.history_len)
         self.actions = {}
+
+        self.agent = trpo_agent.TrpoAgent(
+            env,
+            s,
+            model_name=MODEL_PATH + MODEL_NAME,
+            model_params=model_params,
+            model=trainer.get_model(),
+            stochastic=stoc,
+            log=log
+        )
+
+        PccGymDriver.flow_lookup[flow_id] = self
 
     def get_next_waiting_action_id(self):
         if len(self.waiting_action_ids) == 0:
@@ -136,6 +148,21 @@ class PccGymDriver():
     def get_current_rate(self):
         return self.current_rate
 
+    def get_rate(self):
+        global RESET_INTERVAL
+        prev_rate = self.get_current_rate()
+        action_id, rate_delta = self.agent.act(self.get_current_observation())
+        self.push_waiting_action_id(action_id, rate_delta)
+        rate = apply_rate_delta(prev_rate, rate_delta)
+        self.reset_counter += 1
+        if (self.reset_counter >= RESET_INTERVAL):
+            self.reset()
+            rate = self.get_current_rate()
+    
+        self.set_current_rate(rate)
+        return float(rate * 1e6)
+
+
     def set_current_rate(self, new_rate):
         self.current_rate = new_rate
 
@@ -147,6 +174,12 @@ class PccGymDriver():
 
     def reset_history(self):
         self.history = pcc_env.PccHistory(model_params.history_len)
+    
+    def reset(self):
+        self.agent.reset()
+        self.reset_rate()
+        self.reset_history()
+        self.reset_counter = 0
 
     def get_current_observation(self):
         return self.history.as_array()
@@ -154,22 +187,26 @@ class PccGymDriver():
     def get_action(self, action_id):
         return self.actions[action_id]
 
-driver = PccGymDriver()
-
-def give_sample(sending_rate, recv_rate, latency, loss, lat_infl, utility, stop=False):
-    global driver
-    driver.record_observation(
-        pcc_env.PccMonitorInterval(
-            sending_rate,
-            recv_rate,
-            latency,
-            loss,
-            lat_infl,
-            utility
+    def give_sample(self, sending_rate, recv_rate, latency, loss, lat_infl, utility, stop):
+        self.record_observation(
+            pcc_env.PccMonitorInterval(
+                sending_rate,
+                recv_rate,
+                latency,
+                loss,
+                lat_infl,
+                utility
+            )
         )
-    )
-    action_id = driver.get_next_waiting_action_id()
-    agent.give_reward(action_id, driver.get_action(action_id), utility)
+        action_id = self.get_next_waiting_action_id()
+        self.agent.give_reward(action_id, self.get_action(action_id), utility)
+
+    def get_by_flow_id(flow_id):
+        return PccGymDriver.flow_lookup[flow_id]
+
+def give_sample(flow_id, sending_rate, recv_rate, latency, loss, lat_infl, utility, stop=False):
+    driver = PccGymDriver.get_by_flow_id(flow_id)
+    driver.give_sample(sending_rate, recv_rate, latency, loss, lat_infl, utility, stop)
 
 def apply_rate_delta(rate, rate_delta):
     global MIN_RATE
@@ -194,27 +231,13 @@ def apply_rate_delta(rate, rate_delta):
 
     return rate
     
-def reset():
-    global agent
-    global RESET_COUNTER
-    agent.reset()
-    driver.reset_rate()
-    driver.reset_history()
-    RESET_COUNTER = 0
+def reset(flow_id):
+    driver = PccGymDriver.get_by_flow_id(flow_id)
+    driver.reset()
 
-def get_rate():
-    global driver
-    global RESET_COUNTER
-    global RESET_INTERVAL
-    prev_rate = driver.get_current_rate()
-    action_id, rate_delta = agent.act(driver.get_current_observation())
-    driver.push_waiting_action_id(action_id, rate_delta)
-    rate = apply_rate_delta(prev_rate, rate_delta)
-    RESET_COUNTER += 1
-    if (RESET_COUNTER >= RESET_INTERVAL):
-        reset()
-        rate = driver.get_current_rate()
-    
-    driver.set_current_rate(rate)
-    return float(rate * 1e6)
+def get_rate(flow_id):
+    driver = PccGymDriver.get_by_flow_id(flow_id)
+    return driver.get_rate()
 
+def init(flow_id):
+    driver = PccGymDriver(flow_id)
