@@ -144,7 +144,7 @@ CUDT::CUDT()
 	m_pCC = m_pCCFactory->create();
 	m_pCache = NULL;
 
-    pcc_sender = new PccSender(10000, 5, 10);
+    pcc_sender = new PccSender(10000, 2, 10);
 	packet_tracker_ = new PacketTracker<int32_t, PacketId>(&m_SendBlockCond);
 
 	// Initial status
@@ -208,7 +208,7 @@ CUDT::CUDT(const CUDT& ancestor)
     }
 	m_pCC = m_pCCFactory->create();
 
-    pcc_sender = new PccSender(10000, 5, 10);
+    pcc_sender = new PccSender(10000, 2, 10);
 	packet_tracker_ = new PacketTracker<int32_t, PacketId>(&m_SendBlockCond);
 
 	// Initial status
