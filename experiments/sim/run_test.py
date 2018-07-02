@@ -10,9 +10,11 @@ os.system("mkdir " + log_dir)
 pyhelper = "training_client"
 pypath = cfg.PCC_CONFIG["PYTHON_ML_DIR"]
 model_name = "cur_model"
+#model_name = "model_hist3_depth0_width32"
+#model_name = "saved_models/m1/cur_model"
 
 cmd = cfg.PCC_CONFIG["SIM_DIR"] + "sim_test"
-cmd += " --sim-dur=30"
+cmd += " --sim-dur=300"
 cmd += " -log=" + log_dir + log
 cmd += " -pyhelper=" + pyhelper
 cmd += " -pypath=" + pypath

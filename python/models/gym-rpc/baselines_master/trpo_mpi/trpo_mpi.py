@@ -159,8 +159,8 @@ class TrpoTrainer():
         timesteps_so_far = 0
         iters_so_far = 0
         tstart = time.time()
-        lenbuffer = deque(maxlen=40)  # rolling buffer for episode lengths
-        rewbuffer = deque(maxlen=40)  # rolling buffer for episode rewards
+        lenbuffer = deque(maxlen=200)  # rolling buffer for episode lengths
+        rewbuffer = deque(maxlen=200)  # rolling buffer for episode rewards
 
         assert sum([self.max_iters > 0, self.max_timesteps > 0, self.max_episodes > 0]) == 1
 
@@ -216,7 +216,7 @@ class TrpoTrainer():
                 logger.log("Got zero gradient. not updating")
             else:
                 stepdir = cg(fisher_vector_product, g, cg_iters=self.cg_iters, verbose=True)
-                
+
                 if (not np.isfinite(stepdir).all()):
                     print("seg[ob]: " + str(seg["ob"]))
                     print("seg[ac]: " + str(seg["ac"]))

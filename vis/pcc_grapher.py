@@ -321,7 +321,7 @@ if graph_config["type"] == "event":
                 handles.append(handle)
                 plt.legend(handles, legend)
                 axes.set_ylabel(y_axis_name)
-                axes.axhline(4e7 - 4.5e7, linestyle="dashed", color="b")
+                #axes.axhline(4e7 - 4.5e7, linestyle="dashed", color="b")
     
     if add_model_plot:
         graph_net_estimates(axes[-1]) 

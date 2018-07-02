@@ -16,7 +16,10 @@ float PccLinearUtilityCalculator::CalculateUtility(PccMonitorIntervalAnalysisGro
   float avg_rtt = cur_mi.GetObsRtt();
   float loss_rate = cur_mi.GetObsLossRate();
 
-  float utility = throughput - 1000 * avg_rtt - 1e8 * loss_rate;
+  float utility = pow(throughput, 0.9) - 1000 * avg_rtt - 11.35 * throughput * loss_rate;
+  utility = throughput - 1000 * avg_rtt - 1e8 * loss_rate;
+
+  //utility = -1 * abs(cur_mi.GetObsSendingRate() - 1e7);
 
   PccLoggableEvent event("Calculate Utility", "--log-utility-calc-lite");
   event.AddValue("Utility", utility);

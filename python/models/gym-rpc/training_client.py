@@ -24,7 +24,7 @@ DELTA_SCALE = 0.04
 RESET_RATE_MIN = 5.0
 RESET_RATE_MAX = 100.0
 
-RESET_INTERVAL = 900
+RESET_INTERVAL = 2700
 
 MODEL_PATH= "/tmp/"
 MODEL_NAME = "cur_model"
@@ -90,7 +90,7 @@ def policy_fn(name, ob_space, ac_space): #pylint: disable=W0613
         ac_space=env.action_space,
         hid_size=model_params.hidden_size,
         num_hid_layers=model_params.hidden_layers,
-        gaussian_fixed_var=True
+        gaussian_fixed_var=False
     )
     
 sess = U.single_threaded_session()
@@ -126,11 +126,13 @@ class PccGymDriver():
         self.agent = trpo_agent.TrpoAgent(
             env,
             s,
+            flow_id,
             model_name=MODEL_PATH + MODEL_NAME,
             model_params=model_params,
             model=trainer.get_model(),
             stochastic=stoc,
-            log=log
+            log=log,
+            nonce=NONCE
         )
 
         PccGymDriver.flow_lookup[flow_id] = self

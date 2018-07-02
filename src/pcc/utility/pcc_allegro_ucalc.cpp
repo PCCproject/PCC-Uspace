@@ -1,5 +1,5 @@
 
-#include "pcc_vivace_ucalc.h"
+#include "pcc_allegro_ucalc.h"
 
 namespace {
 // Number of probing MonitorIntervals necessary for Probing.
@@ -18,7 +18,7 @@ const float kExponent = 0.9;
 const float kBitsPerMegabit = 1024 * 1024;
 }  // namespace
 
-float PccVivaceUtilityCalculator::CalculateUtility(PccMonitorIntervalAnalysisGroup& past_monitor_intervals,
+float PccAllegroUtilityCalculator::CalculateUtility(PccMonitorIntervalAnalysisGroup& past_monitor_intervals,
         MonitorInterval& cur_mi) {
 
   float throughput = cur_mi.GetObsThroughput();

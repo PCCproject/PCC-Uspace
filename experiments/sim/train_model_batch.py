@@ -3,12 +3,6 @@ import os
 
 model_name = "cur_model"
 
-model_params = [
-    "--history-len=3",
-    "--hid-layers=3",
-    "--hid-size=32"
-]
-
 def get_model_name(hist, depth, width):
     return "model_hist%d_depth%d_width%d" % (hist, depth, width)
 
@@ -40,10 +34,8 @@ def run_training(hist, depth, width, background=True):
 model_params = [
     [3, 3, 32],
     [1, 3, 32],
-    [2, 3, 32],
     [3, 0, 32],
     [3, 1, 32],
-    [3, 3, 1],
     [3, 3, 4]
 ]
 

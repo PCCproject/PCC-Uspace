@@ -6,7 +6,10 @@ import sys
 import os
 
 class TrpoDataset():
-    def __init__(self, batch_size, example_ob, example_ac):
+    def __init__(self, flow_id, nonce, batch_size, example_ob, example_ac):
+        self.flow_id = flow_id
+        self.nonce = nonce
+
         self.batch_size = batch_size
         self.obs = np.array([example_ob for _ in range(batch_size)])
         self.rews = np.zeros(batch_size, 'float32')
@@ -53,11 +56,13 @@ class TrpoDataset():
 
     def reset_if_in_dataset(self, action_id):
         if (action_id >= 0 and action_id < self.batch_size):
-            self.news[action_id] = 0
+            self.news[action_id] = 1
 
     def reset_near_action(self, action_id):
         if (len(self.resets) > 0 and self.resets[-1] == action_id):
             return
+        self.reset_if_in_dataset(action_id - 1)
+        self.reset_if_in_dataset(action_id + 0)
         self.reset_if_in_dataset(action_id + 1)
         self.ep_rets.append(self.cur_ep_ret)
         self.ep_lens.append(self.cur_ep_len)
@@ -88,7 +93,8 @@ class TrpoDataset():
             stop_training = True
         result = {"ob": self.obs.tolist(), "rew": self.rews.tolist(), "vpred": self.vpreds.tolist(), "new": self.news.tolist(),
                   "ac": self.acs.tolist(), "prevac": self.prevacs.tolist(), "nextvpred": 0,
-                  "ep_rets": self.ep_rets, "ep_lens": self.ep_lens, "done_training":stop_training}
+                  "ep_rets": self.ep_rets, "ep_lens": self.ep_lens,
+                  "done_training":stop_training, "flow_id":self.flow_id, "nonce":self.nonce}
         return result
 
     def avg_reward(self):
@@ -120,7 +126,7 @@ class TrpoAgent():
     n_finished = 0
     all_agents = []
 
-    def __init__(self, env, server, model_name, model_params, model, stochastic=True, log=None):
+    def __init__(self, env, server, flow_id, model_name, model_params, model, stochastic=True, log=None, nonce=None):
         self.model_name = model_name
         self.model_loaded = False
         self.server = server
@@ -135,7 +141,9 @@ class TrpoAgent():
 
         self.actions = {}
 
-        self.dataset = TrpoDataset(model_params.ts_per_batch,
+        self.flow_id = flow_id
+        self.nonce = nonce
+        self.dataset = TrpoDataset(flow_id, nonce, model_params.ts_per_batch,
             env.observation_space.sample(), env.action_space.sample())
         self.load_model()
 

@@ -53,9 +53,9 @@ const size_t kInitialRttMicroseconds = 1 * 1000;
 // Number of bits per byte.
 const size_t kBitsPerByte = 8;
 // Duration of monitor intervals as a proportion of RTT.
-const float kMonitorIntervalDuration = 1.5f;
+const float kMonitorIntervalDuration = 0.5f;
 // Minimum number of packets in a monitor interval.
-const size_t kMinimumPacketsPerInterval = 20;
+const size_t kMinimumPacketsPerInterval = 1;
 }  // namespace
 
 #ifdef QUIC_PORT

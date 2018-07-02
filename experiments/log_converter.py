@@ -46,5 +46,7 @@ model_params = [
     [3, 1, 4]
 ]
 
+model_params = [[3, 3, 32]]
+
 for p in model_params:
     convert_log(p[0], p[1], p[2])

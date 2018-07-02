@@ -10,7 +10,8 @@ random.seed(int(time.time() * 1000000))
 
 dur = 120000000
 
-flows_per_link = 2
+n_replicas = 1
+flows_per_link = 1
 
 model_name = "cur_model"
 for arg in sys.argv:
@@ -24,7 +25,7 @@ cmd = [
     "--pcc-utility-calc=linear",
     "--model-path=" + cfg.PCC_CONFIG["ML_MODEL_PATH"],
     "--pcc-rate-control=python",
-    "--sim-dur=100000"
+    "--sim-dur=50000"
 ]
 
 cmd += sys.argv
@@ -52,17 +53,22 @@ plrs = [0.0, 0.01, 0.03]
 """
 
 bws = [16, 64]
-dls = [0.03, 0.06]
+dls = [0.03, 0.12]
+bufs = [50, 500]
+plrs = [0.00, 0.01]
+
+dls = [0.03, 0.12]
 bufs = [500]
 plrs = [0.00]
 
 link_configs = []
 
-for bw in bws:
-    for dl in dls:
-        for buf in bufs:
-            for plr in plrs:
-                link_configs.append({"bw":bw, "dl":dl, "buf":buf, "plr":plr})
+for i in range(0, n_replicas):
+    for bw in bws:
+        for dl in dls:
+            for buf in bufs:
+                for plr in plrs:
+                    link_configs.append({"bw":bw, "dl":dl, "buf":buf, "plr":plr})
 
 server_cmd = [
     "python3",
@@ -73,7 +79,7 @@ server_cmd = [
     "--ml-cp-dir=/home/njay2/PCC/deep-learning/python/models/gym-rpc/models/checkpoints/",
     "--ml-training-clients=%d" % len(link_configs),
     "--ml-training-flows=%d" % (len(link_configs) * flows_per_link),
-    "--ml-max-iters=6000"
+    "--ml-max-iters=3000"
 ]
 
 server_cmd += sys.argv

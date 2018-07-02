@@ -16,11 +16,34 @@ class AsyncStash():
         self.queue.put(obj)
         return obj
 
+class Normalizer():
+    def __init__(self, sqrt=False):
+        self.min = None
+        self.max = None
+        self.sqrt = sqrt
+
+    def normalize(self, data):
+        if self.min is None:
+            self.min = np.min(data)
+
+        if self.max is None:
+            self.max = np.max(data)
+
+        self.min = min(self.min, np.min(data))
+        self.max = max(self.max, np.max(data))
+
+        result = (data - self.min) / (self.max - self.min)
+        if self.sqrt:
+            result = np.sqrt(result)
+
+        return result
+
 class DataAggregator():
 
     def __init__(self, flows, replicas, model_params, example_ob, example_ac, norm_rewards=False):
         self.flows = flows
         self.replicas = replicas
+        self.flows_per_replica = flows / replicas
         self.flow_size = model_params.ts_per_batch
         self.batch_size = self.flow_size * self.flows
         self.obs = np.array([example_ob for _ in range(self.batch_size)])
@@ -49,6 +72,8 @@ class DataAggregator():
         
         self.flows_done_training = 0
 
+        self.normalizers = {}
+
     def give_dataset(self, dataset, block=False):
         obs = np.array(dataset["ob"])
         rews = np.array(dataset["rew"])
@@ -56,11 +81,14 @@ class DataAggregator():
         news = np.array(dataset["new"])
         acs = np.array(dataset["ac"])
         prevacs = np.array(dataset["prevac"])
-        if (self.norm_rewards):
-            min_rew = np.min(rews)
-            max_rew = np.max(rews)
-            rews = (rews - min_rew) / (max_rew - min_rew)
         self.lock.acquire()
+        if self.norm_rewards:
+            print("NORMING REWARDS")
+            nonce = dataset["nonce"]
+            if nonce not in self.normalizers.keys():
+                self.normalizers[nonce] = Normalizer(sqrt=True)
+            norm = self.normalizers[nonce]
+            rews = norm.normalize(rews)
         this_flow = self.cur_flow
         if (self.next_run == -1):
             self.next_run = 1

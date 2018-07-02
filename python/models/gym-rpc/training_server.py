@@ -69,7 +69,8 @@ env = pcc_env.PccEnv(model_params)
 stoc = True
 if "--deterministic" in sys.argv:
     stoc = False
-data_agg = data_aggregator.DataAggregator(TRAINING_FLOWS, TRAINING_CLIENTS, model_params, env.observation_space.sample(), env.action_space.sample())
+data_agg = data_aggregator.DataAggregator(TRAINING_FLOWS, TRAINING_CLIENTS, model_params,
+env.observation_space.sample(), env.action_space.sample(), norm_rewards=False)
 
 def policy_fn(name, ob_space, ac_space): #pylint: disable=W0613
     return MlpPolicy(
@@ -78,7 +79,7 @@ def policy_fn(name, ob_space, ac_space): #pylint: disable=W0613
         ac_space=env.action_space,
         hid_size=model_params.hidden_size,
         num_hid_layers=model_params.hidden_layers,
-        gaussian_fixed_var=True
+        gaussian_fixed_var=False
     )
 
 def train(data_agg, env, policy_fn, finished_queue):
