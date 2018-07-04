@@ -8,10 +8,10 @@ import random
 
 random.seed(int(time.time() * 1000000))
 
-dur = 120000000
+dur = 7200
 
 n_replicas = 1
-flows_per_link = 1
+flows_per_link = 2
 
 model_name = "cur_model"
 for arg in sys.argv:
@@ -53,11 +53,7 @@ plrs = [0.0, 0.01, 0.03]
 """
 
 bws = [16, 64]
-dls = [0.03, 0.12]
-bufs = [50, 500]
-plrs = [0.00, 0.01]
-
-dls = [0.03, 0.12]
+dls = [0.016, 0.064]
 bufs = [500]
 plrs = [0.00]
 
@@ -74,7 +70,7 @@ server_cmd = [
     "python3",
     cfg.PCC_CONFIG["PYTHON_ML_DIR"] + "training_server.py",
     "--model-path=" + cfg.PCC_CONFIG["ML_MODEL_PATH"],
-    "--gamma=0.98",
+    "--gamma=0.00",
     "--ml-cp-freq=5",
     "--ml-cp-dir=/home/njay2/PCC/deep-learning/python/models/gym-rpc/models/checkpoints/",
     "--ml-training-clients=%d" % len(link_configs),
@@ -99,6 +95,8 @@ sleep_increment = 1
 while (time_slept < dur and server_proc.poll() is None):
     time.sleep(sleep_increment)
     time_slept += sleep_increment
+
+print("Server process finished polling")
 
 for proc in client_procs:
     proc.kill()

@@ -6,6 +6,10 @@ PccUtilityCalculator* PccUtilityCalculatorFactory::Create(const std::string& nam
         return new PccVivaceUtilityCalculator(log);
     } else if (name == "linear") {
         return new PccLinearUtilityCalculator(log);
+    } else if (name == "loss-only") {
+        return new PccLossOnlyUtilityCalculator(log);
+    } else if (name == "copa") {
+        return new PccCopaUtilityCalculator(log);
     } else if (name == "ixp") {
         return new PccIxpUtilityCalculator(log);
     }

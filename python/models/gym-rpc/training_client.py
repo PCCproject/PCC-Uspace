@@ -18,11 +18,14 @@ if not hasattr(sys, 'argv'):
 
 MIN_RATE = 0.5
 MAX_RATE = 500.0
-#DELTA_SCALE = 0.01
-DELTA_SCALE = 0.04
+DELTA_SCALE = 0.005
+#DELTA_SCALE = 0.04
 
 RESET_RATE_MIN = 5.0
 RESET_RATE_MAX = 100.0
+
+RESET_RATE_MIN = 30.0
+RESET_RATE_MAX = 30.0
 
 RESET_INTERVAL = 2700
 
@@ -90,7 +93,7 @@ def policy_fn(name, ob_space, ac_space): #pylint: disable=W0613
         ac_space=env.action_space,
         hid_size=model_params.hidden_size,
         num_hid_layers=model_params.hidden_layers,
-        gaussian_fixed_var=False
+        gaussian_fixed_var=True
     )
     
 sess = U.single_threaded_session()

@@ -15,6 +15,8 @@ from xmlrpc.server import SimpleXMLRPCServer
 from xmlrpc.server import SimpleXMLRPCRequestHandler
 import socketserver
 
+import tensorflow as tf
+
 if not hasattr(sys, 'argv'):
     sys.argv  = ['']
 
@@ -29,6 +31,8 @@ PORT = 8000
 
 TRAINING_CLIENTS = 1
 TRAINING_FLOWS = 1
+
+should_load_model = False
 
 for arg in sys.argv:
     arg_val = "NULL"
@@ -61,6 +65,17 @@ for arg in sys.argv:
     if "--ml-cp-dir=" in arg:
         MODEL_CHECKPOINT_DIR = arg[arg.rfind("=") + 1:]
 
+    if arg == "--load-model":
+        should_load_model = True
+
+def load_model():
+    if os.path.isfile(MODEL_PATH + MODEL_NAME + ".meta"):
+        saver = tf.train.Saver()
+        saver.restore(tf.get_default_session(), MODEL_PATH + MODEL_NAME)
+    else:
+        print("ERROR: Could not load model " + MODEL_PATH + MODEL_NAME)
+        exit(-1)
+
 if TRAINING_FLOWS < TRAINING_CLIENTS:
     TRAINING_FLOWS = TRAINING_CLIENTS
 
@@ -70,7 +85,7 @@ stoc = True
 if "--deterministic" in sys.argv:
     stoc = False
 data_agg = data_aggregator.DataAggregator(TRAINING_FLOWS, TRAINING_CLIENTS, model_params,
-env.observation_space.sample(), env.action_space.sample(), norm_rewards=False)
+env.observation_space.sample(), env.action_space.sample(), norm_rewards=True)
 
 def policy_fn(name, ob_space, ac_space): #pylint: disable=W0613
     return MlpPolicy(
@@ -79,7 +94,7 @@ def policy_fn(name, ob_space, ac_space): #pylint: disable=W0613
         ac_space=env.action_space,
         hid_size=model_params.hidden_size,
         num_hid_layers=model_params.hidden_layers,
-        gaussian_fixed_var=False
+        gaussian_fixed_var=True
     )
 
 def train(data_agg, env, policy_fn, finished_queue):
@@ -99,6 +114,8 @@ def train(data_agg, env, policy_fn, finished_queue):
         checkpoint_freq=MODEL_CHECKPOINT_FREQ,
         checkpoint_dir=MODEL_CHECKPOINT_DIR
     )
+    if (should_load_model):
+        load_model()
     trainer.train(model_params.path + model_params.name)
     print("Shutting down server")
     finished_queue.put(1)
@@ -137,3 +154,6 @@ p.join()
 
 print("Server finished serving")
 server.server_close()
+
+print("Server closed")
+exit(-1)

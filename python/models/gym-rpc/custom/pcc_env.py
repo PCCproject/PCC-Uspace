@@ -30,7 +30,7 @@ class PccMonitorInterval():
         self.rate = rate
         self.recv_rate = recv_rate
         self.latency = latency
-        self.loss = 1.0 - loss
+        self.loss = loss
         self.lat_infl = lat_infl
         self.utility = utility
 

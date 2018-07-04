@@ -6,5 +6,7 @@
 #include "pcc_allegro_ucalc.h"
 #include "pcc_ixp_ucalc.h"
 #include "pcc_lin_ucalc.h"
+#include "pcc_loss_only_ucalc.h"
+#include "pcc_copa_ucalc.h"
 
 #endif

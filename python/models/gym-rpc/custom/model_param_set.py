@@ -4,7 +4,7 @@ if not hasattr(sys, 'argv'):
     sys.argv = ['']
 
 class ModelParameterSet:
-    _default_history_len = 3
+    _default_history_len = 10
     _default_hidden_layers = 3
     _default_hidden_size = 32
     _default_ts_per_batch = 8192

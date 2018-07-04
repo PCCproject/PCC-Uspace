@@ -1,5 +1,5 @@
 
-#include "pcc_vivace_ucalc.h"
+#include "pcc_loss_only_ucalc.h"
 
 namespace {
 // Number of probing MonitorIntervals necessary for Probing.
@@ -18,7 +18,7 @@ const float kExponent = 0.9;
 const float kBitsPerMegabit = 1024 * 1024;
 }  // namespace
 
-float PccVivaceUtilityCalculator::CalculateUtility(PccMonitorIntervalAnalysisGroup& past_monitor_intervals,
+float PccLossOnlyUtilityCalculator::CalculateUtility(PccMonitorIntervalAnalysisGroup& past_monitor_intervals,
         MonitorInterval& cur_mi) {
 
   float throughput = cur_mi.GetObsThroughput();
@@ -27,14 +27,12 @@ float PccVivaceUtilityCalculator::CalculateUtility(PccMonitorIntervalAnalysisGro
   float avg_rtt = cur_mi.GetObsRtt();
   float loss_rate = cur_mi.GetObsLossRate();
 
-  float rtt_contribution = 900 * rtt_inflation;
   float loss_contribution = 11.35 * loss_rate;
   float sending_factor = kAlpha * pow(sending_rate_mbps, kExponent);
   loss_contribution *= -1.0 * sending_rate_mbps;
-  rtt_contribution *= -1.0 * sending_rate_mbps;
   
-  float utility = sending_factor + loss_contribution + rtt_contribution;
-
+  float utility = sending_factor + loss_contribution;
+  
   PccLoggableEvent event("Calculate Utility", "--log-utility-calc-lite");
   event.AddValue("Utility", utility);
   event.AddValue("MI Start Time", cur_mi.GetStartTime());

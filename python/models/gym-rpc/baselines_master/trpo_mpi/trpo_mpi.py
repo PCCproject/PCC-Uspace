@@ -154,7 +154,6 @@ class TrpoTrainer():
             assert isinstance(x, np.ndarray)
             return x
 
-
         episodes_so_far = 0
         timesteps_so_far = 0
         iters_so_far = 0
@@ -192,7 +191,22 @@ class TrpoTrainer():
             add_vtarg_and_adv(seg, self.gamma, self.lam)
 
             ob, ac, atarg, tdlamret = seg["ob"], seg["ac"], seg["adv"], seg["tdlamret"]
-      
+     
+            """
+            if iters_so_far == 100:
+                print('{"Experiment Parameters":{},"Log Version":"njay-1","Events":[')
+                for i in range(0, len(ob)):
+                    print('{"Name":"Decision","Number":%d,\n' % i)
+                    print('"ob":"%s",\n' % str(ob[i]))
+                    print('"ac":%f,\n' % ac[i])
+                    print('"rew":%f,\n' % seg["rew"][i])
+                    print('"adv":%f,\n' % atarg[i])
+                    print('"vpred":%f,\n' % seg["vpred"][i])
+                    print('"tdlamret":%f\n},' % tdlamret[i])
+                print(']')
+                exit(0)
+            """
+
             vpredbefore = seg["vpred"]  # predicted value function before udpate
             atarg = (atarg - atarg.mean()) / atarg.std()  # standardized advantage function estimate
 
@@ -267,6 +281,7 @@ class TrpoTrainer():
 
             logger.record_tabular("DensityRew", np.mean(rewbuffer) / np.mean(lenbuffer))
             logger.record_tabular("EpLenMean", np.mean(lenbuffer))
+            logger.record_tabular("VpredMean", np.mean(seg["vpred"]))
             #logger.record_tabular("EpRewMean", np.mean(rewbuffer))
             #logger.record_tabular("EpThisIter", len(lens))
             episodes_so_far += len(lens)

@@ -10,7 +10,10 @@ os.system("mkdir " + log_dir)
 pyhelper = "training_client"
 pypath = cfg.PCC_CONFIG["PYTHON_ML_DIR"]
 model_name = "cur_model"
-#model_name = "model_hist3_depth0_width32"
+model_name = "model_h10_d3_w32_ulinear"
+model_name = "model_h10_d3_w32_uloss-only"
+model_name = "model_h10_d3_w32_ucopa"
+model_name = "model_h10_d3_w32_uvivace"
 #model_name = "saved_models/m1/cur_model"
 
 cmd = cfg.PCC_CONFIG["SIM_DIR"] + "sim_test"
@@ -19,7 +22,7 @@ cmd += " -log=" + log_dir + log
 cmd += " -pyhelper=" + pyhelper
 cmd += " -pypath=" + pypath
 cmd += " --deterministic"
-cmd += " --pcc-utility-calc=linear"
+cmd += " --pcc-utility-calc=vivace"
 cmd += " --model-path=" + cfg.PCC_CONFIG["ML_MODEL_PATH"]
 cmd += " --model-name=" + model_name
 cmd += " --no-training"
@@ -42,7 +45,7 @@ grapher = cfg.PCC_CONFIG["REPO_DIR"] + "vis/pcc_grapher.py"
 graph_config = cfg.PCC_CONFIG["REPO_DIR"] + "vis/graphs/basic.json"
 
 cmd = "python " + grapher + " " + log_dir + " " + graph_config
-#cmd += " --output=graph.png"
+cmd += " --output=graph.png"
 
 print(cmd)
 os.system(cmd)

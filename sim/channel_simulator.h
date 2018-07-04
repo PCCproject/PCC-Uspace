@@ -7,6 +7,8 @@
 //#include "PccSender/rinforzando_sender.h"
 #include "../src/pcc/pcc_sender.h"
 
+#define MAX_RTT_DEVIATION 3
+
 #include <stdio.h>
 #include <map>
 #include <vector>
@@ -97,6 +99,7 @@ class Simulator {
 
   double bandwidth_; // in Mbps
   double base_rtt_; // in seconds
+  double rtt_deviation_; // in seconds
   double plr_; // probabilistic loss rate
   double duration_; // in seconds
 

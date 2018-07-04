@@ -32,6 +32,8 @@ class TrpoDataset():
         self.term_new = 0
 
         self.epoch_rews = []
+        self.epochs_since_best = 0
+        self.best_mean_epoch_rew = None
 
     def reset(self):
         self.n_actions = 0
@@ -61,6 +63,7 @@ class TrpoDataset():
     def reset_near_action(self, action_id):
         if (len(self.resets) > 0 and self.resets[-1] == action_id):
             return
+        self.reset_if_in_dataset(action_id - 2)
         self.reset_if_in_dataset(action_id - 1)
         self.reset_if_in_dataset(action_id + 0)
         self.reset_if_in_dataset(action_id + 1)
@@ -71,26 +74,36 @@ class TrpoDataset():
         self.resets.append(action_id)
 
     def is_rew_stable(self):
-        dur = 200
+        dur = 20
 
-        if len(self.epoch_rews) < 2 * dur:
+        if len(self.epoch_rews) < dur:
             return False
 
-        first_mean = sum(self.epoch_rews[-2 * dur:-1 * dur]) / dur
-        second_mean = sum(self.epoch_rews[-1 * dur:]) / dur
-
-        stable = (abs(2.0 * (first_mean - second_mean) / (first_mean + second_mean)) < 0.01)
-
-        if stable:
-            print("Reward stable: %f, %f" % (first_mean, second_mean))
+        cur_mean_rew = sum(self.epoch_rews[-1 * dur:]) / dur
+        if (self.best_mean_epoch_rew is None or cur_mean_rew > self.best_mean_epoch_rew):
+            print("Improved (%s -> %f)" % (str(self.best_mean_epoch_rew), cur_mean_rew))
+            self.best_mean_epoch_rew = cur_mean_rew
+            self.epochs_since_best = 0
         else:
-            print("Reward unstable: %f, %f" % (first_mean, second_mean))
-        return stable
+            self.epochs_since_best += 1
+            print("No improvement (%d/%d)" % (self.epochs_since_best, dur))
+
+        if (self.best_mean_epoch_rew is not None and self.epochs_since_best > dur):
+            return True
+
+        return False
 
     def as_dict(self):
         stop_training = False
         if self.is_rew_stable():
             stop_training = True
+        """
+        for i in range(0, len(self.obs)):
+            print("ob %s" % str(self.obs[i]))
+            print("ac %f" % self.acs[i])
+            print("rew %f" % self.rews[i])
+            print("new %d" % self.news[i])
+        """
         result = {"ob": self.obs.tolist(), "rew": self.rews.tolist(), "vpred": self.vpreds.tolist(), "new": self.news.tolist(),
                   "ac": self.acs.tolist(), "prevac": self.prevacs.tolist(), "nextvpred": 0,
                   "ep_rets": self.ep_rets, "ep_lens": self.ep_lens,
@@ -172,6 +185,13 @@ class TrpoAgent():
             self.log.flush()
 
         data_dict = self.dataset.as_dict()
+        if data_dict is None:
+            print("data_dict is None", file=sys.stderr)
+
+        for k in data_dict.keys():
+            if data_dict[k] is None:
+                print("data_dict[%s] is None" % k, file=sys.stderr)
+
         if self.server is not None:
             TrpoAgent.n_finished += 1
             last_agent = (TrpoAgent.n_finished == len(TrpoAgent.all_agents))
