@@ -50,7 +50,7 @@ def merge_log_group(log_group):
 point_size = 30.0
 
 if (len(sys.argv) == 1):
-    print "usage: pcc_grapher.py <log_file_directory> <graph_json_file>"
+    print("usage: pcc_grapher.py <log_file_directory> <graph_json_file>")
 
 graph_config = json.load(open(sys.argv[2]))
 legend_param = graph_config["legend param"]
@@ -79,9 +79,9 @@ for filename in log_files:
 
 if "log filters" in graph_config.keys():
     pcc_filter = PccLogFilter(graph_config["log filters"])
-    print "Before filtering, have " + str(len(experiment_logs)) + " logs"
+    print("Before filtering, have " + str(len(experiment_logs)) + " logs")
     experiment_logs = pcc_filter.apply_filter(experiment_logs)
-    print "After filtering, have " + str(len(experiment_logs)) + " logs"
+    print("After filtering, have " + str(len(experiment_logs)) + " logs")
 
 event_filters = None
 if "event filters" in graph_config.keys():
@@ -120,7 +120,7 @@ if graph_config["type"] == "summary":
     if "groups" in graph_config.keys():
         group_filter_objs = graph_config["groups"]
         for group_filter_obj in group_filter_objs:
-            print "Making group filter from " + str(group_filter_obj)
+            print("Making group filter from " + str(group_filter_obj))
             #exit(1)
             group_filters.append(PccLogFilter(group_filter_obj["log filter"]))
     if len(group_filters) > 0:
@@ -130,9 +130,9 @@ if graph_config["type"] == "summary":
     else:
         log_groups = [experiment_logs]
     
-    print "Found " + str(len(log_groups)) + " log groups!"
+    print("Found " + str(len(log_groups)) + " log groups!")
     for log_group in log_groups:
-        print "Log group has " + str(len(log_group)) + " logs."
+        print("Log group has " + str(len(log_group)) + " logs.")
     log_group_x_values = []
     log_group_y_values = []
     for log_group in log_groups:
@@ -217,7 +217,7 @@ if graph_config["type"] == "event":
     if "groups" in graph_config.keys():
         group_filter_objs = graph_config["groups"]
         for group_filter_obj in group_filter_objs:
-            print "Making group filter from " + str(group_filter_obj)
+            print("Making group filter from " + str(group_filter_obj))
             #exit(1)
             group_filters.append(PccLogFilter(group_filter_obj["log filter"]))
     legend = []
@@ -290,7 +290,7 @@ if graph_config["type"] == "event":
                         point_event_y_values = []
                         k = 0
                         for event in experiment_logs[j].get_event_list(point_event):
-                            print "Event " + str(k) + "/" + str(len(experiment_logs[j].get_event_list(point_event)))
+                            print("Event " + str(k) + "/" + str(len(experiment_logs[j].get_event_list(point_event))))
                             k += 1
                             point_event_x_values.append(float(event["Time"]))
                             point_event_y_values.append(graph_y_min)
@@ -312,7 +312,7 @@ if graph_config["type"] == "event":
                         point_event_y_values = []
                         k = 0
                         for event in experiment_logs[j].get_event_list(point_event):
-                            print "Event " + str(k) + "/" + str(len(experiment_logs[j].get_event_list(point_event)))
+                            print("Event " + str(k) + "/" + str(len(experiment_logs[j].get_event_list(point_event))))
                             k += 1
                             point_event_x_values.append(float(event["Time"]))
                             point_event_y_values.append(graph_y_min)

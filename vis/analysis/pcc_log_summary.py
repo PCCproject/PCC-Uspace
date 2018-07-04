@@ -24,10 +24,8 @@ class PccEventSummary:
         self.summary_stats = {}
         
         event_list = pcc_log.get_event_list(event_type)
-        #print "Event list for " + event_type + " = " + str(event_list)
         self.summarized_values = []
         first_event = event_list[0]
-        #print first_event
         for k in first_event.keys():
             try:
                 float(first_event[k])
@@ -36,16 +34,12 @@ class PccEventSummary:
                 pass
 
         for value in self.summarized_values:
-            #print "Computing summary for " + value
             value_list = []
             for event in event_list:
                 value_list.append(float(event[value]))
             self.summary_stats[value] = _compute_all_summary_stats(value_list)
 
     def get_summary_stat(self, value, statistic):
-        #print "Getting summary (" + statistic + ") for " + value
-        #print "Have summaries for " + str(self.summary_stats.keys())
-        #print "Statistics for " + value + " are: " + str(self.summary_stats[value].keys())
         return self.summary_stats[value][statistic]
 
 class PccLogSummary:
