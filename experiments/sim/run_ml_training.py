@@ -70,7 +70,6 @@ server_cmd = [
     "python3",
     cfg.PCC_CONFIG["PYTHON_ML_DIR"] + "training_server.py",
     "--model-path=" + cfg.PCC_CONFIG["ML_MODEL_PATH"],
-    "--gamma=0.00",
     "--ml-cp-freq=5",
     "--ml-cp-dir=/home/njay2/PCC/deep-learning/python/models/gym-rpc/models/checkpoints/",
     "--ml-training-clients=%d" % len(link_configs),
