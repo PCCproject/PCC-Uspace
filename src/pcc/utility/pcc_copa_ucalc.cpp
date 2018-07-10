@@ -12,15 +12,13 @@ float PccCopaUtilityCalculator::CalculateUtility(PccMonitorIntervalAnalysisGroup
 
   float throughput_contribution = 0;
   float latency_contribution = 0;
-  if (throughput != 0) {
-      throughput_contribution = log(throughput);
-  }
-
-  if (avg_rtt != 0) {
-     latency_contribution = -1.0 * log(avg_rtt);
+  if (loss_rate == 1.0) {
+      avg_rtt = last_avg_rtt;
+  } else {
+      last_avg_rtt = avg_rtt;
   }
   
-  float utility = throughput_contribution + latency_contribution;
+  float utility = throughput / avg_rtt;
   
   PccLoggableEvent event("Calculate Utility", "--log-utility-calc-lite");
   event.AddValue("Utility", utility);

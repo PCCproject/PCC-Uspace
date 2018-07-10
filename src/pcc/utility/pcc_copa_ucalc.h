@@ -6,12 +6,13 @@
 
 class PccCopaUtilityCalculator : public PccUtilityCalculator {
   public:
-    PccCopaUtilityCalculator(PccEventLogger* logger) {this->logger = logger;};
+    PccCopaUtilityCalculator(PccEventLogger* logger) {this->logger = logger; this->last_avg_rtt = 1000; };
     ~PccCopaUtilityCalculator() {};
     float CalculateUtility(PccMonitorIntervalAnalysisGroup& past_monitor_intervals, MonitorInterval&
         cur_monitor_interval);
   private:
     PccEventLogger* logger;
+    float last_avg_rtt;
 };
 
 #endif

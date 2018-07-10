@@ -11,7 +11,7 @@ random.seed(int(time.time() * 1000000))
 dur = 7200
 
 n_replicas = 1
-flows_per_link = 2
+flows_per_link = 1
 
 model_name = "cur_model"
 for arg in sys.argv:
@@ -22,7 +22,6 @@ cmd = [
     cfg.PCC_CONFIG["SIM_DIR"] + "/test",
     "-pyhelper=training_client",
     "-pypath=" + cfg.PCC_CONFIG["PYTHON_ML_DIR"],
-    "--pcc-utility-calc=linear",
     "--model-path=" + cfg.PCC_CONFIG["ML_MODEL_PATH"],
     "--pcc-rate-control=python",
     "--sim-dur=50000"

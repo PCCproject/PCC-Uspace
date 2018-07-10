@@ -23,7 +23,7 @@ float PccLinearUtilityCalculator::CalculateUtility(PccMonitorIntervalAnalysisGro
   }
 
   float utility = pow(throughput, 0.9) - 1000 * avg_rtt - 11.35 * throughput * loss_rate;
-  utility = throughput - 1000 * avg_rtt - 1e9 * loss_rate;
+  utility = throughput - 1000 * avg_rtt - 1e8 * loss_rate;
 
   //utility = -1 * abs(cur_mi.GetObsSendingRate() - 1e7);
 

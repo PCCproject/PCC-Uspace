@@ -14,6 +14,8 @@ model_name = "model_h10_d3_w32_ulinear"
 model_name = "model_h10_d3_w32_uloss-only"
 model_name = "model_h10_d3_w32_ucopa"
 model_name = "model_h10_d3_w32_uvivace"
+model_name = "model_h10_d3_w32_g0.000000_ulinear"
+model_name = "model_h10_d3_w32_g0.000000_ucopa"
 #model_name = "saved_models/m1/cur_model"
 
 cmd = cfg.PCC_CONFIG["SIM_DIR"] + "sim_test"
@@ -22,7 +24,7 @@ cmd += " -log=" + log_dir + log
 cmd += " -pyhelper=" + pyhelper
 cmd += " -pypath=" + pypath
 cmd += " --deterministic"
-cmd += " --pcc-utility-calc=vivace"
+cmd += " --pcc-utility-calc=copa"
 cmd += " --model-path=" + cfg.PCC_CONFIG["ML_MODEL_PATH"]
 cmd += " --model-name=" + model_name
 cmd += " --no-training"
