@@ -2,11 +2,11 @@ import time
 import os
 import json
 
-def get_log_name(hist, depth, width):
-    return "log_hist%d_depth%d_width%d" % (hist, depth, width) + ".txt"
+def get_log_name(hist, depth, width, gamma, utility):
+    return "log_h%d_d%d_w%d_g%f_u%s" % (hist, depth, width, gamma, utility) + ".txt"
 
-def convert_log(hist, depth, width):
-    filename = get_log_name(hist, depth, width)
+def convert_log(hist, depth, width, gamma, utility):
+    filename = get_log_name(hist, depth, width, gamma, utility)
     lines = []
     with open(filename) as f:
         lines = f.readlines()
@@ -28,25 +28,19 @@ def convert_log(hist, depth, width):
         else:
             i += 1
     new_filename = filename[:-3] + "log"
-    log = {"Log Version":"njay-1", "Events":events, "Experiment Parameters":{"Model":"H-%d, D-%d, W-%d" % (hist, depth, width)}}
+    log = {"Log Version":"njay-1", "Events":events, "Experiment Parameters":{"Model":"H-%d, D-%d, W-%d G-%f U-%s" % (hist, depth, width, gamma, utility)}}
     with open(new_filename, "w") as f:
         json.dump(log, f, indent=4)
 
 model_params = [
-    [3, 3, 32],
-    [1, 3, 32],
-    [2, 3, 32],
-    [3, 0, 32],
-    [3, 1, 32],
-    [3, 2, 32],
-    [3, 3, 1],
-    [3, 3, 4],
-    [3, 3, 16],
-    [3, 3, 32],
-    [3, 1, 4]
+    [1, 3, 32, 0.0, "linear"],
+    [2, 3, 32, 0.0, "linear"],
+    [3, 3, 32, 0.0, "linear"],
+    [5, 3, 32, 0.0, "linear"],
+    [10, 3, 32, 0.0, "linear"],
+    [100, 3, 32, 0.0, "linear"],
+    [100, 5, 32, 0.0, "linear"]
 ]
 
-model_params = [[3, 3, 32]]
-
 for p in model_params:
-    convert_log(p[0], p[1], p[2])
+    convert_log(p[0], p[1], p[2], p[3], p[4])
