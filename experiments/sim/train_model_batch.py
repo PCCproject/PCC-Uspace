@@ -41,14 +41,14 @@ model_params = [
 ]
 
 model_params = [
-#    [1, 3, 32, 0.0, "linear"],
-#    [5, 3, 32, 0.0, "linear"],
-    [10, 3, 32, 0.0, "linear"]
-#    [100, 3, 32, 0.0, "linear"]#,
+    [1, 3, 32, 0.0, "linear"],
+    [5, 3, 32, 0.0, "linear"],
+    [10, 3, 32, 0.0, "linear"],
+    [100, 3, 32, 0.0, "linear"]
 ]
 
 n_runs = 3
 for p in model_params:
     for i in range(1, n_runs + 1):
-    	run_training(p[0], p[1], p[2], p[3], p[4], i, background=False)
+    	run_training(p[0], p[1], p[2], p[3], p[4], i, background=(i < n_runs))
     	time.sleep(5)
