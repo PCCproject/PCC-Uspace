@@ -5,6 +5,8 @@ import time
 import sys
 import os
 
+import pickle
+
 class TrpoDataset():
     def __init__(self, flow_id, nonce, batch_size, example_ob, example_ac):
         self.flow_id = flow_id
@@ -74,7 +76,7 @@ class TrpoDataset():
         self.resets.append(action_id)
 
     def is_rew_stable(self):
-        dur = 20
+        dur = 3000
 
         if len(self.epoch_rews) < dur:
             return False
@@ -97,17 +99,11 @@ class TrpoDataset():
         stop_training = False
         if self.is_rew_stable():
             stop_training = True
-        """
-        for i in range(0, len(self.obs)):
-            print("ob %s" % str(self.obs[i]))
-            print("ac %f" % self.acs[i])
-            print("rew %f" % self.rews[i])
-            print("new %d" % self.news[i])
-        """
-        result = {"ob": self.obs.tolist(), "rew": self.rews.tolist(), "vpred": self.vpreds.tolist(), "new": self.news.tolist(),
-                  "ac": self.acs.tolist(), "prevac": self.prevacs.tolist(), "nextvpred": 0,
+        result = {"ob": self.obs, "rew": self.rews, "vpred": self.vpreds, "new": self.news,
+                  "ac": self.acs, "prevac": self.prevacs, "nextvpred": 0,
                   "ep_rets": self.ep_rets, "ep_lens": self.ep_lens,
                   "done_training":stop_training, "flow_id":self.flow_id, "nonce":self.nonce}
+        result = pickle.dumps(result)
         return result
 
     def avg_reward(self):
@@ -187,10 +183,6 @@ class TrpoAgent():
         data_dict = self.dataset.as_dict()
         if data_dict is None:
             print("data_dict is None", file=sys.stderr)
-
-        for k in data_dict.keys():
-            if data_dict[k] is None:
-                print("data_dict[%s] is None" % k, file=sys.stderr)
 
         if self.server is not None:
             TrpoAgent.n_finished += 1

@@ -1,6 +1,7 @@
 import multiprocessing
 import numpy as np
 import time
+import pickle
 
 class AsyncStash():
     def __init__(self, obj):
@@ -75,15 +76,15 @@ class DataAggregator():
         self.normalizers = {}
 
     def give_dataset(self, dataset, block=False):
-        obs = np.array(dataset["ob"])
-        rews = np.array(dataset["rew"])
-        vpreds = np.array(dataset["vpred"])
-        news = np.array(dataset["new"])
-        acs = np.array(dataset["ac"])
-        prevacs = np.array(dataset["prevac"])
+        dataset = pickle.loads(dataset)
+        obs = dataset["ob"]
+        rews = dataset["rew"]
+        vpreds = dataset["vpred"]
+        news = dataset["new"]
+        acs = dataset["ac"]
+        prevacs = dataset["prevac"]
         self.lock.acquire()
         if self.norm_rewards:
-            print("NORMING REWARDS")
             nonce = dataset["nonce"]
             if nonce not in self.normalizers.keys():
                 self.normalizers[nonce] = Normalizer(sqrt=True)

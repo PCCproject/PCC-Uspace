@@ -136,7 +136,7 @@ p = multiprocessing.Process(target=train, args=[data_agg, env, policy_fn, finish
 p.start()
 
 def give_dataset(dataset, block):
-    data_agg.give_dataset(dataset, block)
+    data_agg.give_dataset(dataset.data, block)
     return 0
 
 server.register_introspection_functions()

@@ -8,7 +8,7 @@ import random
 
 random.seed(int(time.time() * 1000000))
 
-dur = 7200
+dur = 720000
 
 n_replicas = 1
 flows_per_link = 1
@@ -73,7 +73,7 @@ server_cmd = [
     "--ml-cp-dir=/home/njay2/PCC/deep-learning/python/models/gym-rpc/models/checkpoints/",
     "--ml-training-clients=%d" % len(link_configs),
     "--ml-training-flows=%d" % (len(link_configs) * flows_per_link),
-    "--ml-max-iters=3000"
+    "--ml-max-iters=1200"
 ]
 
 server_cmd += sys.argv
@@ -90,7 +90,10 @@ for link_config in link_configs:
 time_slept = 0
 sleep_increment = 1
 
-while (time_slept < dur and server_proc.poll() is None):
+done = False
+while (time_slept < dur and not done):
+    if (os.system("pgrep -P %d > /dev/null" % server_proc.pid) != 0):
+        done = True
     time.sleep(sleep_increment)
     time_slept += sleep_increment
 
