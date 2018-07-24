@@ -1,7 +1,7 @@
 import os
 import sys
 
-from config import pcc_config_njay as cfg
+from config import pcc_expr_config as cfg
 
 log = "pcc_log.txt"
 log_dir = cfg.PCC_CONFIG["EXPR_DIR"] + "logs/"
@@ -17,6 +17,7 @@ model_name = "model_h10_d3_w32_uvivace"
 model_name = "model_h10_d3_w32_g0.000000_ulinear"
 model_name = "model_h10_d3_w32_g0.000000_ucopa"
 #model_name = "saved_models/m1/cur_model"
+model_name = "saved_models/m2/model"
 
 cmd = cfg.PCC_CONFIG["SIM_DIR"] + "sim_test"
 cmd += " --sim-dur=300"
@@ -24,7 +25,7 @@ cmd += " -log=" + log_dir + log
 cmd += " -pyhelper=" + pyhelper
 cmd += " -pypath=" + pypath
 cmd += " --deterministic"
-cmd += " --pcc-utility-calc=copa"
+cmd += " --pcc-utility-calc=linear"
 cmd += " --model-path=" + cfg.PCC_CONFIG["ML_MODEL_PATH"]
 cmd += " --model-name=" + model_name
 cmd += " --no-training"

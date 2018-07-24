@@ -3,7 +3,7 @@ import os
 import sys
 import subprocess
 import time
-from config import pcc_config_njay as cfg
+from config import pcc_expr_config as cfg
 import random
 
 random.seed(int(time.time() * 1000000))
