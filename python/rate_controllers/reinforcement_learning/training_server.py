@@ -8,7 +8,8 @@ import os.path
 import numpy as np
 import sys
 import open_ai.common.tf_util as U
-    
+
+from policies.lstm_policy import LstmPolicy
 from policies.mlp_policy import MlpPolicy
 from open_ai import trpo
 
@@ -50,12 +51,12 @@ data_agg = data_aggregator.DataAggregator(TRAINING_FLOWS, TRAINING_CLIENTS, mode
 env.observation_space.sample(), env.action_space.sample(), norm_rewards=True)
 
 def policy_fn(name, ob_space, ac_space): #pylint: disable=W0613
-    return MlpPolicy(
+    return LstmPolicy(
         name=name,
         ob_space=env.observation_space,
         ac_space=env.action_space,
-        hid_size=model_params.hidden_size,
-        num_hid_layers=model_params.hidden_layers,
+        #hid_size=model_params.hidden_size,
+        #num_hid_layers=model_params.hidden_layers,
         gaussian_fixed_var=True
     )
 

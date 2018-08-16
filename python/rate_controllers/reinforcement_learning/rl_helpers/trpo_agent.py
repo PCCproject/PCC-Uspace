@@ -14,6 +14,8 @@ class TrpoDataset():
 
         self.batch_size = batch_size
         self.obs = np.array([example_ob for _ in range(batch_size)])
+        self.h_state = np.zeros([batch_size, 32], 'float32')
+        self.c_state = np.zeros([batch_size, 32], 'float32')
         self.rews = np.zeros(batch_size, 'float32')
         self.vpreds = np.zeros(batch_size, 'float32')
         self.news = np.zeros(batch_size, 'int32')
@@ -99,7 +101,8 @@ class TrpoDataset():
         stop_training = False
         if self.is_rew_stable():
             stop_training = True
-        result = {"ob": self.obs, "rew": self.rews, "vpred": self.vpreds, "new": self.news,
+        result = {"ob": self.obs, "h_state":self.h_state, "c_state":self.c_state, 
+                  "rew": self.rews, "vpred": self.vpreds, "new": self.news,
                   "ac": self.acs, "prevac": self.prevacs, "nextvpred": 0,
                   "ep_rets": self.ep_rets, "ep_lens": self.ep_lens,
                   "done_training":stop_training, "flow_id":self.flow_id, "nonce":self.nonce}
@@ -119,13 +122,19 @@ class TrpoDataset():
         if self.finished():
             self.epoch_rews.append(np.mean(self.rews))
 
-    def record_action(self, action_id, ob, vpred, ac, prevac):
+    def record_action(self, action_id, ob, vpred, ac, prevac, h_state=None, c_state=None):
         i = action_id
         self.obs[i] = ob
         self.vpreds[i] = vpred
         self.acs[i] = ac
         self.prevacs[i] = prevac
         self.n_actions += 1
+
+        if (h_state is not None):
+            self.h_state[i] = h_state
+
+        if (c_state is not None):
+            self.c_state[i] = c_state
 
     def record_terminal_vpred(self, vpred):
         self.term_vpred = vpred
@@ -204,12 +213,13 @@ class TrpoAgent():
 
     def act(self, ob):
 
-        ac, vpred = self.model.act(self.stochastic, ob)
+        ac, vpred, h_state, c_state = self.model.act(self.stochastic, ob)
         action_id = -1
 
         if (not self.dataset.full()):
             action_id = self.next_action_id
-            self.dataset.record_action(action_id, ob, vpred, ac, self.prevac)
+            self.dataset.record_action(action_id, ob, vpred, ac, self.prevac,
+                h_state=h_state, c_state=c_state)
             self.prevac = ac
             self.next_action_id += 1
             self.actions[action_id] = ac

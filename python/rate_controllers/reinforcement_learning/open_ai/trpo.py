@@ -83,6 +83,12 @@ class TrpoTrainer():
         self.ret = tf.placeholder(dtype=tf.float32, shape=[None])  # Empirical return
 
         self.ob = U.get_placeholder_cached(name="ob")
+        # Edits for LSTM
+        self.h_state = U.get_placeholder_cached(name="h_state")
+        self.c_state = U.get_placeholder_cached(name="c_state")
+        print("TRPO: h_state.shape = " + str(self.h_state.shape))
+        print("TRPO: c_state.shape = " + str(self.c_state.shape))
+        #
         self.ac = self.pi.pdtype.sample_placeholder([None])
 
         self.kloldnew = self.oldpi.pd.kl(self.pi.pd)
@@ -125,10 +131,17 @@ class TrpoTrainer():
         self.assign_old_eq_new = U.function([], [], updates=[tf.assign(oldv, newv)
                                                     for (oldv, newv) in
                                                     zipsame(self.oldpi.get_variables(), self.pi.get_variables())])
-        self.compute_losses = U.function([self.ob, self.ac, self.atarg], self.losses)
-        self.compute_lossandgrad = U.function([self.ob, self.ac, self.atarg], self.losses + [U.flatgrad(self.optimgain, self.var_list)])
-        self.compute_fvp = U.function([self.flat_tangent, self.ob, self.ac, self.atarg], self.fvp)
-        self.compute_vflossandgrad = U.function([self.ob, self.ret], U.flatgrad(self.vferr, self.vf_var_list))
+        # Edit for LSTM
+        self.compute_losses = U.function([self.ob, self.h_state, self.c_state, self.ac, self.atarg], self.losses)
+        self.compute_lossandgrad = U.function([self.ob, self.h_state, self.c_state, self.ac, self.atarg], self.losses + [U.flatgrad(self.optimgain, self.var_list)])
+        self.compute_fvp = U.function([self.flat_tangent, self.ob, self.h_state, self.c_state, self.ac, self.atarg], self.fvp)
+        self.compute_vflossandgrad = U.function([self.ob, self.h_state, self.c_state, self.ret], U.flatgrad(self.vferr, self.vf_var_list))
+        #
+        # Original
+        #self.compute_losses = U.function([self.ob, self.ac, self.atarg], self.losses)
+        #self.compute_lossandgrad = U.function([self.ob, self.ac, self.atarg], self.losses + [U.flatgrad(self.optimgain, self.var_list)])
+        #self.compute_fvp = U.function([self.flat_tangent, self.ob, self.ac, self.atarg], self.fvp)
+        #self.compute_vflossandgrad = U.function([self.ob, self.ret], U.flatgrad(self.vferr, self.vf_var_list))
 
         U.initialize()
         th_init = self.get_flat()
@@ -212,7 +225,9 @@ class TrpoTrainer():
             if hasattr(self.pi, "ret_rms"): self.pi.ret_rms.update(tdlamret)
             if hasattr(self.pi, "ob_rms"): self.pi.ob_rms.update(ob)  # update running mean/std for policy
 
-            args = seg["ob"], seg["ac"], atarg
+            print("TRPO: input h_state.shape = " + str(seg["h_state"].shape))
+            print("TRPO: input c_state.shape = " + str(seg["c_state"].shape))
+            args = seg["ob"], seg["h_state"], seg["c_state"], seg["ac"], atarg
             fvpargs = [arr[::5] for arr in args]
 
             def fisher_vector_product(p):
@@ -263,13 +278,13 @@ class TrpoTrainer():
                     logger.log("couldn't compute a good step")
                     self.set_from_flat(thbefore)
 
-            #for (lossname, lossval) in zip(self.loss_names, meanlosses):
-            #    logger.record_tabular(lossname, lossval)
-
             for _ in range(self.vf_iters):
-                for (mbob, mbret) in dataset.iterbatches((seg["ob"], seg["tdlamret"]),
+                for (mbob, mbh, mbc, mbret) in dataset.iterbatches((seg["ob"],
+                                                                    seg["h_state"],
+                                                                    seg["c_state"],
+                                                                    seg["tdlamret"]),
                                                          include_final_partial_batch=False, batch_size=64):
-                    g = allmean(self.compute_vflossandgrad(mbob, mbret))
+                    g = allmean(self.compute_vflossandgrad(mbob, mbh, mbc, mbret))
                     self.vfadam.update(g, self.vf_stepsize)
 
             #logger.record_tabular("ev_tdlam_before", explained_variance(vpredbefore, tdlamret))
@@ -281,6 +296,7 @@ class TrpoTrainer():
             logger.record_tabular("DensityRew", np.mean(rewbuffer) / np.mean(lenbuffer))
             logger.record_tabular("EpLenMean", np.mean(lenbuffer))
             logger.record_tabular("VpredMean", np.mean(seg["vpred"]))
+            logger.record_tabular("tdlamret", np.mean(seg["tdlamret"]))
             #logger.record_tabular("EpRewMean", np.mean(rewbuffer))
             #logger.record_tabular("EpThisIter", len(lens))
             episodes_so_far += len(lens)

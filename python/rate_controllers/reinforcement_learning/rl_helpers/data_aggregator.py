@@ -48,6 +48,8 @@ class DataAggregator():
         self.flow_size = model_params.ts_per_batch
         self.batch_size = self.flow_size * self.flows
         self.obs = np.array([example_ob for _ in range(self.batch_size)])
+        self.h_states = np.zeros([self.batch_size, 32], 'float32')
+        self.c_states = np.zeros([self.batch_size, 32], 'float32')
         self.rews = np.zeros(self.batch_size, 'float32')
         self.vpreds = np.zeros(self.batch_size, 'float32')
         self.news = np.zeros(self.batch_size, 'int32')
@@ -78,6 +80,8 @@ class DataAggregator():
     def give_dataset(self, dataset, block=False):
         dataset = pickle.loads(dataset)
         obs = dataset["ob"]
+        h_states = dataset["h_state"]
+        c_states = dataset["c_state"]
         rews = dataset["rew"]
         vpreds = dataset["vpred"]
         news = dataset["new"]
@@ -96,6 +100,8 @@ class DataAggregator():
         start = self.cur_flow * self.flow_size
         end = start + self.flow_size
         np.copyto(self.obs[start:end], obs)
+        np.copyto(self.h_states[start:end], h_states)
+        np.copyto(self.c_states[start:end], c_states)
         np.copyto(self.rews[start:end], rews)
         np.copyto(self.vpreds[start:end], vpreds)
         np.copyto(self.news[start:end], news)
@@ -109,7 +115,8 @@ class DataAggregator():
         if (self.cur_flow == self.flows):
             all_done_training = (self.flows_done_training == self.flows)
             self.cur_flow = 0
-            dataset = {"ob": self.obs, "rew": self.rews, "vpred": self.vpreds, "new": self.news,
+            dataset = {"ob": self.obs, "h_state":self.h_states, "c_state":self.c_states,
+                      "rew": self.rews, "vpred": self.vpreds, "new": self.news,
                       "ac": self.acs, "prevac": self.prevacs, "nextvpred": 0,
                       "ep_rets": self.ep_rets, "ep_lens": self.ep_lens, "stop":all_done_training}
             self.queue.put(dataset)

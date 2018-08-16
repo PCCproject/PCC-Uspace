@@ -2,6 +2,7 @@ from rl_helpers import model_param_set
 from rl_helpers import pcc_env
 from rl_helpers import trpo_agent
 from rl_helpers import pcc_event_log
+from rl_helpers.simple_arg_parse import arg_or_default
 from collections import deque
 import os.path
 import time
@@ -10,8 +11,9 @@ import open_ai.common.tf_util as U
 import random
 import xmlrpc.client
     
+from policies.lstm_policy import LstmPolicy
 from policies.mlp_policy import MlpPolicy
-from open_ai import trpo_mpi
+from open_ai import trpo
 
 if not hasattr(sys, 'argv'):
     sys.argv  = ['']
@@ -29,8 +31,8 @@ RESET_RATE_MAX = 24.0
 
 RESET_INTERVAL = 4096
 
-MODEL_PATH= "/tmp/"
-MODEL_NAME = "cur_model"
+MODEL_PATH = arg_or_default("--model-path", "/tmp/")
+MODEL_NAME = arg_or_default("--model-name", "model")
 
 LOG_NAME = None
 PORT = 8000
@@ -87,18 +89,18 @@ if LOG_NAME is not None:
     log = pcc_event_log.PccEventLog(LOG_NAME, nonce=NONCE)
 
 def policy_fn(name, ob_space, ac_space): #pylint: disable=W0613
-    return MlpPolicy(
+    return LstmPolicy(
         name=name,
         ob_space=env.observation_space,
         ac_space=env.action_space,
-        hid_size=model_params.hidden_size,
-        num_hid_layers=model_params.hidden_layers,
+        #hid_size=model_params.hidden_size,
+        #num_hid_layers=model_params.hidden_layers,
         gaussian_fixed_var=True
     )
     
 sess = U.single_threaded_session()
 sess.__enter__()
-trainer = trpo_mpi.TrpoTrainer(None, env, policy_fn, 
+trainer = trpo.TrpoTrainer(None, env, policy_fn, 
     max_kl=model_params.max_kl,
     cg_iters=model_params.cg_iters,
     cg_damping=model_params.cg_damping,
