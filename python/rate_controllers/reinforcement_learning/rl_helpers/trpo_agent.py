@@ -14,8 +14,8 @@ class TrpoDataset():
 
         self.batch_size = batch_size
         self.obs = np.array([example_ob for _ in range(batch_size)])
-        self.h_state = np.zeros([batch_size, 32], 'float32')
-        self.c_state = np.zeros([batch_size, 32], 'float32')
+        self.h_state = np.zeros([batch_size, 1], 'float32')
+        self.c_state = np.zeros([batch_size, 1], 'float32')
         self.rews = np.zeros(batch_size, 'float32')
         self.vpreds = np.zeros(batch_size, 'float32')
         self.news = np.zeros(batch_size, 'int32')
@@ -106,7 +106,6 @@ class TrpoDataset():
                   "ac": self.acs, "prevac": self.prevacs, "nextvpred": 0,
                   "ep_rets": self.ep_rets, "ep_lens": self.ep_lens,
                   "done_training":stop_training, "flow_id":self.flow_id, "nonce":self.nonce}
-        result = pickle.dumps(result)
         return result
 
     def avg_reward(self):
@@ -141,10 +140,8 @@ class TrpoDataset():
 
 class TrpoAgent():
 
-    n_finished = 0
-    all_agents = []
-
-    def __init__(self, env, server, flow_id, model_name, model_params, model, stochastic=True, log=None, nonce=None):
+    def __init__(self, env, server, flow_id, model_name, model_params, model, stochastic=True, log=None, nonce=None,
+    poll_freq=1):
         self.model_name = model_name
         self.model_loaded = False
         self.server = server
@@ -152,6 +149,9 @@ class TrpoAgent():
         self.next_action_id = 0
         
         self.model = model
+        self.poll_freq = 1
+        self.poll_counter = 0
+        self.model_timestamp = None
         self.stochastic = stochastic
         self.prevac = None
 
@@ -165,12 +165,11 @@ class TrpoAgent():
             env.observation_space.sample(), env.action_space.sample())
         self.load_model()
 
-        TrpoAgent.all_agents.append(self)
-
     def load_model(self):
         if os.path.isfile(self.model_name + ".meta"):
             saver = tf.train.Saver()
             saver.restore(tf.get_default_session(), self.model_name)
+            self.model_timestamp = os.stat(self.model_name + ".meta").st_mtime
         else:
             print("ERROR: Could not load model " + self.model_name)
             exit(-1)
@@ -190,31 +189,36 @@ class TrpoAgent():
             self.log.flush()
 
         data_dict = self.dataset.as_dict()
+        #pickle.dump(data_dict, open(self.data_filename, "wb"))
+        data_dict = pickle.dumps(result)
         if data_dict is None:
             print("data_dict is None", file=sys.stderr)
 
         if self.server is not None:
-            TrpoAgent.n_finished += 1
-            last_agent = (TrpoAgent.n_finished == len(TrpoAgent.all_agents))
-            self.server.give_dataset(data_dict, last_agent)
-            if last_agent:
-                TrpoAgent.start_new_epoch()
+            self.server.give_dataset(data_dict, False)
 
-    def start_new_epoch():
-        for agent in TrpoAgent.all_agents:
-            agent.dataset.reset()
-            agent.load_model()
-            agent.next_action_id = 0
-        TrpoAgent.n_finished = 0
+
+    def start_new_epoch(self):
+        self.dataset.reset()
+        self.load_model()
+        self.next_action_id = 0
 
     def reset(self):
         action_id = self.next_action_id
         self.dataset.reset_near_action(action_id)
+        self.model.reset_state()
 
     def act(self, ob):
 
         ac, vpred, h_state, c_state = self.model.act(self.stochastic, ob)
         action_id = -1
+
+        self.poll_counter += 1
+        if self.poll_counter > self.poll_freq:
+            new_model_timestamp = os.stat(self.model_name + ".meta").st_mtime
+            if self.model_timestamp is None or self.model_timestamp < new_model_timestamp:
+                self.start_new_epoch()
+            self.poll_counter = 0
 
         if (not self.dataset.full()):
             action_id = self.next_action_id

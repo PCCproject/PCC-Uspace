@@ -156,7 +156,7 @@ class LstmPolicy(object):
         #nact = ac_space.n
         self.batch_size = tf.placeholder(dtype=tf.int32,shape=[])
         self.train_length = tf.placeholder(dtype=tf.int32)
-        lstm_size = 32#ob_space.shape[0]
+        lstm_size = 1#ob_space.shape[0]
         
         #ob = U.get_placeholder(name="ob", dtype=tf.float32, shape=[1, 1, lstm_size])
         #tf.placeholder(tf.float32, ob_shape) #obs
@@ -175,12 +175,13 @@ class LstmPolicy(object):
         
         #"""
         ob = U.get_placeholder(name="ob", dtype=tf.float32, shape=[None] + list(ob_space.shape))
-        cell_state_in = (tf.placeholder(tf.float32, [1, lstm_size]), #states
-                tf.placeholder(tf.float32, [1, lstm_size])) #states
+        hidden_state_in = U.get_placeholder(name="h_state", dtype=tf.float32, shape=[None] + [lstm_size]) #states
+        cell_state_in = U.get_placeholder(name="c_state", dtype=tf.float32, shape=[None] + [lstm_size]) #states
         lstm = tf.contrib.rnn.BasicLSTMCell(lstm_size, state_is_tuple=True)
-        lstm_out, cell_state_out = tf.nn.static_rnn(lstm, [ob], initial_state=cell_state_in)
-        #lstm_out, cell_state_out = tf.nn.dynamic_rnn(lstm, ob, initial_state=cell_state_in)
+        lstm_out, full_state_out = tf.nn.static_rnn(lstm, [ob], scope="polrnn", initial_state=(hidden_state_in, cell_state_in))
+        hidden_state_out, cell_state_out = full_state_out
         lstm_out = lstm_out[0]
+        #lstm_out = ob
         """
         self.ob = U.get_placeholder(name="ob", dtype=tf.float32, shape=[None] + list(ob_space.shape))
         hidden_state_in = U.get_placeholder(name="h_state", dtype=tf.float32, shape=[None] + [lstm_size])
@@ -194,16 +195,16 @@ class LstmPolicy(object):
         
         """
         #h5 = seq_to_batch(h5)
-        print(lstm_out)
+        #print(lstm_out)
         vf = dense(lstm_out, 1, "vffc1", weight_init=U.normc_initializer(1.0))
         self.vpred = vf
 
         if gaussian_fixed_var and isinstance(ac_space, gym.spaces.Box):
-            mean = dense(hidden_state_out, pdtype.param_shape()[0]//2, "polfinal", U.normc_initializer(0.01))
+            mean = dense(lstm_out, pdtype.param_shape()[0]//2, "polfinal", U.normc_initializer(0.01))
             logstd = tf.get_variable(name="logstd", shape=[1, pdtype.param_shape()[0]//2], initializer=tf.zeros_initializer())
             pdparam = tf.concat([mean, mean * 0.0 + logstd], axis=1)
         else:
-            pdparam = dense(hidden_state_out, pdtype.param_shape()[0], "polfinal", U.normc_initializer(0.01))
+            pdparam = dense(lstm_out, pdtype.param_shape()[0], "polfinal", U.normc_initializer(0.01))
 
         self.pd = self.pdtype.pdfromflat(pdparam)
 
@@ -212,8 +213,9 @@ class LstmPolicy(object):
         ac = U.switch(stochastic, self.pd.sample(), self.pd.mode())
         self.ac = ac
         self.state = np.zeros(lstm_size, dtype=np.float32)
-        self._act = U.function([stochastic, self.ob, hidden_state_in, cell_state_in],
+        self._act = U.function([stochastic, ob, hidden_state_in, cell_state_in],
             [ac, vf, hidden_state_out, cell_state_out])
+        #    [ac, vf])
         
         #
         #self.pd = self.pdtype.pdfromflat(pi)
@@ -237,14 +239,21 @@ class LstmPolicy(object):
         #print("ob shape = " + str(ob.shape))
         #print("ob[None] shape = " + str(ob[None].shape))
         ac, vpred, new_hidden_state, new_cell_state = self._act(stochastic, ob[None], self.hidden_state, self.cell_state)
-        
+        #ac, vpred = self._act(stochastic, ob[None], self.hidden_state, self.cell_state)
+        #new_hidden_state = self.hidden_state
+        #new_cell_state = self.cell_state
+
         old_hidden_state = self.hidden_state
         old_cell_state = self.cell_state
         
         self.hidden_state = new_hidden_state
         self.cell_state = new_cell_state
         return ac[0], vpred[0], old_hidden_state, old_cell_state
-    
+
+    def reset_state(self):
+        self.hidden_state = np.zeros(self.hidden_state.shape, dtype=np.float32)
+        self.cell_state = np.zeros(self.cell_state.shape, dtype=np.float32)
+
     def get_variables(self):
         return tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, self.scope)
     

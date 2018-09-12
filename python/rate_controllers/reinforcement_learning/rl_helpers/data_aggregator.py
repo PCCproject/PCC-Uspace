@@ -33,6 +33,15 @@ class Normalizer():
         self.min = min(self.min, np.min(data))
         self.max = max(self.max, np.max(data))
 
+        self.min = 4.7e7 - 1e8
+        data_min = np.min(data)
+        if (data_min < self.min):
+            print("data lower: data_min = %f, self.min = %f" % (data_min, self.min))
+        self.max = 4.8e7
+        data_max = np.max(data)
+        if (data_max > self.max):
+            print("data higher: data_max = %f, self.max = %f" % (data_max, self.max))
+
         result = (data - self.min) / (self.max - self.min)
         if self.sqrt:
             result = np.sqrt(result)
@@ -48,8 +57,8 @@ class DataAggregator():
         self.flow_size = model_params.ts_per_batch
         self.batch_size = self.flow_size * self.flows
         self.obs = np.array([example_ob for _ in range(self.batch_size)])
-        self.h_states = np.zeros([self.batch_size, 32], 'float32')
-        self.c_states = np.zeros([self.batch_size, 32], 'float32')
+        self.h_states = np.zeros([self.batch_size, 1], 'float32')
+        self.c_states = np.zeros([self.batch_size, 1], 'float32')
         self.rews = np.zeros(self.batch_size, 'float32')
         self.vpreds = np.zeros(self.batch_size, 'float32')
         self.news = np.zeros(self.batch_size, 'int32')
@@ -91,7 +100,7 @@ class DataAggregator():
         if self.norm_rewards:
             nonce = dataset["nonce"]
             if nonce not in self.normalizers.keys():
-                self.normalizers[nonce] = Normalizer(sqrt=True)
+                self.normalizers[nonce] = Normalizer(sqrt=False)
             norm = self.normalizers[nonce]
             rews = norm.normalize(rews)
         this_flow = self.cur_flow
