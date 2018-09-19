@@ -177,7 +177,7 @@ class PacketTracker {
     SeqNoType GetOldestSentSeqNo();
     char* GetPacketPayloadPointer(SeqNoType seq_no);
   private:
-    IdType MakeNewPacketId(CPacket& packet);
+    IdType MakeNewPacketId();
     std::unordered_map<SeqNoType, PacketRecord<SeqNoType, IdType>*> packet_record_map_;
     std::priority_queue<SeqNoType, std::vector<SeqNoType>, TrackerLessThan<SeqNoType> > retransmittable_queue_;
     std::priority_queue<SeqNoType, std::vector<SeqNoType>, TrackerLessThan<SeqNoType> > send_queue_;
@@ -203,7 +203,7 @@ PacketTracker<SeqNoType, IdType>::PacketTracker(pthread_cond_t* send_cond) {
 }
 
 template <typename SeqNoType, typename IdType>
-IdType PacketTracker<SeqNoType, IdType>::MakeNewPacketId(CPacket& packet) {
+IdType PacketTracker<SeqNoType, IdType>::MakeNewPacketId() {
     IdType result = ++prev_packet_id_;
     //std::cout << "Making new id: " << result << std::endl;
     return result;
@@ -270,7 +270,7 @@ void PacketTracker<SeqNoType, IdType>::OnPacketSent(CPacket& packet) {
             }
         }
         PacketRecord<SeqNoType, IdType>* packet_record = packet_record_iter->second;
-        packet_record->UpdateRecord(PACKET_STATE_SENT, packet.m_iMsgNo, MakeNewPacketId(packet));
+        packet_record->UpdateRecord(PACKET_STATE_SENT, packet.m_iMsgNo, MakeNewPacketId());
         sent_queue_.push(packet_record->GetPacketSentTime(packet.m_iMsgNo));
         sent_time_map_.insert(std::make_pair(packet_record->GetPacketSentTime(packet.m_iMsgNo), seq_no)); 
     }

@@ -126,7 +126,7 @@ CUDT::CUDT()
 	m_iFlightFlagSize = 1000000;
 	m_iSndBufSize =100000;
 	m_iRcvBufSize = 1000000; //Rcv buffer MUST NOT be bigger than Flight Flag size
-	m_Linger.l_onoff = 1;
+	m_Linger.l_onoff = 0; //TODO (njay): original value was 1;
 	m_Linger.l_linger = 180;
 	m_iUDPSndBufSize = 100000;
 	m_iUDPRcvBufSize = m_iRcvBufSize * m_iMSS;
@@ -144,7 +144,7 @@ CUDT::CUDT()
 	m_pCC = m_pCCFactory->create();
 	m_pCache = NULL;
 
-    pcc_sender = new PccSender(10000, 10, 10);
+    pcc_sender = new PccSender(10000, 5, 10);
 	packet_tracker_ = new PacketTracker<int32_t, PacketId>(&m_SendBlockCond);
 
 	// Initial status
@@ -158,8 +158,9 @@ CUDT::CUDT()
 	m_bPeerHealth = true;
 	m_ullLingerExpiration = 0;
 	start_ = time(NULL);
-	remove( "/home/yossi/timeout_times.txt" );
 	for (int i = 0; i < MAX_MONITOR; i++) state[i] = 0;
+
+    congestion_event_thread = new std::thread(CongestionEventHandler, this);
 }
 
 CUDT::CUDT(const CUDT& ancestor)
@@ -207,7 +208,7 @@ CUDT::CUDT(const CUDT& ancestor)
     }
 	m_pCC = m_pCCFactory->create();
 
-    pcc_sender = new PccSender(10000, 10, 10);
+    pcc_sender = new PccSender(10000, 5, 10);
 	packet_tracker_ = new PacketTracker<int32_t, PacketId>(&m_SendBlockCond);
 
 	// Initial status
@@ -977,7 +978,7 @@ void CUDT::close()
 
 		while (!m_bBroken && m_bConnected && (m_pSndBuffer->getCurrBufSize() > 0) && (CTimer::getTime() - entertime < m_Linger.l_linger * 1000000ULL))
 		{
-			// linger has been checked by previous close() call and has expired
+            // linger has been checked by previous close() call and has expired
 			if (m_ullLingerExpiration >= entertime)
 				break;
 
@@ -1510,6 +1511,36 @@ void CUDT::sendCtrl(const int& pkttype, void* lparam, void* rparam, const int& s
 	}
 }
 
+void CUDT::CongestionEventHandler(CUDT* self) {
+    std::unique_lock<std::mutex> ce_lock = std::unique_lock<std::mutex>(self->congestion_event_lock);
+    while (true) {
+        while (!self->congestion_event_queue.empty()) {
+            AsynchCongestionEvent* ce = self->congestion_event_queue.front();
+            self->congestion_event_queue.pop();
+            ce_lock.unlock();
+            self->pcc_sender->OnCongestionEvent(true, 0, ce->time, ce->rtt_us, ce->acks, ce->lost);
+            delete ce;
+            ce_lock.lock();
+        }
+        self->congestion_event_cv.wait(ce_lock);
+    }
+}
+
+void CUDT::OnCongestionEvent(int64_t event_time,
+                             int64_t rtt_us,
+                             AckedPacketVector& acked_packets,
+                             LostPacketVector& lost_packets) {
+    AsynchCongestionEvent* ce = new AsynchCongestionEvent();
+    ce->time = event_time;
+    ce->rtt_us = rtt_us;
+    ce->acks = acked_packets;
+    ce->lost = lost_packets;
+    congestion_event_lock.lock();
+    congestion_event_queue.push(ce);
+    congestion_event_lock.unlock();
+    congestion_event_cv.notify_one();
+}
+
 void CUDT::add_to_loss_record(int32_t loss1, int32_t loss2){
 //TODO: loss record does not have lock, this might cause problem
 
@@ -1528,7 +1559,7 @@ void CUDT::add_to_loss_record(int32_t loss1, int32_t loss2){
         packet_tracker_->OnPacketLoss(loss, msg_no);
         ++m_iSndLossTotal;
     }
-    pcc_sender->OnCongestionEvent(true, 0, CTimer::getTime(), 0, acked_packets, lost_packets);
+    OnCongestionEvent(CTimer::getTime(), 0, acked_packets, lost_packets);
     pcc_sender_lock.unlock();
 		
 #ifdef EXPERIMENTAL_FEATURE_CONTINOUS_SEND
@@ -1577,7 +1608,7 @@ void CUDT::ProcessAck(CPacket& ctrlpkt) {
     ack_event.bytes_acked = size;
     ack_event.bytes_lost = 0;
     acked_packets.push_back(ack_event);
-    pcc_sender->OnCongestionEvent(true, 0, CTimer::getTime(), rtt_us, acked_packets, lost_packets);
+    OnCongestionEvent(CTimer::getTime(), rtt_us, acked_packets, lost_packets);
     pcc_sender_lock.unlock();
     ++m_iRecvACK;
     ++m_iRecvACKTotal;
