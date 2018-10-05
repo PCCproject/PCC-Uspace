@@ -62,6 +62,8 @@ written by
 #include "time.h"
 
 #include "../pcc/pcc_sender.h"
+#include "../pcc/quic_types/quic_time.h"
+#include "../pcc/quic_types/quic_types.h"
 #include "packet_tracker.h"
 
 typedef uint64_t PacketId;

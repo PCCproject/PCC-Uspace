@@ -1,0 +1,129 @@
+tmeng@tmeng:~/Documents/PCC/quic/PCC-Uspace$ make | tee make_log.txt
+make -C  pcc all
+make[1]: Entering directory `/home/tmeng/Documents/PCC/quic/PCC-Uspace/pcc'
+g++ -g -std=c++11 -fPIC -Wall -Wextra -DLINUX -finline-functions -O3 -fno-strict-aliasing  -DIA32 pcc_monitor_interval_queue.cpp -c
+In file included from quic_types/quic_bandwidth.h:11:0,
+                 from pcc_monitor_interval_queue.h:4,
+                 from pcc_monitor_interval_queue.cpp:1:
+quic_types/quic_types.h:10:13: warning: ‘HAS_RETRANSMITTABLE_DATA’ defined but not used [-Wunused-variable]
+ static bool HAS_RETRANSMITTABLE_DATA = true;
+             ^
+g++ -g -std=c++11 -fPIC -Wall -Wextra -DLINUX -finline-functions -O3 -fno-strict-aliasing  -DIA32 pcc_sender.cpp -c
+pcc_sender.cpp:148:6: warning: unused parameter ‘bytes_in_flight’ [-Wunused-parameter]
+ void PccSender::OnPacketSent(QuicTime sent_time,
+      ^
+pcc_sender.cpp:198:6: warning: unused parameter ‘rtt_updated’ [-Wunused-parameter]
+ void PccSender::OnCongestionEvent(bool rtt_updated, QuicTime::Delta rtt,
+      ^
+pcc_sender.cpp:198:6: warning: unused parameter ‘bytes_in_flight’ [-Wunused-parameter]
+pcc_sender.cpp:198:6: warning: unused parameter ‘event_time’ [-Wunused-parameter]
+pcc_sender.cpp:246:15: warning: unused parameter ‘bytes_in_flight’ [-Wunused-parameter]
+ QuicBandwidth PccSender::PacingRate(QuicByteCount bytes_in_flight) const {
+               ^
+pcc_sender.cpp: In member function ‘QuicBandwidth PccSender::GetSendingRateForNonUsefulInterval() const’:
+pcc_sender.cpp:468:1: warning: control reaches end of non-void function [-Wreturn-type]
+ }
+ ^
+pcc_sender.cpp: At global scope:
+pcc_sender.cpp:17:13: warning: ‘FLAGS_enable_rtt_deviation_based_early_termination’ defined but not used [-Wunused-variable]
+ static bool FLAGS_enable_rtt_deviation_based_early_termination =  false;
+             ^
+pcc_sender.cpp:22:15: warning: ‘FLAGS_rtt_fluctuation_tolerance_gain_in_starting’ defined but not used [-Wunused-variable]
+ static double FLAGS_rtt_fluctuation_tolerance_gain_in_starting =  2.5;
+               ^
+pcc_sender.cpp:23:15: warning: ‘FLAGS_rtt_fluctuation_tolerance_gain_in_decision_made’ defined but not used [-Wunused-variable]
+ static double FLAGS_rtt_fluctuation_tolerance_gain_in_decision_made =  1.5;
+               ^
+pcc_sender.cpp:24:13: warning: ‘FLAGS_can_send_respect_congestion_window’ defined but not used [-Wunused-variable]
+ static bool FLAGS_can_send_respect_congestion_window =  false;
+             ^
+pcc_sender.cpp:25:15: warning: ‘FLAGS_bytes_in_flight_gain’ defined but not used [-Wunused-variable]
+ static double FLAGS_bytes_in_flight_gain =  2.5;
+               ^
+make[1]: Leaving directory `/home/tmeng/Documents/PCC/quic/PCC-Uspace/pcc'
+make -C  core all
+make[1]: Entering directory `/home/tmeng/Documents/PCC/quic/PCC-Uspace/core'
+g++ -g -std=c++0x -fPIC -Wall -Wextra -DLINUX -finline-functions -O3 -fno-strict-aliasing  -DIA32 md5.cpp -c
+g++ -g -std=c++0x -fPIC -Wall -Wextra -DLINUX -finline-functions -O3 -fno-strict-aliasing  -DIA32 common.cpp -c
+g++ -g -std=c++0x -fPIC -Wall -Wextra -DLINUX -finline-functions -O3 -fno-strict-aliasing  -DIA32 window.cpp -c
+g++ -g -std=c++0x -fPIC -Wall -Wextra -DLINUX -finline-functions -O3 -fno-strict-aliasing  -DIA32 list.cpp -c
+g++ -g -std=c++0x -fPIC -Wall -Wextra -DLINUX -finline-functions -O3 -fno-strict-aliasing  -DIA32 buffer.cpp -c
+g++ -g -std=c++0x -fPIC -Wall -Wextra -DLINUX -finline-functions -O3 -fno-strict-aliasing  -DIA32 packet.cpp -c
+g++ -g -std=c++0x -fPIC -Wall -Wextra -DLINUX -finline-functions -O3 -fno-strict-aliasing  -DIA32 channel.cpp -c
+g++ -g -std=c++0x -fPIC -Wall -Wextra -DLINUX -finline-functions -O3 -fno-strict-aliasing  -DIA32 queue.cpp -c
+In file included from ../pcc/quic_types/quic_bandwidth.h:11:0,
+                 from ../pcc/pcc_monitor_interval_queue.h:4,
+                 from ../pcc/pcc_sender.h:6,
+                 from core.h:64,
+                 from queue.cpp:51:
+../pcc/quic_types/quic_types.h:10:13: warning: ‘HAS_RETRANSMITTABLE_DATA’ defined but not used [-Wunused-variable]
+ static bool HAS_RETRANSMITTABLE_DATA = true;
+             ^
+g++ -g -std=c++0x -fPIC -Wall -Wextra -DLINUX -finline-functions -O3 -fno-strict-aliasing  -DIA32 ccc.cpp -c
+In file included from ../pcc/quic_types/quic_bandwidth.h:11:0,
+                 from ../pcc/pcc_monitor_interval_queue.h:4,
+                 from ../pcc/pcc_sender.h:6,
+                 from core.h:64,
+                 from ccc.cpp:42:
+../pcc/quic_types/quic_types.h:10:13: warning: ‘HAS_RETRANSMITTABLE_DATA’ defined but not used [-Wunused-variable]
+ static bool HAS_RETRANSMITTABLE_DATA = true;
+             ^
+g++ -g -std=c++0x -fPIC -Wall -Wextra -DLINUX -finline-functions -O3 -fno-strict-aliasing  -DIA32 cache.cpp -c
+In file included from ../pcc/quic_types/quic_bandwidth.h:11:0,
+                 from ../pcc/pcc_monitor_interval_queue.h:4,
+                 from ../pcc/pcc_sender.h:6,
+                 from core.h:64,
+                 from cache.cpp:51:
+../pcc/quic_types/quic_types.h:10:13: warning: ‘HAS_RETRANSMITTABLE_DATA’ defined but not used [-Wunused-variable]
+ static bool HAS_RETRANSMITTABLE_DATA = true;
+             ^
+g++ -g -std=c++0x -fPIC -Wall -Wextra -DLINUX -finline-functions -O3 -fno-strict-aliasing  -DIA32 core.cpp -c
+In file included from core.h:67:0,
+                 from core.cpp:66:
+packet_tracker.h: In instantiation of ‘IdType PacketTracker<SeqNoType, IdType>::MakeNewPacketId(CPacket&) [with SeqNoType = int; IdType = long unsigned int]’:
+packet_tracker.h:273:95:   required from ‘void PacketTracker<SeqNoType, IdType>::OnPacketSent(CPacket&) [with SeqNoType = int; IdType = long unsigned int]’
+core.cpp:1761:41:   required from here
+packet_tracker.h:206:8: warning: unused parameter ‘packet’ [-Wunused-parameter]
+ IdType PacketTracker<SeqNoType, IdType>::MakeNewPacketId(CPacket& packet) {
+        ^
+In file included from ../pcc/quic_types/quic_bandwidth.h:11:0,
+                 from ../pcc/pcc_monitor_interval_queue.h:4,
+                 from ../pcc/pcc_sender.h:6,
+                 from core.h:64,
+                 from core.cpp:66:
+../pcc/quic_types/quic_types.h:10:13: warning: ‘HAS_RETRANSMITTABLE_DATA’ defined but not used [-Wunused-variable]
+ static bool HAS_RETRANSMITTABLE_DATA = true;
+             ^
+g++ -g -std=c++0x -fPIC -Wall -Wextra -DLINUX -finline-functions -O3 -fno-strict-aliasing  -DIA32 epoll.cpp -c
+g++ -g -std=c++0x -fPIC -Wall -Wextra -DLINUX -finline-functions -O3 -fno-strict-aliasing  -DIA32 api.cpp -c
+In file included from ../pcc/quic_types/quic_bandwidth.h:11:0,
+                 from ../pcc/pcc_monitor_interval_queue.h:4,
+                 from ../pcc/pcc_sender.h:6,
+                 from core.h:64,
+                 from api.cpp:52:
+../pcc/quic_types/quic_types.h:10:13: warning: ‘HAS_RETRANSMITTABLE_DATA’ defined but not used [-Wunused-variable]
+ static bool HAS_RETRANSMITTABLE_DATA = true;
+             ^
+g++ -g -std=c++0x -shared -o libudt.so ../pcc/pcc_monitor_interval_queue.o ../pcc/pcc_sender.o md5.o common.o window.o list.o buffer.o packet.o channel.o queue.o ccc.o cache.o core.o epoll.o api.o
+ar -rcs libudt.a ../pcc/pcc_monitor_interval_queue.o ../pcc/pcc_sender.o md5.o common.o window.o list.o buffer.o packet.o channel.o queue.o ccc.o cache.o core.o epoll.o api.o
+cp udt.h udt
+make[1]: Leaving directory `/home/tmeng/Documents/PCC/quic/PCC-Uspace/core'
+make -C  app all
+make[1]: Entering directory `/home/tmeng/Documents/PCC/quic/PCC-Uspace/app'
+g++ -g -std=c++0x -Wall -DLINUX -I../core -finline-functions -O3 -DIA32  pccserver.cpp -c
+pccserver.cpp: In function ‘void* recvdata(void*)’:
+pccserver.cpp:184:14: warning: unused variable ‘rcv_size’ [-Wunused-variable]
+          int rcv_size;
+              ^
+pccserver.cpp:185:14: warning: unused variable ‘var_size’ [-Wunused-variable]
+          int var_size = sizeof(int);
+              ^
+g++ -g -std=c++0x pccserver.o -o pccserver -L../core -ludt -lstdc++ -lpthread -lm -static
+pccserver.o: In function `main':
+/home/tmeng/Documents/PCC/quic/PCC-Uspace/app/pccserver.cpp:53: warning: Using 'getaddrinfo' in statically linked applications requires at runtime the shared libraries from the glibc version used for linking
+../core/libudt.a(pcc_sender.o): In function `PccSender::OnUtilityAvailable(std::vector<MonitorInterval const*, std::allocator<MonitorInterval const*> > const&)':
+/home/tmeng/Documents/PCC/quic/PCC-Uspace/pcc/pcc_sender.cpp:357: undefined reference to `CalculateUtility(MonitorInterval const*)'
+collect2: error: ld returned 1 exit status
+make[1]: *** [pccserver] Error 1
+make[1]: Leaving directory `/home/tmeng/Documents/PCC/quic/PCC-Uspace/app'
+make: *** [app.all] Error 2

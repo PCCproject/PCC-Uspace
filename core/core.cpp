@@ -144,7 +144,7 @@ CUDT::CUDT()
 	m_pCC = m_pCCFactory->create();
 	m_pCache = NULL;
 
-    pcc_sender = new PccSender(10000, 10, 10);
+    pcc_sender = new PccSender(10, 10);
 	packet_tracker_ = new PacketTracker<int32_t, PacketId>(&m_SendBlockCond);
 
 	// Initial status
@@ -207,7 +207,7 @@ CUDT::CUDT(const CUDT& ancestor)
     }
 	m_pCC = m_pCCFactory->create();
 
-    pcc_sender = new PccSender(10000, 10, 10);
+    pcc_sender = new PccSender(10, 10);
 	packet_tracker_ = new PacketTracker<int32_t, PacketId>(&m_SendBlockCond);
 
 	// Initial status
@@ -1519,16 +1519,18 @@ void CUDT::add_to_loss_record(int32_t loss1, int32_t loss2){
     for (int loss = loss1; loss <= loss2; ++loss) {
         int32_t msg_no = packet_tracker_->GetPacketLastMsgNo(loss);
         PacketId pkt_id = packet_tracker_->GetPacketId(loss, msg_no);
-        CongestionEvent loss_event;
-        loss_event.packet_number = pkt_id;
-        loss_event.bytes_acked = 0;
-        loss_event.bytes_lost = packet_tracker_->GetPacketSize(loss);
-        loss_event.time = CTimer::getTime();
-        lost_packets.push_back(loss_event);
+        lost_packets.push_back(
+            LostPacket(pkt_id,
+                       static_cast<uint64_t>(
+                           packet_tracker_->GetPacketSize(loss))));
         packet_tracker_->OnPacketLoss(loss, msg_no);
         ++m_iSndLossTotal;
     }
-    pcc_sender->OnCongestionEvent(true, 0, CTimer::getTime(), 0, acked_packets, lost_packets);
+    pcc_sender->OnCongestionEvent(
+        true, QuicTime::Delta::Zero(), 0,
+        QuicTime::Zero() + QuicTime::Delta::FromMicroseconds(
+                               static_cast<int64_t>(CTimer::getTime())),
+        acked_packets, lost_packets);
     pcc_sender_lock.unlock();
 		
 #ifdef EXPERIMENTAL_FEATURE_CONTINOUS_SEND
@@ -1571,13 +1573,16 @@ void CUDT::ProcessAck(CPacket& ctrlpkt) {
 
     AckedPacketVector acked_packets;
     LostPacketVector lost_packets;
-    CongestionEvent ack_event;
-    ack_event.time = CTimer::getTime();
-    ack_event.packet_number = pkt_id;
-    ack_event.bytes_acked = size;
-    ack_event.bytes_lost = 0;
-    acked_packets.push_back(ack_event);
-    pcc_sender->OnCongestionEvent(true, 0, CTimer::getTime(), rtt_us, acked_packets, lost_packets);
+    acked_packets.push_back(AckedPacket(
+        pkt_id, static_cast<uint64_t>(size),
+        QuicTime::Zero() + QuicTime::Delta::FromMicroseconds(
+                               static_cast<int64_t>(CTimer::getTime()))));
+    pcc_sender->OnCongestionEvent(
+        true,
+        QuicTime::Delta::FromMicroseconds(static_cast<int64_t>(rtt_us)), 0,
+        QuicTime::Zero() + QuicTime::Delta::FromMicroseconds(
+                               static_cast<int64_t>(CTimer::getTime())),
+        acked_packets, lost_packets);
     pcc_sender_lock.unlock();
     ++m_iRecvACK;
     ++m_iRecvACKTotal;
@@ -1707,17 +1712,20 @@ uint64_t CUDT::GetSendingInterval() {
      * frequency         * m_iMSS * 8      *  1 / sending_rate (in bits/second)
      */
 
+    double pacing_rate =
+        static_cast<double>(pcc_sender->PacingRate(0).ToBitsPerSecond());
 #ifdef DEBUG_CORE_SENDING_RATE
     static double prev_rate = 0;
-    if (pcc_sender->PacingRate(0) != prev_rate) {
-        std::cerr << "Sending rate changed to " << pcc_sender->PacingRate(0) / 1000000.0f << "mbps" << std::endl;
+    if (pacing_rate != prev_rate) {
+        std::cerr << "Sending rate changed to " << pacing_rate / 1000000.0f << "mbps" << std::endl;
         std::cerr << "New clock cycle interval is " << 
-            m_ullCPUFrequency * m_iMSS * 8.0f * 1000000.0f / pcc_sender->PacingRate(0)
+            m_ullCPUFrequency * m_iMSS * 8.0f * 1000000.0f / pacing_rate
             << std::endl;
-        prev_rate = pcc_sender->PacingRate(0);
+        prev_rate = pacing_rate;
     }
 #endif
-    return m_ullCPUFrequency * m_iMSS * 8.0f * 1000000.0f / pcc_sender->PacingRate(0);
+    
+    return m_ullCPUFrequency * m_iMSS * 8.0f * 1000000.0f / pacing_rate;
 }
 
 int CUDT::packData(CPacket& packet, uint64_t& ts)
@@ -1752,7 +1760,10 @@ int CUDT::packData(CPacket& packet, uint64_t& ts)
     packet.m_iMsgNo = msg_no + 1;
     packet_tracker_->OnPacketSent(packet);
     PacketId pkt_id = packet_tracker_->GetPacketId(seq_no, packet.m_iMsgNo);
-    pcc_sender->OnPacketSent(CTimer::getTime(), 0, pkt_id, payload, false);
+    pcc_sender->OnPacketSent(
+        QuicTime::Zero() + QuicTime::Delta::FromMicroseconds(
+                               static_cast<int64_t>(CTimer::getTime())),
+        0, pkt_id, static_cast<uint64_t>(payload), false);
     pcc_sender_lock.unlock();
 
 	packet.m_iTimeStamp = int(CTimer::getTime() - m_StartTime);
