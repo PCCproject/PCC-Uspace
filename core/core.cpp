@@ -543,6 +543,7 @@ void CUDT::open()
 	// trace information
 	m_StartTime = CTimer::getTime();
 	TotalBytes = m_llSentTotal = m_llRecvTotal = m_iSndLossTotal = m_iRcvLossTotal = m_iRetransTotal = m_iSentACKTotal = m_iRecvACKTotal = m_iSentNAKTotal = m_iRecvNAKTotal = 0;
+	BytesInFlight = 0;
 	m_LastSampleTime = CTimer::getTime();
 	m_llTraceSent = m_llTraceRecv = m_iTraceSndLoss = m_iTraceRcvLoss = m_iTraceRetrans = m_iSentACK = m_iRecvACK = m_iSentNAK = m_iRecvNAK = 0;
 	m_llSndDuration = m_llSndDurationTotal = 0;
@@ -1577,6 +1578,10 @@ void CUDT::ProcessAck(CPacket& ctrlpkt) {
         pkt_id, static_cast<uint64_t>(size),
         QuicTime::Zero() + QuicTime::Delta::FromMicroseconds(
                                static_cast<int64_t>(CTimer::getTime()))));
+    BytesInFlight -= static_cast<int64_t>(size);
+    if (BytesInFlight < 0) {
+        std::cerr << "Negative bytes in flight" << std::endl;
+    }
     pcc_sender->OnCongestionEvent(
         true,
         QuicTime::Delta::FromMicroseconds(static_cast<int64_t>(rtt_us)), 0,
@@ -1739,6 +1744,15 @@ int CUDT::packData(CPacket& packet, uint64_t& ts)
     }
 
     pcc_sender_lock.lock();
+
+    if (!pcc_sender->CanSend(BytesInFlight)) {
+        ts = entertime;
+        m_ullTimeDiff = 0;
+        m_ullTargetTime = ts;
+        pcc_sender_lock.unlock();
+        return 0;
+    }
+
     int32_t seq_no;
     if (packet_tracker_->HasRetransmittablePackets()) {
         seq_no = packet_tracker_->GetLowestRetransmittableSeqNo();
@@ -1746,6 +1760,8 @@ int CUDT::packData(CPacket& packet, uint64_t& ts)
 		++m_iRetransTotal;
     } else if (packet_tracker_->HasSendablePackets()) {
         seq_no = packet_tracker_->GetLowestSendableSeqNo();
+        BytesInFlight +=
+            static_cast<int64_t>(packet_tracker_->GetPacketSize(seq_no));
     } else {
         std::cout << "no transmittable packets" << std::endl;
         pcc_sender_lock.unlock();

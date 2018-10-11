@@ -91,14 +91,16 @@ sed -i "s/~PccSender() override {}/~PccSender() \/\*override\*\/ {}/g" ${file}
 sed -i "s/const LostPacketVector\& lost_packets) override;/const LostPacketVector\& lost_packets) \/\*override\*\/;/g" ${file}
 sed -i "s/HasRetransmittableData is_retransmittable) override;/HasRetransmittableData is_retransmittable) \/\*override\*\/;/g" ${file}
 sed -i "s/bytes_in_flight) const override/bytes_in_flight) const \/\*override\*\//g" ${file}
+sed -i "s/bool CanSend(QuicByteCount bytes_in_flight) override;/bool CanSend(QuicByteCount bytes_in_flight) \/\*override\*\/;/g" ${file}
+sed -i "s/GetCongestionWindow() const override;/GetCongestionWindow() const \/\*override\*\/;/g" ${file}
 declare -a useless_func=("InSlowStart" "InRecovery" "ShouldSendProbingPacket"
                          "SetFromConfig" "SetInitialCongestionWindowInPackets"
                          "AdjustNetworkParameters" "SetNumEmulatedConnections"
                          "OnRetransmissionTimeout" "OnConnectionMigration"
-                         "CanSend" "BandwidthEstimate" "GetCongestionWindow"
-                         "GetSlowStartThreshold" "GetCongestionControlType"
-                         "GetDebugState" "OnApplicationLimited"
-                         "ExportDebugState" "UpdateBandwidthSampler"
+                         "BandwidthEstimate" "GetSlowStartThreshold"
+                         "GetCongestionControlType" "GetDebugState"
+                         "OnApplicationLimited" "ExportDebugState"
+                         "UpdateBandwidthSampler"
                         )
 for func in "${useless_func[@]}"
 do
@@ -205,10 +207,7 @@ sed -i "s/UpdateBandwidthSampler(event_time, acked_packets, lost_packets);/\/\/ 
 line="$(grep -n "QuicTime::Delta avg_rtt = avg_rtt_;" ${file} | head -n 1 | cut -d: -f1)"
 sed -i "${line}i\  UpdateRtt(rtt);" ${file}
 sed -i "s/QUIC_BUG_IF(avg_rtt.IsZero());/\/\/ QUIC_BUG_IF(avg_rtt.IsZero());/g" ${file}
-sed -i "s/bool PccSender::CanSend/\/\* bool PccSender::CanSend/g" ${file}
-line="$(grep -n "FLAGS_bytes_in_flight_gain \* GetCongestionWindow()" ${file} | head -n 1 | cut -d: -f1)"
-line=$((${line} + 2))
-sed -i "${line}i\*\/" ${file}
+func_comment_segments "if (min_rtt_ < rtt_stats_->mean_deviation()) {" "}" ${file}
 sed -i "s/void PccSender::OnApplicationLimited/\/\* void PccSender::OnApplicationLimited/g" ${file}
 line="$(grep -n "sampler_.OnAppLimited();" ${file} | head -n 1 | cut -d: -f1)"
 line=$((${line} + 2))
@@ -225,8 +224,7 @@ sed -i "s/static QuicString PccSenderModeToString/\/\* static QuicString PccSend
 line="$(grep -n "return \"???\";" ${file} | head -n 1 | cut -d: -f1)"
 line=$((${line} + 2))
 sed -i "${line}i\*\/" ${file}
-declare -a useless_func=("::BandwidthEstimate" "::GetCongestionWindow"
-                         "::InSlowStart" "::InRecovery"
+declare -a useless_func=("::BandwidthEstimate" "::InSlowStart" "::InRecovery"
                          "::ShouldSendProbingPacket" "::GetSlowStartThreshold"
                          "::GetCongestionControlType" "::ExportDebugState"
                          "operator<<"
