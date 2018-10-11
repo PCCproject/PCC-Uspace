@@ -109,7 +109,7 @@ done
 sed -i "s/bool rtt_updated,/bool rtt_updated, QuicTime::Delta rtt,/g" ${file}
 line="$(grep -n "private:" ${file} | head -n 1 | cut -d: -f1)"
 line=$((${line} + 1))
-sed -i "${line}i\  void UpdateRtt(QuicTime::Delta rtt);" ${file}
+sed -i "${line}i\  void UpdateRtt(QuicTime event_time, QuicTime::Delta rtt);" ${file}
 sed -i "s/friend class test::PccSenderPeer;/\/\/ friend class test::PccSenderPeer;/g" ${file}
 sed -i "s/typedef WindowedFilter/\/\*typedef WindowedFilter/g" ${file}
 sed -i "s/MaxBandwidthFilter;/MaxBandwidthFilter;\*\//g" ${file}
@@ -205,7 +205,11 @@ func_comment_segments "sampler_.OnPacketSent" ");" ${file}
 sed -i "s/bool rtt_updated,/bool rtt_updated, QuicTime::Delta rtt,/g" ${file}
 sed -i "s/UpdateBandwidthSampler(event_time, acked_packets, lost_packets);/\/\/ UpdateBandwidthSampler(event_time, acked_packets, lost_packets);/g" ${file}
 line="$(grep -n "QuicTime::Delta avg_rtt = avg_rtt_;" ${file} | head -n 1 | cut -d: -f1)"
-sed -i "${line}i\  UpdateRtt(rtt);" ${file}
+sed -i "${line}i\  if (rtt_updated) {" ${file}
+line=$((${line} + 1))
+sed -i "${line}i\    UpdateRtt(event_time, rtt);" ${file}
+line=$((${line} + 1))
+sed -i "${line}i\  }" ${file}
 sed -i "s/QUIC_BUG_IF(avg_rtt.IsZero());/\/\/ QUIC_BUG_IF(avg_rtt.IsZero());/g" ${file}
 func_comment_segments "if (min_rtt_ < rtt_stats_->mean_deviation()) {" "}" ${file}
 sed -i "s/void PccSender::OnApplicationLimited/\/\* void PccSender::OnApplicationLimited/g" ${file}
@@ -242,11 +246,11 @@ sed -i "s/random_->RandUint64()/rand()/g" ${file}
 sed -i "s/FALLTHROUGH_INTENDED;/\/\/ FALLTHROUGH_INTENDED;/g" ${file}
 sed -i "s/QUIC_BUG <</std::cerr <</g" ${file}
 line="$(grep -n "PccSender::OnCongestionEvent" ${file} | head -n 1 | cut -d: -f1)"
-sed -i "${line}ivoid PccSender::UpdateRtt(QuicTime::Delta rtt) {" ${file}
+sed -i "${line}ivoid PccSender::UpdateRtt(QuicTime event_time, QuicTime::Delta rtt) {" ${file}
 line=$((${line} + 1))
 sed -i "${line}i\  latest_rtt_ = rtt;" ${file}
 line=$((${line} + 1))
-sed -i "${line}i\  avg_rtt_ = avg_rtt_ * 0.875 + rtt * 0.125;" ${file}
+sed -i "${line}i\  avg_rtt_ = avg_rtt_.IsZero() ? rtt : avg_rtt_ * 0.875 + rtt * 0.125;" ${file}
 line=$((${line} + 1))
 sed -i "${line}i\  if (min_rtt_.IsZero() || rtt < min_rtt_) {" ${file}
 line=$((${line} + 1))
@@ -254,4 +258,42 @@ sed -i "${line}i\    min_rtt_ = rtt;" ${file}
 line=$((${line} + 1))
 sed -i "${line}i\  }" ${file}
 line=$((${line} + 1))
+sed -i "${line}i\  std::cerr << (event_time - QuicTime::Zero()).ToMicroseconds() << \" New RTT \"" ${file}
+line=$((${line} + 1))
+sed -i "${line}i\            << rtt.ToMicroseconds() << std::endl;" ${file}
+line=$((${line} + 1))
 sed -i "${line}i\}\n" ${file}
+line="$(grep -n "interval_queue_.OnPacketSent" ${file} | head -n 1 | cut -d: -f1)"
+line=$((${line} - 1))
+sed -i "${line}i\    std::cerr << (sent_time - QuicTime::Zero()).ToMicroseconds() << \" \"" ${file}
+line=$((${line} + 1))
+sed -i "${line}i\              << \"Create MI (useful: \" << interval_queue_.current().is_useful" ${file}
+line=$((${line} + 1))
+sed -i "${line}i\              << \") with rate \" << interval_queue_.current().sending_rate" ${file}
+line=$((${line} + 1))
+sed -i "${line}i\                                                            .ToKBitsPerSecond()" ${file}
+line=$((${line} + 1))
+sed -i "${line}i\              << \", duration \" << monitor_duration_.ToMicroseconds()" ${file}
+line=$((${line} + 1))
+sed -i "${line}i\              << std::endl;" ${file}
+line="$(grep -n "CalculateUtility" ${file} | head -n 1 | cut -d: -f1)"
+line=$((${line} + 1))
+sed -i "${line}i\    std::cerr << \"End MI (rate: \"" ${file}
+line=$((${line} + 1))
+sed -i "${line}i\              << useful_intervals[i]->sending_rate.ToKBitsPerSecond()" ${file}
+line=$((${line} + 1))
+sed -i "${line}i\              << \", rtt \"" ${file}
+line=$((${line} + 1))
+sed -i "${line}i\              << useful_intervals[i]->rtt_on_monitor_start.ToMicroseconds()" ${file}
+line=$((${line} + 1))
+sed -i "${line}i\              << \"->\"" ${file}
+line=$((${line} + 1))
+sed -i "${line}i\              << useful_intervals[i]->rtt_on_monitor_end.ToMicroseconds()" ${file}
+line=$((${line} + 1))
+sed -i "${line}i\              << \", \" << useful_intervals[i]->bytes_acked << \"\/\"" ${file}
+line=$((${line} + 1))
+sed -i "${line}i\              << useful_intervals[i]->bytes_sent << \") with utility \"" ${file}
+line=$((${line} + 1))
+sed -i "${line}i\              << CalculateUtility(useful_intervals[i]) << \"(latest \"" ${file}
+line=$((${line} + 1))
+sed -i "${line}i\              << latest_utility_ << \")\" << std::endl;" ${file}

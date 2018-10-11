@@ -1528,7 +1528,7 @@ void CUDT::add_to_loss_record(int32_t loss1, int32_t loss2){
         ++m_iSndLossTotal;
     }
     pcc_sender->OnCongestionEvent(
-        true, QuicTime::Delta::Zero(), 0,
+        false, QuicTime::Delta::Zero(), 0,
         QuicTime::Zero() + QuicTime::Delta::FromMicroseconds(
                                static_cast<int64_t>(CTimer::getTime())),
         acked_packets, lost_packets);
