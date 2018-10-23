@@ -117,6 +117,7 @@ sed -i "s/const RttStats\* rtt_stats_;/QuicTime::Delta avg_rtt_;/g" ${file}
 line="$(grep -n "QuicTime::Delta avg_rtt_;" ${file} | head -n 1 | cut -d: -f1)"
 sed -i "${line}i\  QuicTime::Delta min_rtt_;" ${file}
 sed -i "${line}i\  QuicTime::Delta latest_rtt_;" ${file}
+sed -i "${line}i\  QuicTime::Delta rtt_deviation_;" ${file}
 sed -i "s/const QuicUnackedPacketMap\* unacked_packets_;/\/\/ const QuicUnackedPacketMap\* unacked_packets_;/g" ${file}
 sed -i "s/QuicRandom\* random_;/\/\/ QuicRandom\* random_;/g" ${file}
 sed -i "s/BandwidthSampler sampler_;/\/\/ BandwidthSampler sampler_;/g" ${file}
@@ -184,9 +185,10 @@ sed -i "s/QuicPacketCount max_congestion_window,/QuicPacketCount max_congestion_
 sed -i "s/QuicRandom\* random)/\/\/ QuicRandom* random)/g" ${file}
 sed -i "s/rtt_stats->initial_rtt()/kInitialRtt/g" ${file}
 sed -i "s/rtt_stats_(rtt_stats),/avg_rtt_(QuicTime::Delta::Zero()),/g" ${file}
-line="$(grep -n "avg_rtt_(QuicTime::Delta::Zero())," ${file} | head -n 1 | cut -d: -f1)"
+line="$(grep -n "\ avg_rtt_(QuicTime::Delta::Zero())," ${file} | head -n 1 | cut -d: -f1)"
 sed -i "${line}i\      min_rtt_(QuicTime::Delta::Zero())," ${file}
 sed -i "${line}i\      latest_rtt_(QuicTime::Delta::Zero())," ${file}
+sed -i "${line}i\      rtt_deviation_(QuicTime::Delta::Zero())," ${file}
 sed -i "s/unacked_packets_(unacked_packets),/\/\/ unacked_packets_(unacked_packets),/g" ${file}
 sed -i "s/random_(random),/\/\/ random_(random),/g" ${file}
 sed -i "s/max_bandwidth_(/\/\/ max_bandwidth_(/g" ${file}
@@ -198,9 +200,10 @@ sed -i "s/is_retransmittable != HAS_RETRANSMITTABLE_DATA/false \&\& is_retransmi
 sed -i "s/rtt_stats_->latest_rtt()/latest_rtt_/g" ${file}
 sed -i "s/rtt_stats_->min_rtt()/min_rtt_/g" ${file}
 sed -i "s/rtt_stats_->smoothed_rtt()/avg_rtt_/g" ${file}
+sed -i "s/rtt_stats_->mean_deviation()/rtt_deviation_/g" ${file}
 sed -i "s/rtt_stats_->initial_rtt()/kInitialRtt/g" ${file}
+sed -i "s/rtt_stats_->SmoothedOrInitialRtt()/(avg_rtt_.IsZero()? kInitialRtt : avg_rtt_)/g" ${file}
 sed -i "s/QUIC_BUG_IF(mode_ != STARTING);/assert(mode_ == STARTING);/g" ${file}
-func_comment_segments "if (FLAGS_enable_rtt_deviation_based_early_termination)" "}" ${file} #TODO: rtt deviation based early termination
 func_comment_segments "sampler_.OnPacketSent" ");" ${file}
 sed -i "s/bool rtt_updated,/bool rtt_updated, QuicTime::Delta rtt,/g" ${file}
 sed -i "s/UpdateBandwidthSampler(event_time, acked_packets, lost_packets);/\/\/ UpdateBandwidthSampler(event_time, acked_packets, lost_packets);/g" ${file}
@@ -211,7 +214,6 @@ sed -i "${line}i\    UpdateRtt(event_time, rtt);" ${file}
 line=$((${line} + 1))
 sed -i "${line}i\  }" ${file}
 sed -i "s/QUIC_BUG_IF(avg_rtt.IsZero());/\/\/ QUIC_BUG_IF(avg_rtt.IsZero());/g" ${file}
-func_comment_segments "if (min_rtt_ < rtt_stats_->mean_deviation()) {" "}" ${file}
 sed -i "s/void PccSender::OnApplicationLimited/\/\* void PccSender::OnApplicationLimited/g" ${file}
 line="$(grep -n "sampler_.OnAppLimited();" ${file} | head -n 1 | cut -d: -f1)"
 line=$((${line} + 2))
@@ -239,8 +241,10 @@ do
 done
 sed -i "s/DCHECK_EQ(1u, utility_info.size());/assert(utility_info.size() == 1u);/g" ${file}
 sed -i "s/DCHECK_EQ(2 \* kNumIntervalGroupsInProbingLong, utility_info.size());/assert(utility_info.size() == 2 \* kNumIntervalGroupsInProbingLong);/g" ${file}
+sed -i "s/DCHECK_EQ(2 \* kNumIntervalGroupsInProbing, utility_info.size());/assert(utility_info.size() == 2 \* kNumIntervalGroupsInProbing);/g" ${file}
 sed -i "s/DCHECK_NE(STARTING, mode_);/assert(STARTING != mode_);/g" ${file}
 sed -i "s/DCHECK_NE(DECISION_MADE, mode_);/assert(DECISION_MADE != mode_);/g" ${file}
+sed -i "s/DCHECK_EQ(PROBING, mode_);/assert(PROBING == mode_);/g" ${file}
 func_comment_segments "!BandwidthEstimate().IsZero()" "}" ${file}
 sed -i "s/random_->RandUint64()/rand()/g" ${file}
 sed -i "s/FALLTHROUGH_INTENDED;/\/\/ FALLTHROUGH_INTENDED;/g" ${file}
@@ -249,6 +253,16 @@ line="$(grep -n "PccSender::OnCongestionEvent" ${file} | head -n 1 | cut -d: -f1
 sed -i "${line}ivoid PccSender::UpdateRtt(QuicTime event_time, QuicTime::Delta rtt) {" ${file}
 line=$((${line} + 1))
 sed -i "${line}i\  latest_rtt_ = rtt;" ${file}
+line=$((${line} + 1))
+sed -i "${line}i\  rtt_deviation_ = rtt_deviation_.IsZero()" ${file}
+line=$((${line} + 1))
+sed -i "${line}i\      ? QuicTime::Delta::FromMicroseconds(rtt.ToMicroseconds() / 2)" ${file}
+line=$((${line} + 1))
+sed -i "${line}i\      : QuicTime::Delta::FromMicroseconds(static_cast<int64_t>(" ${file}
+line=$((${line} + 1))
+sed -i "${line}i\            0.75 * rtt_deviation_.ToMicroseconds() +" ${file}
+line=$((${line} + 1))
+sed -i "${line}i\            0.25 * std::abs((avg_rtt_ - rtt).ToMicroseconds())));" ${file}
 line=$((${line} + 1))
 sed -i "${line}i\  avg_rtt_ = avg_rtt_.IsZero() ? rtt : avg_rtt_ * 0.875 + rtt * 0.125;" ${file}
 line=$((${line} + 1))
@@ -290,10 +304,16 @@ sed -i "${line}i\              << \"->\"" ${file}
 line=$((${line} + 1))
 sed -i "${line}i\              << useful_intervals[i]->rtt_on_monitor_end.ToMicroseconds()" ${file}
 line=$((${line} + 1))
+#sed -i "${line}i\              << \", \" << useful_intervals[i]->rtt_avg.ToMicroseconds()" ${file}
+#line=$((${line} + 1))
+#sed -i "${line}i\              << \"->\" << latest_avg_rtt_.ToMicroseconds()" ${file}
+#line=$((${line} + 1))
+sed -i "${line}i\              << \", \" << useful_intervals[i]->rtt_fluctuation_tolerance_ratio" ${file}
+line=$((${line} + 1))
 sed -i "${line}i\              << \", \" << useful_intervals[i]->bytes_acked << \"\/\"" ${file}
 line=$((${line} + 1))
 sed -i "${line}i\              << useful_intervals[i]->bytes_sent << \") with utility \"" ${file}
 line=$((${line} + 1))
-sed -i "${line}i\              << CalculateUtility(useful_intervals[i]) << \"(latest \"" ${file}
+sed -i "${line}i\              << CalculateUtility(useful_intervals[i])" ${file}
 line=$((${line} + 1))
-sed -i "${line}i\              << latest_utility_ << \")\" << std::endl;" ${file}
+sed -i "${line}i\              << \"(latest \" << latest_utility_ << \")\" << std::endl;" ${file}
