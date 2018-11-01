@@ -31,10 +31,10 @@
 #define QUIC_EXPORT_PRIVATE
 
 typedef bool HasRetransmittableData;
-//namespace {
-//double FLAGS_max_rtt_fluctuation_tolerance_ratio_in_starting = 0.3;
-//double FLAGS_max_rtt_fluctuation_tolerance_ratio_in_decision_made = 0.05;
-//}
+// namespace {
+// double FLAGS_max_rtt_fluctuation_tolerance_ratio_in_starting = 0.3;
+// double FLAGS_max_rtt_fluctuation_tolerance_ratio_in_decision_made = 0.05;
+// }
 #endif
 
 #ifdef QUIC_PORT
@@ -82,28 +82,28 @@ class QUIC_EXPORT_PRIVATE PccSender
   // Indicates whether sender should increase or decrease sending rate.
   enum RateChangeDirection { INCREASE, DECREASE };
 
-  #ifdef QUIC_PORT
+#ifdef QUIC_PORT
   PccSender(const RttStats* rtt_stats,
             QuicPacketCount initial_congestion_window,
             QuicPacketCount max_congestion_window, QuicRandom* random);
-  #else
+#else
   PccSender(QuicTime initial_rtt_us,
             QuicPacketCount initial_congestion_window,
             QuicPacketCount max_congestion_window);
-  #endif
+#endif
   PccSender(const PccSender&) = delete;
   PccSender& operator=(const PccSender&) = delete;
   PccSender(PccSender&&) = delete;
   PccSender& operator=(PccSender&&) = delete;
-  #ifdef QUIC_PORT
-  #ifdef QUIC_PORT_LOCAL
+#ifdef QUIC_PORT
+#ifdef QUIC_PORT_LOCAL
   ~PccSender() override;
-  #else
+#else
   ~PccSender() override {}
-  #endif
-  #endif
+#endif
+#endif
 
-  #ifdef QUIC_PORT
+#ifdef QUIC_PORT
   // Start implementation of SendAlgorithmInterface.
   bool InSlowStart() const override;
   bool InRecovery() const override;
@@ -115,46 +115,46 @@ class QUIC_EXPORT_PRIVATE PccSender
   void AdjustNetworkParameters(QuicBandwidth bandwidth,
                                QuicTime::Delta rtt) override {}
   void SetNumEmulatedConnections(int num_connections) override {}
-  #endif
+#endif
   void OnCongestionEvent(bool rtt_updated,
                          QuicByteCount bytes_in_flight,
                          QuicTime event_time,
-  #ifndef QUIC_PORT
+#ifndef QUIC_PORT
                          QuicTime rtt,
-  #endif
+#endif
                          const AckedPacketVector& acked_packets,
-  #ifdef QUIC_PORT
+#ifdef QUIC_PORT
                          const LostPacketVector& lost_packets) override;
-  #else
+#else
                          const LostPacketVector& lost_packets);
-  #endif
+#endif
   void OnPacketSent(QuicTime sent_time,
                     QuicByteCount bytes_in_flight,
                     QuicPacketNumber packet_number,
                     QuicByteCount bytes,
-  #ifdef QUIC_PORT
+#ifdef QUIC_PORT
                     HasRetransmittableData is_retransmittable) override;
   void OnRetransmissionTimeout(bool packets_retransmitted) override {}
   void OnConnectionMigration() override {}
   bool CanSend(QuicByteCount bytes_in_flight) override;
-  #else
+#else
                     HasRetransmittableData is_retransmittable);
-  #endif
-  #ifdef QUIC_PORT
+#endif
+#ifdef QUIC_PORT
   QuicBandwidth PacingRate(QuicByteCount bytes_in_flight) const override;
-  #else
+#else
   QuicBandwidth PacingRate(QuicByteCount bytes_in_flight) const;
-  #endif
-  #ifdef QUIC_PORT
+#endif
+#ifdef QUIC_PORT
   QuicBandwidth BandwidthEstimate() const override;
   QuicByteCount GetCongestionWindow() const override;
   QuicByteCount GetSlowStartThreshold() const override;
   CongestionControlType GetCongestionControlType() const override;
-  #if defined(QUIC_PORT) && defined(QUIC_PORT_LOCAL)
+#if defined(QUIC_PORT) && defined(QUIC_PORT_LOCAL)
   std::string GetDebugState() const override;
-  #else
+#else
   string GetDebugState() const override;
-  #endif
+#endif
   void OnApplicationLimited(QuicByteCount bytes_in_flight) override {}
 
   // End implementation of SendAlgorithmInterface.
@@ -162,11 +162,11 @@ class QUIC_EXPORT_PRIVATE PccSender
   QuicTime::Delta ComputeMonitorDuration(
       QuicBandwidth sending_rate,
       QuicTime::Delta rtt);
-  #else
+#else
   QuicTime ComputeMonitorDuration(
       QuicBandwidth sending_rate,
       QuicTime rtt);
-  #endif
+#endif
 
   QuicBandwidth ComputeRateChange(const UtilityInfo& utility_sample_1,
                                   const UtilityInfo& utility_sample_2);
@@ -177,19 +177,19 @@ class QUIC_EXPORT_PRIVATE PccSender
   // Called when all useful intervals' utilities are available,
   // so the sender can make a decision.
   void OnUtilityAvailable(
-  #ifdef QUIC_PORT_LOCAL
+#ifdef QUIC_PORT_LOCAL
       const std::vector<UtilityInfo>& utility_info) override;
-  #else
+#else
       const std::vector<UtilityInfo>& utility_info);
-  #endif
-  
-  #if defined(QUIC_PORT) && defined(QUIC_PORT_LOCAL)
+#endif
+
+#if defined(QUIC_PORT) && defined(QUIC_PORT_LOCAL)
   void SetFlag(double val);
-  #endif
+#endif
  private:
-  #ifdef QUIC_PORT
+#ifdef QUIC_PORT
   friend class test::PccSenderPeer;
-  #endif
+#endif
   // Returns true if next created monitor interval is useful,
   // i.e., its utility will be used when a decision can be made.
   bool CreateUsefulInterval() const;
@@ -210,11 +210,11 @@ class QUIC_EXPORT_PRIVATE PccSender
   // Most recent utility used when making the last rate change decision.
   UtilityInfo latest_utility_info_;
   // Duration of the current monitor interval.
-  #ifdef QUIC_PORT
+#ifdef QUIC_PORT
   QuicTime::Delta monitor_duration_;
-  #else
+#else
   QuicTime monitor_duration_;
-  #endif
+#endif
   // Current direction of rate changes.
   RateChangeDirection direction_;
   // Number of rounds sender remains in current mode.
@@ -228,12 +228,12 @@ class QUIC_EXPORT_PRIVATE PccSender
   // The gradient samples that have been averaged.
   std::queue<float> gradient_samples_;
 
-  #ifdef QUIC_PORT
+#ifdef QUIC_PORT
   const RttStats* rtt_stats_;
   QuicRandom* random_;
-  #else
+#else
   QuicTime avg_rtt_;
-  #endif
+#endif
 
   // The number of consecutive rate changes in a single direction
   // before we accelerate the rate of change.

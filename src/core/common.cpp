@@ -39,9 +39,14 @@ written by
  *****************************************************************************/
 
 
+#include "common.h"
+#include "md5.h"
+
+#include <cmath>
+
 #ifndef WIN32
-#include <cstring>
 #include <cerrno>
+#include <cstring>
 #include <unistd.h>
 #ifdef OSX
 #include <mach/mach_time.h>
@@ -54,10 +59,6 @@ written by
 #endif
 #endif
 
-#include <cmath>
-#include "md5.h"
-#include "common.h"
-
 uint64_t CTimer::s_ullCPUFrequency = CTimer::readCPUFrequency();
 #ifndef WIN32
 pthread_mutex_t CTimer::m_EventLock = PTHREAD_MUTEX_INITIALIZER;
@@ -67,595 +68,511 @@ pthread_mutex_t CTimer::m_EventLock = CreateMutex(NULL, false, NULL);
 pthread_cond_t CTimer::m_EventCond = CreateEvent(NULL, false, false, NULL);
 #endif
 
-CTimer::CTimer():
-		m_ullSchedTime(),
-		m_TickCond(),
-		m_TickLock()
-{
+CTimer::CTimer() : m_ullSchedTime(),
+                   m_TickCond(),
+                   m_TickLock() {
 #ifndef WIN32
-	pthread_mutex_init(&m_TickLock, NULL);
-	pthread_cond_init(&m_TickCond, NULL);
+  pthread_mutex_init(&m_TickLock, NULL);
+  pthread_cond_init(&m_TickCond, NULL);
 #else
-	m_TickLock = CreateMutex(NULL, false, NULL);
-	m_TickCond = CreateEvent(NULL, false, false, NULL);
+  m_TickLock = CreateMutex(NULL, false, NULL);
+  m_TickCond = CreateEvent(NULL, false, false, NULL);
 #endif
 }
 
-CTimer::~CTimer()
-{
+CTimer::~CTimer() {
 #ifndef WIN32
-	pthread_mutex_destroy(&m_TickLock);
-	pthread_cond_destroy(&m_TickCond);
+  pthread_mutex_destroy(&m_TickLock);
+  pthread_cond_destroy(&m_TickCond);
 #else
-	CloseHandle(m_TickLock);
-	CloseHandle(m_TickCond);
+  CloseHandle(m_TickLock);
+  CloseHandle(m_TickCond);
 #endif
 }
 
-void CTimer::rdtsc(uint64_t &x)
-{
+void CTimer::rdtsc(uint64_t &x) {
 #ifdef WIN32
-	//HANDLE hCurThread = ::GetCurrentThread();
-	//DWORD_PTR dwOldMask = ::SetThreadAffinityMask(hCurThread, 1);
-	BOOL ret = QueryPerformanceCounter((LARGE_INTEGER *)&x);
-	//SetThreadAffinityMask(hCurThread, dwOldMask);
-	if (!ret)
-		x = getTime() * s_ullCPUFrequency;
+  // HANDLE hCurThread = ::GetCurrentThread();
+  // DWORD_PTR dwOldMask = ::SetThreadAffinityMask(hCurThread, 1);
+  BOOL ret = QueryPerformanceCounter((LARGE_INTEGER *)&x);
+  // SetThreadAffinityMask(hCurThread, dwOldMask);
+  if (!ret) {
+    x = getTime() * s_ullCPUFrequency;
+  }
 #elif OSX
-	x = mach_absolute_time();
+  x = mach_absolute_time();
 #elif IA32
-	uint32_t lval, hval;
-	//asm volatile ("push %eax; push %ebx; push %ecx; push %edx");
-	//asm volatile ("xor %eax, %eax; cpuid");
-	asm volatile ("rdtsc" : "=a" (lval), "=d" (hval));
-	//asm volatile ("pop %edx; pop %ecx; pop %ebx; pop %eax");
-	x = hval;
-	x = (x << 32) | lval;
+  uint32_t lval, hval;
+  // asm volatile ("push %eax; push %ebx; push %ecx; push %edx");
+  // asm volatile ("xor %eax, %eax; cpuid");
+  asm volatile ("rdtsc" : "=a" (lval), "=d" (hval));
+  // asm volatile ("pop %edx; pop %ecx; pop %ebx; pop %eax");
+  x = hval;
+  x = (x << 32) | lval;
 #elif IA64
-	asm ("mov %0=ar.itc" : "=r"(x) :: "memory");
+  asm ("mov %0=ar.itc" : "=r"(x) :: "memory");
 #elif AMD64
-	uint32_t lval, hval;
-	asm ("rdtsc" : "=a" (lval), "=d" (hval));
-	x = hval;
-	x = (x << 32) | lval;
+  uint32_t lval, hval;
+  asm ("rdtsc" : "=a" (lval), "=d" (hval));
+  x = hval;
+  x = (x << 32) | lval;
 #else
-	// use system call to read time clock for other archs
-	timeval t;
-	gettimeofday(&t, 0);
-	x = (uint64_t)t.tv_sec * (uint64_t)1000000 + (uint64_t)t.tv_usec;
+  // use system call to read time clock for other archs
+  timeval t;
+  gettimeofday(&t, 0);
+  x = (uint64_t)t.tv_sec * (uint64_t)1000000 + (uint64_t)t.tv_usec;
 #endif
 }
 
-uint64_t CTimer::readCPUFrequency()
-{
+uint64_t CTimer::readCPUFrequency() {
 #ifdef WIN32
-	int64_t ccf;
-	if (QueryPerformanceFrequency((LARGE_INTEGER *)&ccf))
-		return ccf / 1000000;
-	else
-		return 1;
+  int64_t ccf;
+  if (QueryPerformanceFrequency((LARGE_INTEGER *)&ccf)) {
+    return ccf / 1000000;
+  } else {
+    return 1;
+  }
 #elif IA32 || IA64 || AMD64
-	uint64_t t1, t2;
+  uint64_t t1, t2;
 
-	rdtsc(t1);
-	timespec ts;
-	ts.tv_sec = 0;
-	ts.tv_nsec = 100000000;
-	nanosleep(&ts, NULL);
-	rdtsc(t2);
+  rdtsc(t1);
+  timespec ts;
+  ts.tv_sec = 0;
+  ts.tv_nsec = 100000000;
+  nanosleep(&ts, NULL);
+  rdtsc(t2);
 
-	// CPU clocks per microsecond
-	return (t2 - t1) / 100000;
+  // CPU clocks per microsecond
+  return (t2 - t1) / 100000;
 #else
-	return 1;
+  return 1;
 #endif
 }
 
-uint64_t CTimer::getCPUFrequency()
-{
-	return s_ullCPUFrequency;
+uint64_t CTimer::getCPUFrequency() {
+  return s_ullCPUFrequency;
 }
 
-void CTimer::sleep(const uint64_t& interval)
-{
-	uint64_t t;
-	rdtsc(t);
+void CTimer::sleep(const uint64_t& interval) {
+  uint64_t t;
+  rdtsc(t);
 
-	// sleep next "interval" time
-	sleepto(t + interval);
+  // sleep next "interval" time
+  sleepto(t + interval);
 }
-void CTimer::sleepto(const uint64_t& nexttime)
-{
-	// Use class member such that the method can be interrupted by others
-	m_ullSchedTime = nexttime;
 
-	uint64_t t;
-	rdtsc(t);
+void CTimer::sleepto(const uint64_t& nexttime) {
+  // Use class member such that the method can be interrupted by others
+  m_ullSchedTime = nexttime;
 
-	while (t < m_ullSchedTime)
-	{
+  uint64_t t;
+  rdtsc(t);
+
+  while (t < m_ullSchedTime) {
 #ifndef NO_BUSY_WAITING
 #ifdef IA32
-		__asm__ volatile ("pause; rep; nop; nop; nop; nop; nop;");
+    __asm__ volatile ("pause; rep; nop; nop; nop; nop; nop;");
 #elif IA64
-		__asm__ volatile ("nop 0; nop 0; nop 0; nop 0; nop 0;");
+    __asm__ volatile ("nop 0; nop 0; nop 0; nop 0; nop 0;");
 #elif AMD64
-		__asm__ volatile ("nop; nop; nop; nop; nop;");
+    __asm__ volatile ("nop; nop; nop; nop; nop;");
 #endif
 #else
 #ifndef WIN32
-		timeval now;
-		timespec timeout;
-		gettimeofday(&now, 0);
-		if (now.tv_usec < 990000)
-		{
-			timeout.tv_sec = now.tv_sec;
-			timeout.tv_nsec = (now.tv_usec + 10000) * 1000;
-		}
-		else
-		{
-			timeout.tv_sec = now.tv_sec + 1;
-			timeout.tv_nsec = (now.tv_usec + 10000 - 1000000) * 1000;
-		}
-		pthread_mutex_lock(&m_TickLock);
-		pthread_cond_timedwait(&m_TickCond, &m_TickLock, &timeout);
-		pthread_mutex_unlock(&m_TickLock);
+    timeval now;
+    timespec timeout;
+    gettimeofday(&now, 0);
+    if (now.tv_usec < 990000) {
+      timeout.tv_sec = now.tv_sec;
+      timeout.tv_nsec = (now.tv_usec + 10000) * 1000;
+    } else {
+      timeout.tv_sec = now.tv_sec + 1;
+      timeout.tv_nsec = (now.tv_usec + 10000 - 1000000) * 1000;
+    }
+    pthread_mutex_lock(&m_TickLock);
+    pthread_cond_timedwait(&m_TickCond, &m_TickLock, &timeout);
+    pthread_mutex_unlock(&m_TickLock);
 #else
-	WaitForSingleObject(m_TickCond, 1);
+    WaitForSingleObject(m_TickCond, 1);
 #endif
 #endif
 
-rdtsc(t);
-	}
+    rdtsc(t);
+  }
 }
 
-/*void CTimer::sleepto(const uint64_t& nexttime)
-{
-   // Use class member such that the method can be interrupted by others
-   m_ullSchedTime = nexttime;
+/* void CTimer::sleepto(const uint64_t& nexttime) {
+  // Use class member such that the method can be interrupted by others
+  m_ullSchedTime = nexttime;
 
-   uint64_t t;
-   rdtsc(t);
+  uint64_t t;
+  rdtsc(t);
 
-   while (t < m_ullSchedTime)
-   {
+  while (t < m_ullSchedTime) {
+#ifdef IA32
+    __asm__ volatile ("pause; rep; nop; nop; nop; nop; nop;");
+#elif IA64
+    __asm__ volatile ("nop 0; nop 0; nop 0; nop 0; nop 0;");
+#elif AMD64
+    __asm__ volatile ("nop; nop; nop; nop; nop;");
+#endif
 
-         #ifdef IA32
-            __asm__ volatile ("pause; rep; nop; nop; nop; nop; nop;");
-         #elif IA64
-            __asm__ volatile ("nop 0; nop 0; nop 0; nop 0; nop 0;");
-         #elif AMD64
-            __asm__ volatile ("nop; nop; nop; nop; nop;");
-         #endif
+    rdtsc(t);
+  }
+} */
 
+void CTimer::interrupt() {
+  // schedule the sleepto time to the current CCs, so that it will stop
+  rdtsc(m_ullSchedTime);
 
-
-      rdtsc(t);
-   }
-}*/
-
-void CTimer::interrupt()
-{
-	// schedule the sleepto time to the current CCs, so that it will stop
-	rdtsc(m_ullSchedTime);
-
-	tick();
+  tick();
 }
 
-void CTimer::tick()
-{
+void CTimer::tick() {
 #ifndef WIN32
-	pthread_cond_signal(&m_TickCond);
+  pthread_cond_signal(&m_TickCond);
 #else
-	SetEvent(m_TickCond);
+  SetEvent(m_TickCond);
 #endif
 }
 
-uint64_t CTimer::getTime()
-{
-	//For Cygwin and other systems without microsecond level resolution, uncomment the following three lines
-	//uint64_t x;
-	//rdtsc(x);
-	//return x / s_ullCPUFrequency;
+uint64_t CTimer::getTime() {
+  // For Cygwin and other systems without microsecond level resolution,
+  // uncomment the following three lines
+  // uint64_t x;
+  // rdtsc(x);
+  // return x / s_ullCPUFrequency;
 
 #ifndef WIN32
-	timeval t;
-	gettimeofday(&t, 0);
-	return t.tv_sec * 1000000ULL + t.tv_usec;
+  timeval t;
+  gettimeofday(&t, 0);
+  return t.tv_sec * 1000000ULL + t.tv_usec;
 #else
-	LARGE_INTEGER ccf;
-	HANDLE hCurThread = ::GetCurrentThread();
-	DWORD_PTR dwOldMask = ::SetThreadAffinityMask(hCurThread, 1);
-	if (QueryPerformanceFrequency(&ccf))
-	{
-		LARGE_INTEGER cc;
-		if (QueryPerformanceCounter(&cc))
-		{
-			SetThreadAffinityMask(hCurThread, dwOldMask);
-			return (cc.QuadPart * 1000000ULL / ccf.QuadPart);
-		}
-	}
+  LARGE_INTEGER ccf;
+  HANDLE hCurThread = ::GetCurrentThread();
+  DWORD_PTR dwOldMask = ::SetThreadAffinityMask(hCurThread, 1);
+  if (QueryPerformanceFrequency(&ccf)) {
+    LARGE_INTEGER cc;
+    if (QueryPerformanceCounter(&cc)) {
+      SetThreadAffinityMask(hCurThread, dwOldMask);
+      return (cc.QuadPart * 1000000ULL / ccf.QuadPart);
+    }
+  }
 
-	SetThreadAffinityMask(hCurThread, dwOldMask);
-	return GetTickCount() * 1000ULL;
+  SetThreadAffinityMask(hCurThread, dwOldMask);
+  return GetTickCount() * 1000ULL;
 #endif
 }
 
-void CTimer::triggerEvent()
-{
+void CTimer::triggerEvent() {
 #ifndef WIN32
-	pthread_cond_signal(&m_EventCond);
+  pthread_cond_signal(&m_EventCond);
 #else
-	SetEvent(m_EventCond);
+  SetEvent(m_EventCond);
 #endif
 }
 
-void CTimer::waitForEvent()
-{
+void CTimer::waitForEvent() {
 #ifndef WIN32
-	timeval now;
-	timespec timeout;
-	gettimeofday(&now, 0);
-	if (now.tv_usec < 990000)
-	{
-		timeout.tv_sec = now.tv_sec;
-		timeout.tv_nsec = (now.tv_usec + 10000) * 1000;
-	}
-	else
-	{
-		timeout.tv_sec = now.tv_sec + 1;
-		timeout.tv_nsec = (now.tv_usec + 10000 - 1000000) * 1000;
-	}
-	pthread_mutex_lock(&m_EventLock);
-	pthread_cond_timedwait(&m_EventCond, &m_EventLock, &timeout);
-	pthread_mutex_unlock(&m_EventLock);
+  timeval now;
+  timespec timeout;
+  gettimeofday(&now, 0);
+  if (now.tv_usec < 990000) {
+    timeout.tv_sec = now.tv_sec;
+    timeout.tv_nsec = (now.tv_usec + 10000) * 1000;
+  } else {
+    timeout.tv_sec = now.tv_sec + 1;
+    timeout.tv_nsec = (now.tv_usec + 10000 - 1000000) * 1000;
+  }
+  pthread_mutex_lock(&m_EventLock);
+  pthread_cond_timedwait(&m_EventCond, &m_EventLock, &timeout);
+  pthread_mutex_unlock(&m_EventLock);
 #else
-	WaitForSingleObject(m_EventCond, 1);
+  WaitForSingleObject(m_EventCond, 1);
 #endif
 }
 
-void CTimer::sleep()
-{
+void CTimer::sleep() {
 #ifndef WIN32
-	usleep(10);
+  usleep(10);
 #else
-	Sleep(1);
+  Sleep(1);
 #endif
 }
 
-
-//
 // Automatically lock in constructor
-CGuard::CGuard(pthread_mutex_t& lock):
-		m_Mutex(lock),
-		m_iLocked()
-{
+CGuard::CGuard(pthread_mutex_t& lock) : m_Mutex(lock),
+                                        m_iLocked() {
 #ifndef WIN32
-	m_iLocked = pthread_mutex_lock(&m_Mutex);
+  m_iLocked = pthread_mutex_lock(&m_Mutex);
 #else
-	m_iLocked = WaitForSingleObject(m_Mutex, INFINITE);
+  m_iLocked = WaitForSingleObject(m_Mutex, INFINITE);
 #endif
 }
 
 // Automatically unlock in destructor
-CGuard::~CGuard()
-{
+CGuard::~CGuard() {
 #ifndef WIN32
-	if (0 == m_iLocked)
-		pthread_mutex_unlock(&m_Mutex);
+  if (0 == m_iLocked) {
+    pthread_mutex_unlock(&m_Mutex);
+  }
 #else
-	if (WAIT_FAILED != m_iLocked)
-		ReleaseMutex(m_Mutex);
+  if (WAIT_FAILED != m_iLocked) {
+    ReleaseMutex(m_Mutex);
+  }
 #endif
 }
 
-void CGuard::enterCS(pthread_mutex_t& lock)
-{
+void CGuard::enterCS(pthread_mutex_t& lock) {
 #ifndef WIN32
-	pthread_mutex_lock(&lock);
+  pthread_mutex_lock(&lock);
 #else
-	WaitForSingleObject(lock, INFINITE);
+  WaitForSingleObject(lock, INFINITE);
 #endif
 }
 
-void CGuard::leaveCS(pthread_mutex_t& lock)
-{
+void CGuard::leaveCS(pthread_mutex_t& lock) {
 #ifndef WIN32
-	pthread_mutex_unlock(&lock);
+  pthread_mutex_unlock(&lock);
 #else
-	ReleaseMutex(lock);
+  ReleaseMutex(lock);
 #endif
 }
 
-void CGuard::createMutex(pthread_mutex_t& lock)
-{
+void CGuard::createMutex(pthread_mutex_t& lock) {
 #ifndef WIN32
-	pthread_mutex_init(&lock, NULL);
+  pthread_mutex_init(&lock, NULL);
 #else
-	lock = CreateMutex(NULL, false, NULL);
+  lock = CreateMutex(NULL, false, NULL);
 #endif
 }
 
-void CGuard::releaseMutex(pthread_mutex_t& lock)
-{
+void CGuard::releaseMutex(pthread_mutex_t& lock) {
 #ifndef WIN32
-	pthread_mutex_destroy(&lock);
+  pthread_mutex_destroy(&lock);
 #else
-	CloseHandle(lock);
+  CloseHandle(lock);
 #endif
 }
 
-void CGuard::createCond(pthread_cond_t& cond)
-{
+void CGuard::createCond(pthread_cond_t& cond) {
 #ifndef WIN32
-	pthread_cond_init(&cond, NULL);
+  pthread_cond_init(&cond, NULL);
 #else
-	cond = CreateEvent(NULL, false, false, NULL);
+  cond = CreateEvent(NULL, false, false, NULL);
 #endif
 }
 
-void CGuard::releaseCond(pthread_cond_t& cond)
-{
+void CGuard::releaseCond(pthread_cond_t& cond) {
 #ifndef WIN32
-	pthread_cond_destroy(&cond);
+  pthread_cond_destroy(&cond);
 #else
-	CloseHandle(cond);
+  CloseHandle(cond);
 #endif
 
 }
 
-//
-CUDTException::CUDTException(int major, int minor, int err):
-		m_iMajor(major),
-		m_iMinor(minor)
-{
-	if (-1 == err)
+CUDTException::CUDTException(int major, int minor, int err)
+    : m_iMajor(major),
+      m_iMinor(minor) {
+  if (-1 == err) {
 #ifndef WIN32
-		m_iErrno = errno;
+    m_iErrno = errno;
 #else
-	m_iErrno = GetLastError();
+    m_iErrno = GetLastError();
 #endif
-	else
-		m_iErrno = err;
+  } else {
+    m_iErrno = err;
+  }
 }
 
-CUDTException::CUDTException(const CUDTException& e):
-		m_iMajor(e.m_iMajor),
-		m_iMinor(e.m_iMinor),
-		m_iErrno(e.m_iErrno),
-		m_strMsg()
-{
-}
+CUDTException::CUDTException(const CUDTException& e)
+    : m_iMajor(e.m_iMajor),
+      m_iMinor(e.m_iMinor),
+      m_iErrno(e.m_iErrno),
+      m_strMsg() {}
 
-CUDTException::~CUDTException()
-{
-}
+CUDTException::~CUDTException() {}
 
-const char* CUDTException::getErrorMessage()
-{
-	// translate "Major:Minor" code into text message.
+const char* CUDTException::getErrorMessage() {
+  // translate "Major:Minor" code into text message.
+  switch (m_iMajor) {
+    case 0:
+      m_strMsg = "Success";
+      break;
+    case 1:
+      m_strMsg = "Connection setup failure";
+      switch (m_iMinor) {
+        case 1:
+          m_strMsg += ": connection time out";
+          break;
+        case 2:
+          m_strMsg += ": connection rejected";
+          break;
+        case 3:
+          m_strMsg += ": unable to create/configure UDP socket";
+          break;
+        case 4:
+          m_strMsg += ": abort for security reasons";
+          break;
+        default:
+          break;
+      }
+      break;
+    case 2:
+      switch (m_iMinor) {
+        case 1:
+          m_strMsg = "Connection was broken";
+          break;
+        case 2:
+          m_strMsg = "Connection does not exist";
+          break;
+        default:
+          break;
+      }
+      break;
+    case 3:
+      m_strMsg = "System resource failure";
 
-	switch (m_iMajor)
-	{
-	case 0:
-		m_strMsg = "Success";
-		break;
+      switch (m_iMinor) {
+        case 1:
+          m_strMsg += ": unable to create new threads";
+          break;
+        case 2:
+          m_strMsg += ": unable to allocate buffers";
+          break;
+        default:
+          break;
+      }
+      break;
+    case 4:
+      m_strMsg = "File system failure";
 
-	case 1:
-		m_strMsg = "Connection setup failure";
+      switch (m_iMinor) {
+        case 1:
+          m_strMsg += ": cannot seek read position";
+          break;
+        case 2:
+          m_strMsg += ": failure in read";
+          break;
+        case 3:
+          m_strMsg += ": cannot seek write position";
+          break;
+        case 4:
+          m_strMsg += ": failure in write";
+          break;
+        default:
+          break;
+      }
+      break;
+    case 5:
+      m_strMsg = "Operation not supported";
 
-		switch (m_iMinor)
-		{
-		case 1:
-			m_strMsg += ": connection time out";
-			break;
+      switch (m_iMinor) {
+        case 1:
+          m_strMsg += ": Cannot do this operation on a BOUND socket";
+          break;
+        case 2:
+          m_strMsg += ": Cannot do this operation on a CONNECTED socket";
+          break;
+        case 3:
+          m_strMsg += ": Bad parameters";
+          break;
+        case 4:
+          m_strMsg += ": Invalid socket ID";
+          break;
+        case 5:
+          m_strMsg += ": Cannot do this operation on an UNBOUND socket";
+          break;
+        case 6:
+          m_strMsg += ": Socket is not in listening state";
+          break;
+        case 7:
+          m_strMsg += ": Listen/accept is not supported in rendezous ";
+          m_strMsg += "connection setup";
+          break;
+        case 8:
+          m_strMsg += ": Cannot call connect on UNBOUND socket in rendezvous ";
+          m_strMsg += "connection setup";
+          break;
+        case 9:
+          m_strMsg += ": This operation is not supported in SOCK_STREAM mode";
+          break;
+        case 10:
+          m_strMsg += ": This operation is not supported in SOCK_DGRAM mode";
+          break;
+        case 11:
+          m_strMsg += ": Another socket is already listening on the same port";
+          break;
+        case 12:
+          m_strMsg += ": Message is too large to send (it must be less than ";
+          m_strMsg += "the UDT send buffer size)";
+          break;
+        case 13:
+          m_strMsg += ": Invalid epoll ID";
+          break;
+        default:
+          break;
+      }
+      break;
+    case 6:
+      m_strMsg = "Non-blocking call failure";
 
-		case 2:
-			m_strMsg += ": connection rejected";
-			break;
+      switch (m_iMinor) {
+        case 1:
+          m_strMsg += ": no buffer available for sending";
+          break;
 
-		case 3:
-			m_strMsg += ": unable to create/configure UDP socket";
-			break;
+        case 2:
+          m_strMsg += ": no data available for reading";
+          break;
 
-		case 4:
-			m_strMsg += ": abort for security reasons";
-			break;
+        default:
+          break;
+      }
+      break;
+    case 7:
+      m_strMsg = "The peer side has signalled an error";
+      break;
+    default:
+      m_strMsg = "Unknown error";
+  }
 
-		default:
-			break;
-		}
-
-		break;
-
-		case 2:
-			switch (m_iMinor)
-			{
-			case 1:
-				m_strMsg = "Connection was broken";
-				break;
-
-			case 2:
-				m_strMsg = "Connection does not exist";
-				break;
-
-			default:
-				break;
-			}
-
-			break;
-
-			case 3:
-				m_strMsg = "System resource failure";
-
-				switch (m_iMinor)
-				{
-				case 1:
-					m_strMsg += ": unable to create new threads";
-					break;
-
-				case 2:
-					m_strMsg += ": unable to allocate buffers";
-					break;
-
-				default:
-					break;
-				}
-
-				break;
-
-				case 4:
-					m_strMsg = "File system failure";
-
-					switch (m_iMinor)
-					{
-					case 1:
-						m_strMsg += ": cannot seek read position";
-						break;
-
-					case 2:
-						m_strMsg += ": failure in read";
-						break;
-
-					case 3:
-						m_strMsg += ": cannot seek write position";
-						break;
-
-					case 4:
-						m_strMsg += ": failure in write";
-						break;
-
-					default:
-						break;
-					}
-
-					break;
-
-					case 5:
-						m_strMsg = "Operation not supported";
-
-						switch (m_iMinor)
-						{
-						case 1:
-							m_strMsg += ": Cannot do this operation on a BOUND socket";
-							break;
-
-						case 2:
-							m_strMsg += ": Cannot do this operation on a CONNECTED socket";
-							break;
-
-						case 3:
-							m_strMsg += ": Bad parameters";
-							break;
-
-						case 4:
-							m_strMsg += ": Invalid socket ID";
-							break;
-
-						case 5:
-							m_strMsg += ": Cannot do this operation on an UNBOUND socket";
-							break;
-
-						case 6:
-							m_strMsg += ": Socket is not in listening state";
-							break;
-
-						case 7:
-							m_strMsg += ": Listen/accept is not supported in rendezous connection setup";
-							break;
-
-						case 8:
-							m_strMsg += ": Cannot call connect on UNBOUND socket in rendezvous connection setup";
-							break;
-
-						case 9:
-							m_strMsg += ": This operation is not supported in SOCK_STREAM mode";
-							break;
-
-						case 10:
-							m_strMsg += ": This operation is not supported in SOCK_DGRAM mode";
-							break;
-
-						case 11:
-							m_strMsg += ": Another socket is already listening on the same port";
-							break;
-
-						case 12:
-							m_strMsg += ": Message is too large to send (it must be less than the UDT send buffer size)";
-							break;
-
-						case 13:
-							m_strMsg += ": Invalid epoll ID";
-							break;
-
-						default:
-							break;
-						}
-
-						break;
-
-						case 6:
-							m_strMsg = "Non-blocking call failure";
-
-							switch (m_iMinor)
-							{
-							case 1:
-								m_strMsg += ": no buffer available for sending";
-								break;
-
-							case 2:
-								m_strMsg += ": no data available for reading";
-								break;
-
-							default:
-								break;
-							}
-
-							break;
-
-							case 7:
-								m_strMsg = "The peer side has signalled an error";
-
-								break;
-
-							default:
-								m_strMsg = "Unknown error";
-	}
-
-	// Adding "errno" information
-	if ((0 != m_iMajor) && (0 < m_iErrno))
-	{
-		m_strMsg += ": ";
+  // Adding "errno" information
+  if (0 != m_iMajor && 0 < m_iErrno) {
+    m_strMsg += ": ";
 #ifndef WIN32
-		char errmsg[1024];
-		if (strerror_r(m_iErrno, errmsg, 1024) == 0)
-			m_strMsg += errmsg;
+    char errmsg[1024];
+    if (strerror_r(m_iErrno, errmsg, 1024) == 0) {
+      m_strMsg += errmsg;
+    }
 #else
-		LPVOID lpMsgBuf;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL, m_iErrno, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPTSTR)&lpMsgBuf, 0, NULL);
-		m_strMsg += (char*)lpMsgBuf;
-		LocalFree(lpMsgBuf);
+    LPVOID lpMsgBuf;
+    FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM |
+                      FORMAT_MESSAGE_IGNORE_INSERTS,
+                  NULL, m_iErrno, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                  (LPTSTR)&lpMsgBuf, 0, NULL);
+    m_strMsg += (char*)lpMsgBuf;
+    LocalFree(lpMsgBuf);
 #endif
-	}
+  }
 
-	// period
+  // period
 #ifndef WIN32
-	m_strMsg += ".";
+  m_strMsg += ".";
 #endif
 
-	return m_strMsg.c_str();
+  return m_strMsg.c_str();
 }
 
-int CUDTException::getErrorCode() const
-{
-	return m_iMajor * 1000 + m_iMinor;
+int CUDTException::getErrorCode() const {
+  return m_iMajor * 1000 + m_iMinor;
 }
 
-void CUDTException::clear()
-{
-	m_iMajor = 0;
-	m_iMinor = 0;
-	m_iErrno = 0;
+void CUDTException::clear() {
+  m_iMajor = 0;
+  m_iMinor = 0;
+  m_iErrno = 0;
 }
 
 const int CUDTException::SUCCESS = 0;
@@ -696,78 +613,77 @@ const int CUDTException::EPEERERR = 7000;
 const int CUDTException::EUNKNOWN = -1;
 
 
-//
-bool CIPAddress::ipcmp(const sockaddr* addr1, const sockaddr* addr2, const int& ver)
-{  //return true;
-	if (AF_INET == ver)
-	{
-		sockaddr_in* a1 = (sockaddr_in*)addr1;
-		sockaddr_in* a2 = (sockaddr_in*)addr2;
+bool CIPAddress::ipcmp(const sockaddr* addr1,
+                       const sockaddr* addr2,
+                       const int& ver) {
+  // return true;
 
-		if ((a1->sin_port == a2->sin_port) && (a1->sin_addr.s_addr == a2->sin_addr.s_addr))
-			return true;
-	}
-	else
-	{
-		sockaddr_in6* a1 = (sockaddr_in6*)addr1;
-		sockaddr_in6* a2 = (sockaddr_in6*)addr2;
+  if (AF_INET == ver) {
+    sockaddr_in* a1 = (sockaddr_in*)addr1;
+    sockaddr_in* a2 = (sockaddr_in*)addr2;
 
-		if (a1->sin6_port == a2->sin6_port)
-		{
-			for (int i = 0; i < 16; ++ i)
-				if (*((char*)&(a1->sin6_addr) + i) != *((char*)&(a2->sin6_addr) + i))
-					return false;
+    if (a1->sin_port == a2->sin_port &&
+        a1->sin_addr.s_addr == a2->sin_addr.s_addr) {
+      return true;
+    }
+  } else {
+    sockaddr_in6* a1 = (sockaddr_in6*)addr1;
+    sockaddr_in6* a2 = (sockaddr_in6*)addr2;
 
-			return true;
-		}
-	}
+    if (a1->sin6_port == a2->sin6_port) {
+      for (int i = 0; i < 16; ++ i) {
+        if (*((char*)&(a1->sin6_addr) + i) != *((char*)&(a2->sin6_addr) + i)) {
+          return false;
+        }
+      }
 
-	return false;
+      return true;
+    }
+  }
+
+  return false;
 }
 
-void CIPAddress::ntop(const sockaddr* addr, uint32_t ip[4], const int& ver)
-{
-	if (AF_INET == ver)
-	{
-		sockaddr_in* a = (sockaddr_in*)addr;
-		ip[0] = a->sin_addr.s_addr;
-	}
-	else
-	{
-		sockaddr_in6* a = (sockaddr_in6*)addr;
-		ip[3] = (a->sin6_addr.s6_addr[15] << 24) + (a->sin6_addr.s6_addr[14] << 16) + (a->sin6_addr.s6_addr[13] << 8) + a->sin6_addr.s6_addr[12];
-		ip[2] = (a->sin6_addr.s6_addr[11] << 24) + (a->sin6_addr.s6_addr[10] << 16) + (a->sin6_addr.s6_addr[9] << 8) + a->sin6_addr.s6_addr[8];
-		ip[1] = (a->sin6_addr.s6_addr[7] << 24) + (a->sin6_addr.s6_addr[6] << 16) + (a->sin6_addr.s6_addr[5] << 8) + a->sin6_addr.s6_addr[4];
-		ip[0] = (a->sin6_addr.s6_addr[3] << 24) + (a->sin6_addr.s6_addr[2] << 16) + (a->sin6_addr.s6_addr[1] << 8) + a->sin6_addr.s6_addr[0];
-	}
+void CIPAddress::ntop(const sockaddr* addr, uint32_t ip[4], const int& ver) {
+  if (AF_INET == ver)   {
+    sockaddr_in* a = (sockaddr_in*)addr;
+    ip[0] = a->sin_addr.s_addr;
+  } else {
+    sockaddr_in6* a = (sockaddr_in6*)addr;
+    ip[3] = (a->sin6_addr.s6_addr[15] << 24) +
+        (a->sin6_addr.s6_addr[14] << 16) + (a->sin6_addr.s6_addr[13] << 8) +
+        a->sin6_addr.s6_addr[12];
+    ip[2] = (a->sin6_addr.s6_addr[11] << 24) +
+        (a->sin6_addr.s6_addr[10] << 16) + (a->sin6_addr.s6_addr[9] << 8) +
+        a->sin6_addr.s6_addr[8];
+    ip[1] = (a->sin6_addr.s6_addr[7] << 24) + (a->sin6_addr.s6_addr[6] << 16) +
+        (a->sin6_addr.s6_addr[5] << 8) + a->sin6_addr.s6_addr[4];
+    ip[0] = (a->sin6_addr.s6_addr[3] << 24) + (a->sin6_addr.s6_addr[2] << 16) +
+        (a->sin6_addr.s6_addr[1] << 8) + a->sin6_addr.s6_addr[0];
+  }
 }
 
-void CIPAddress::pton(sockaddr* addr, const uint32_t ip[4], const int& ver)
-{
-	if (AF_INET == ver)
-	{
-		sockaddr_in* a = (sockaddr_in*)addr;
-		a->sin_addr.s_addr = ip[0];
-	}
-	else
-	{
-		sockaddr_in6* a = (sockaddr_in6*)addr;
-		for (int i = 0; i < 4; ++ i)
-		{
-			a->sin6_addr.s6_addr[i * 4] = ip[i] & 0xFF;
-			a->sin6_addr.s6_addr[i * 4 + 1] = (unsigned char)((ip[i] & 0xFF00) >> 8);
-			a->sin6_addr.s6_addr[i * 4 + 2] = (unsigned char)((ip[i] & 0xFF0000) >> 16);
-			a->sin6_addr.s6_addr[i * 4 + 3] = (unsigned char)((ip[i] & 0xFF000000) >> 24);
-		}
-	}
+void CIPAddress::pton(sockaddr* addr, const uint32_t ip[4], const int& ver) {
+  if (AF_INET == ver) {
+    sockaddr_in* a = (sockaddr_in*)addr;
+    a->sin_addr.s_addr = ip[0];
+  } else {
+    sockaddr_in6* a = (sockaddr_in6*)addr;
+    for (int i = 0; i < 4; ++ i) {
+      a->sin6_addr.s6_addr[i * 4] = ip[i] & 0xFF;
+      a->sin6_addr.s6_addr[i * 4 + 1] = (unsigned char)((ip[i] & 0xFF00) >> 8);
+      a->sin6_addr.s6_addr[i * 4 + 2] =
+          (unsigned char)((ip[i] & 0xFF0000) >> 16);
+      a->sin6_addr.s6_addr[i * 4 + 3] =
+          (unsigned char)((ip[i] & 0xFF000000) >> 24);
+    }
+  }
 }
 
-//
-void CMD5::compute(const char* input, unsigned char result[16])
-{
-	md5_state_t state;
+void CMD5::compute(const char* input, unsigned char result[16]) {
+  md5_state_t state;
 
-	md5_init(&state);
-	md5_append(&state, (const md5_byte_t *)input, strlen(input));
-	md5_finish(&state, result);
+  md5_init(&state);
+  md5_append(&state, (const md5_byte_t *)input, strlen(input));
+  md5_finish(&state, result);
 }

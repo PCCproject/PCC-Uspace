@@ -1,39 +1,39 @@
 C++ = g++ -g -std=c++0x
 
 ifndef os
-   os = LINUX
+  os = LINUX
 endif
 
 ifndef arch
-   arch = IA32
+  arch = IA32
 endif
 
 CCFLAGS = -Wall -D$(os) -I../core -finline-functions -O3
 
 ifeq ($(arch), IA32)
-   CCFLAGS += -DIA32 #-mcpu=pentiumpro -march=pentiumpro -mmmx -msse
+  CCFLAGS += -DIA32 #-mcpu=pentiumpro -march=pentiumpro -mmmx -msse
 endif
 
 ifeq ($(arch), POWERPC)
-   CCFLAGS += -mcpu=powerpc
+  CCFLAGS += -mcpu=powerpc
 endif
 
 ifeq ($(arch), IA64)
-   CCFLAGS += -DIA64
+  CCFLAGS += -DIA64
 endif
 
 ifeq ($(arch), SPARC)
-   CCFLAGS += -DSPARC
+  CCFLAGS += -DSPARC
 endif
 
 LDFLAGS = -L../core -ludt -lstdc++ -lpthread -lm
 
 ifeq ($(os), UNIX)
-   LDFLAGS += -lsocket
+  LDFLAGS += -lsocket
 endif
 
 ifeq ($(os), SUNOS)
-   LDFLAGS += -lrt -lsocket
+  LDFLAGS += -lrt -lsocket
 endif
 
 DIR = $(shell pwd)

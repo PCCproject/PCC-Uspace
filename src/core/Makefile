@@ -1,33 +1,33 @@
 C++ = g++ -g -std=c++0x
 
 ifndef os
-   os = LINUX
+  os = LINUX
 endif
 
 ifndef arch
-   arch = IA32
+  arch = IA32
 endif
 
 CCFLAGS = -fPIC -Wall -Wextra -D$(os) -finline-functions -O3 -fno-strict-aliasing #-msse3
 
 ifeq ($(arch), IA32)
-   CCFLAGS += -DIA32
+  CCFLAGS += -DIA32
 endif
 
 ifeq ($(arch), POWERPC)
-   CCFLAGS += -mcpu=powerpc
+  CCFLAGS += -mcpu=powerpc
 endif
 
 ifeq ($(arch), SPARC)
-   CCFLAGS += -DSPARC
+  CCFLAGS += -DSPARC
 endif
 
 ifeq ($(arch), IA64)
-   CCFLAGS += -DIA64
+  CCFLAGS += -DIA64
 endif
 
 ifeq ($(arch), AMD64)
-   CCFLAGS += -DAMD64
+  CCFLAGS += -DAMD64
 endif
 
 OBJS = ../pcc/pcc_monitor_interval_queue.o ../pcc/pcc_sender.o md5.o common.o window.o list.o buffer.o packet.o channel.o queue.o ccc.o cache.o core.o epoll.o api.o

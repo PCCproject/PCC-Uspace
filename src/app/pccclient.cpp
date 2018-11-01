@@ -1,16 +1,18 @@
-#ifndef WIN32
-   #include <unistd.h>
-   #include <cstdlib>
-   #include <cstring>
-   #include <netdb.h>
-#else
-   #include <winsock2.h>
-   #include <ws2tcpip.h>
-   #include <wspiapi.h>
-#endif
-#include <iostream>
 #include "../core/udt.h"
+
+#include <iostream>
 #include <signal.h>
+
+#ifndef WIN32
+#include <cstdlib>
+#include <cstring>
+#include <netdb.h>
+#include <unistd.h>
+#else
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <wspiapi.h>
+#endif
 
 using namespace std;
 
@@ -21,117 +23,122 @@ DWORD WINAPI monitor(LPVOID);
 #endif
 
 void intHandler(int dummy) {
-	//TODO (nathan jay): Print useful summary statistics.
-    exit(0);
+  //TODO (nathan jay): Print useful summary statistics.
+  exit(0);
 }
 
 
 int main(int argc, char* argv[]) {
-    
-    if ((argc < 4) || (0 == atoi(argv[3]))) {
-        cout << "usage: " << argv[0] << " <send|recv> server_ip server_port" << endl;
-      return 0;
-    }
+  if (argc < 4 || 0 == atoi(argv[3])) {
+    cout << "usage: " << argv[0] << " <send|recv> server_ip server_port";
+    cout << endl;
+    return 0;
+  }
 
-    bool should_send = !strcmp(argv[1], "send");
-    
-	signal(SIGINT, intHandler);
-   
-    // use this function to initialize the UDT library
-    UDT::startup();
+  bool should_send = !strcmp(argv[1], "send");
 
-    struct addrinfo hints, *local, *peer;
+  signal(SIGINT, intHandler);
 
-    memset(&hints, 0, sizeof(struct addrinfo));
+  // use this function to initialize the UDT library
+  UDT::startup();
 
-    hints.ai_flags = AI_PASSIVE;
-    hints.ai_family = AF_INET;
-    hints.ai_socktype = SOCK_STREAM;
+  struct addrinfo hints, *local, *peer;
 
-    if (0 != getaddrinfo(NULL, "9000", &hints, &local)) {
-        cout << "incorrect network address.\n" << endl;
-        return 0;
-    }
+  memset(&hints, 0, sizeof(struct addrinfo));
 
-    UDTSOCKET client = UDT::socket(local->ai_family, local->ai_socktype, local->ai_protocol);
+  hints.ai_flags = AI_PASSIVE;
+  hints.ai_family = AF_INET;
+  hints.ai_socktype = SOCK_STREAM;
 
-    // Windows UDP issue
-    // For better performance, modify HKLM\System\CurrentControlSet\Services\Afd\Parameters\FastSendDatagramThreshold
-    #ifdef WIN32
-        UDT::setsockopt(client, 0, UDT_MSS, new int(1052), sizeof(int));
-     #endif
+  if (0 != getaddrinfo(NULL, "9000", &hints, &local)) {
+    cout << "incorrect network address.\n" << endl;
+    return 0;
+  }
 
-   freeaddrinfo(local);
+  UDTSOCKET client =
+      UDT::socket(local->ai_family, local->ai_socktype, local->ai_protocol);
 
-   if (0 != getaddrinfo(argv[2], argv[3], &hints, &peer))
-   {
-      cout << "incorrect server/peer address. " << argv[1] << ":" << argv[2] << endl;
-      return 0;
-   }
+#ifdef WIN32
+  // Windows UDP issue
+  // For better performance, modify HKLM\System\CurrentControlSet\Services\Afd\
+  // \Parameters\FastSendDatagramThreshold
+  UDT::setsockopt(client, 0, UDT_MSS, new int(1052), sizeof(int));
+#endif
 
-   // connect to the server, implict bind
-   if (UDT::ERROR == UDT::connect(client, peer->ai_addr, peer->ai_addrlen))
-   {
-      cout << "connect: " << UDT::getlasterror().getErrorMessage() << endl;
-      return 0;
-   }
-   freeaddrinfo(peer);
+  freeaddrinfo(local);
 
-   // using CC method
-   int temp;
+  if (0 != getaddrinfo(argv[2], argv[3], &hints, &peer)) {
+    cout << "incorrect server/peer address. " << argv[1] << ":" << argv[2];
+    cout << endl;
+    return 0;
+  }
 
-   int size = 100000;
-   char* data = new char[size];
-   bzero(data, size);
+  // connect to the server, implict bind
+  if (UDT::ERROR == UDT::connect(client, peer->ai_addr, peer->ai_addrlen)) {
+    cout << "connect: " << UDT::getlasterror().getErrorMessage() << endl;
+    return 0;
+  }
+  freeaddrinfo(peer);
 
-   #ifndef WIN32
-      pthread_create(new pthread_t, NULL, monitor, &client);
-   #else
-      CreateThread(NULL, 0, monitor, &client, 0, NULL);
-   #endif
+  // using CC method
+  int temp;
 
-    if (should_send) {
-        while (true) {
-            int ssize = 0;
-            int ss;
-            while (ssize < size) {
-                if (UDT::ERROR == (ss = UDT::send(client, data + ssize, size - ssize, 0))) {
-                    cout << "send:" << UDT::getlasterror().getErrorMessage() << endl;
-                    break;
-                }
+  int size = 100000;
+  char* data = new char[size];
+  bzero(data, size);
 
-                ssize += ss;
-            }
+#ifndef WIN32
+  pthread_create(new pthread_t, NULL, monitor, &client);
+#else
+  CreateThread(NULL, 0, monitor, &client, 0, NULL);
+#endif
 
-            if (ssize < size)
-                break;
+  if (should_send) {
+    while (true) {
+      int ssize = 0;
+      int ss;
+      while (ssize < size) {
+        if (UDT::ERROR ==
+            (ss = UDT::send(client, data + ssize, size - ssize, 0))) {
+          cout << "send:" << UDT::getlasterror().getErrorMessage() << endl;
+          break;
         }
-    } else {
-        while (true) {
-            int rsize = 0;
-            int rs;
-            while (rsize < size) {
-                if (UDT::ERROR == (rs = UDT::recv(client, data + rsize, size - rsize, 0))) {
-                    cout << "recv:" << UDT::getlasterror().getErrorMessage() << endl;
-                    break;
-                }
 
-                rsize += rs;
-            }
+        ssize += ss;
+      }
 
-            if (rsize < size)
-                break;
-        }
+      if (ssize < size) {
+        break;
+      }
     }
+  } else {
+    while (true) {
+      int rsize = 0;
+      int rs;
+      while (rsize < size) {
+        if (UDT::ERROR ==
+            (rs = UDT::recv(client, data + rsize, size - rsize, 0))) {
+          cout << "recv:" << UDT::getlasterror().getErrorMessage() << endl;
+          break;
+        }
 
-   UDT::close(client);
+        rsize += rs;
+      }
 
-   delete [] data;
+      if (rsize < size) {
+        break;
+      }
+    }
+  }
 
-   // use this function to release the UDT library
-   UDT::cleanup();
+  UDT::close(client);
 
-   return 1;
+  delete [] data;
+
+  // use this function to release the UDT library
+  UDT::cleanup();
+
+  return 1;
 }
 
 #ifndef WIN32
@@ -140,35 +147,31 @@ void* monitor(void* s)
 DWORD WINAPI monitor(LPVOID s)
 #endif
 {
-   UDTSOCKET u = *(UDTSOCKET*)s;
+  UDTSOCKET u = *(UDTSOCKET*)s;
 
-   UDT::TRACEINFO perf;
+  UDT::TRACEINFO perf;
 
-   cout << "SendRate(Mb/s)\tRTT(ms)\tCTotal\tLoss\tRecvACK\tRecvNAK" << endl;
-   int i=0;
-   while (true)
-   {
-      #ifndef WIN32
-         usleep(1000000);
-      #else
-         Sleep(1000);
-      #endif
-        i++;
-      if (UDT::ERROR == UDT::perfmon(u, &perf))
-      {
-         cout << "perfmon: " << UDT::getlasterror().getErrorMessage() << endl;
-         break;
-      }
-    cout   <<""<<i<<"\t" << perf.mbpsSendRate << "\t"
-           << perf.msRTT << "\t"
-           <<  perf.pktSentTotal << "\t"
-           << perf.pktSndLossTotal <<endl;
-   }
+  cout << "SendRate(Mb/s)\tRTT(ms)\tCTotal\tLoss\tRecvACK\tRecvNAK" << endl;
+  int i=0;
+  while (true) {
+#ifndef WIN32
+    usleep(1000000);
+#else
+    Sleep(1000);
+#endif
+    i++;
+    if (UDT::ERROR == UDT::perfmon(u, &perf)) {
+      cout << "perfmon: " << UDT::getlasterror().getErrorMessage() << endl;
+      break;
+    }
+    cout << i << "\t" << perf.mbpsSendRate << "\t" << perf.msRTT << "\t"
+         << perf.pktSentTotal << "\t" << perf.pktSndLossTotal << endl;
+  }
 
-   #ifndef WIN32
-      return NULL;
-   #else
-      return 0;
-   #endif
+#ifndef WIN32
+  return NULL;
+#else
+  return 0;
+#endif
 }
 

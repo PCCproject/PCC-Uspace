@@ -29,10 +29,10 @@ typedef int64_t QuicTime;
 typedef double  QuicBandwidth;
 
 typedef struct CongestionEvent {
-    int32_t packet_number;
-    int32_t bytes_acked;
-    int32_t bytes_lost;
-    uint64_t time;
+  int32_t packet_number;
+  int32_t bytes_acked;
+  int32_t bytes_lost;
+  uint64_t time;
 } CongestionEvent;
 
 typedef CongestionEvent AckedPacket;
@@ -60,21 +60,21 @@ using namespace net;
 // PacketRttSample, stores the packet number and its corresponding RTT
 struct PacketRttSample {
   PacketRttSample();
-  #ifdef QUIC_PORT
+#ifdef QUIC_PORT
   PacketRttSample(QuicPacketNumber packet_number, QuicTime::Delta rtt);
-  #else
+#else
   PacketRttSample(QuicPacketNumber packet_number, QuicTime rtt);
-  #endif
+#endif
   ~PacketRttSample() {}
 
   // Packet number of the sampled packet.
   QuicPacketNumber packet_number;
   // RTT corresponding to the sampled packet.
-  #ifdef QUIC_PORT
+#ifdef QUIC_PORT
   QuicTime::Delta sample_rtt;
-  #else
+#else
   QuicTime sample_rtt;
-  #endif
+#endif
 };
 
 // MonitorInterval, as the queue's entry struct, stores the information
@@ -88,14 +88,14 @@ struct MonitorInterval {
                   float rtt_fluctuation_tolerance_ratio,
                   int64_t rtt_us,
                   QuicTime end_time);
-  #if defined(QUIC_PORT) && defined(QUIC_PORT_LOCAL)
+#if defined(QUIC_PORT) && defined(QUIC_PORT_LOCAL)
   explicit MonitorInterval(const MonitorInterval&);
-  #endif
-  #ifdef QUIC_PORT_LOCAL
+#endif
+#ifdef QUIC_PORT_LOCAL
   ~MonitorInterval();
-  #else
+#else
   ~MonitorInterval() {}
-  #endif
+#endif
 
   // Sending rate.
   QuicBandwidth sending_rate;
@@ -167,20 +167,20 @@ class PccMonitorIntervalQueueDelegateInterface {
 class PccMonitorIntervalQueue {
  public:
   explicit PccMonitorIntervalQueue(
-      #ifdef QUIC_PORT
+#ifdef QUIC_PORT
       PccMonitorIntervalQueueDelegateInterface* delegate);
-      #else
+#else
       PccSender* delegate);
-      #endif
+#endif
   PccMonitorIntervalQueue(const PccMonitorIntervalQueue&) = delete;
   PccMonitorIntervalQueue& operator=(const PccMonitorIntervalQueue&) = delete;
   PccMonitorIntervalQueue(PccMonitorIntervalQueue&&) = delete;
   PccMonitorIntervalQueue& operator=(PccMonitorIntervalQueue&&) = delete;
-  #if defined(QUIC_PORT) && defined(QUIC_PORT_LOCAL)
+#if defined(QUIC_PORT) && defined(QUIC_PORT_LOCAL)
   ~PccMonitorIntervalQueue();
-  #else
+#else
   ~PccMonitorIntervalQueue() {}
-  #endif
+#endif
 
   // Creates a new MonitorInterval and add it to the tail of the
   // monitor interval queue, provided the necessary variables
@@ -211,33 +211,34 @@ class PccMonitorIntervalQueue {
   size_t num_useful_intervals() const { return num_useful_intervals_; }
   size_t num_available_intervals() const { return num_available_intervals_; }
   bool empty() const;
-  #if defined(QUIC_PORT) && defined(QUIC_PORT_LOCAL)
+#if defined(QUIC_PORT) && defined(QUIC_PORT_LOCAL)
   size_t size() const { return monitor_intervals_.size(); }
-  #else
+#else
   size_t size() const;
-  #endif
+#endif
 
  private:
   // Returns true if the utility of |interval| is available, i.e.,
   // when all the interval's packets are either acked or lost.
-  bool IsUtilityAvailable(const MonitorInterval& interval, QuicTime cur_time) const;
+  bool IsUtilityAvailable(const MonitorInterval& interval,
+                          QuicTime cur_time) const;
 
   // Retruns true if |packet_number| belongs to |interval|.
   bool IntervalContainsPacket(const MonitorInterval& interval,
                               QuicPacketNumber packet_number) const;
 
-  #ifdef QUIC_PORT
+#ifdef QUIC_PORT
   // Calculates utility for |interval|. Returns true if |interval| has valid
   // utility, false otherwise.
   bool CalculateUtility(MonitorInterval* interval);
   // Calculates utility for |interval| using version-2 utility function. Returns
   // true if |interval| has valid utility, false otherwise.
   bool CalculateUtility2(MonitorInterval* interval);
-  #else
+#else
   // Calculates utility for |interval|. Returns true if |interval| has valid
   // utility, false otherwise.
   bool CalculateUtility(MonitorInterval* interval);
-  #endif
+#endif
 
   std::deque<MonitorInterval> monitor_intervals_;
   // Number of useful intervals in the queue.

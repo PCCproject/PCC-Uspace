@@ -41,158 +41,160 @@ written by
 #ifndef __UDT_EPOLL_H__
 #define __UDT_EPOLL_H__
 
+#include "udt.h"
 
 #include <map>
 #include <set>
-#include "udt.h"
 
+struct CEPollDesc {
+  // epoll ID
+  int m_iID;
+  // set of UDT sockets waiting for write events
+  std::set<UDTSOCKET> m_sUDTSocksOut;
+  // set of UDT sockets waiting for read events
+  std::set<UDTSOCKET> m_sUDTSocksIn;
 
-struct CEPollDesc
-{
-   int m_iID;                                // epoll ID
-   std::set<UDTSOCKET> m_sUDTSocksOut;       // set of UDT sockets waiting for write events
-   std::set<UDTSOCKET> m_sUDTSocksIn;        // set of UDT sockets waiting for read events
+  // local system epoll ID
+  int m_iLocalID;
+  // set of local (non-UDT) descriptors
+  std::set<SYSSOCKET> m_sLocals;
 
-   int m_iLocalID;                           // local system epoll ID
-   std::set<SYSSOCKET> m_sLocals;            // set of local (non-UDT) descriptors
-
-   std::set<UDTSOCKET> m_sUDTWrites;         // UDT sockets ready for write
-   std::set<UDTSOCKET> m_sUDTReads;          // UDT sockets ready for read
+  // UDT sockets ready for write
+  std::set<UDTSOCKET> m_sUDTWrites;
+  // UDT sockets ready for read
+  std::set<UDTSOCKET> m_sUDTReads;
 };
 
-class CEPoll
-{
-friend class CUDT;
-friend class CRendezvousQueue;
+class CEPoll {
+  friend class CUDT;
+  friend class CRendezvousQueue;
 
-public:
-   CEPoll();
-   ~CEPoll();
+ public:
+  CEPoll();
+  ~CEPoll();
 
-public: // for CUDTUnited API
+  // for CUDTUnited API
 
-      // Functionality:
-      //    create a new EPoll.
-      // Parameters:
-      //    None.
-      // Returned value:
-      //    new EPoll ID if success, otherwise an error number.
+  // Functionality:
+  //    create a new EPoll.
+  // Parameters:
+  //    None.
+  // Returned value:
+  //    new EPoll ID if success, otherwise an error number.
+  int create();
 
-   int create();
+  // Functionality:
+  //    add a UDT socket to an EPoll.
+  // Parameters:
+  //    0) [in] eid: EPoll ID.
+  //    1) [in] u: UDT Socket ID.
+  //    2) [in] events: events to watch.
+  // Returned value:
+  //    0 if success, otherwise an error number.
+  int add_usock(const int eid, const UDTSOCKET& u, const int* events = NULL);
 
-      // Functionality:
-      //    add a UDT socket to an EPoll.
-      // Parameters:
-      //    0) [in] eid: EPoll ID.
-      //    1) [in] u: UDT Socket ID.
-      //    2) [in] events: events to watch.
-      // Returned value:
-      //    0 if success, otherwise an error number.
+  // Functionality:
+  //    add a system socket to an EPoll.
+  // Parameters:
+  //    0) [in] eid: EPoll ID.
+  //    1) [in] s: system Socket ID.
+  //    2) [in] events: events to watch.
+  // Returned value:
+  //    0 if success, otherwise an error number.
+  int add_ssock(const int eid, const SYSSOCKET& s, const int* events = NULL);
 
-   int add_usock(const int eid, const UDTSOCKET& u, const int* events = NULL);
+  // Functionality:
+  //    remove a UDT socket event from an EPoll; socket will be removed if no
+  //    events to watch
+  // Parameters:
+  //    0) [in] eid: EPoll ID.
+  //    1) [in] u: UDT socket ID.
+  // Returned value:
+  //    0 if success, otherwise an error number.
+  int remove_usock(const int eid, const UDTSOCKET& u);
 
-      // Functionality:
-      //    add a system socket to an EPoll.
-      // Parameters:
-      //    0) [in] eid: EPoll ID.
-      //    1) [in] s: system Socket ID.
-      //    2) [in] events: events to watch.
-      // Returned value:
-      //    0 if success, otherwise an error number.
+  // Functionality:
+  //    remove a system socket event from an EPoll; socket will be removed if
+  //    no events to watch
+  // Parameters:
+  //    0) [in] eid: EPoll ID.
+  //    1) [in] s: system socket ID.
+  // Returned value:
+  //    0 if success, otherwise an error number.
+  int remove_ssock(const int eid, const SYSSOCKET& s);
 
-   int add_ssock(const int eid, const SYSSOCKET& s, const int* events = NULL);
+  // Functionality:
+  //    wait for EPoll events or timeout.
+  // Parameters:
+  //    0) [in] eid: EPoll ID.
+  //    1) [out] readfds: UDT sockets available for reading.
+  //    2) [out] writefds: UDT sockets available for writing.
+  //    3) [in] msTimeOut: timeout threshold, in milliseconds.
+  //    4) [out] lrfds: system file descriptors for reading.
+  //    5) [out] lwfds: system file descriptors for writing.
+  // Returned value:
+  //    number of sockets available for IO.
+  int wait(const int eid,
+           std::set<UDTSOCKET>* readfds,
+           std::set<UDTSOCKET>* writefds,
+           int64_t msTimeOut,
+           std::set<SYSSOCKET>* lrfds,
+           std::set<SYSSOCKET>* lwfds);
 
-      // Functionality:
-      //    remove a UDT socket event from an EPoll; socket will be removed if no events to watch
-      // Parameters:
-      //    0) [in] eid: EPoll ID.
-      //    1) [in] u: UDT socket ID.
-      // Returned value:
-      //    0 if success, otherwise an error number.
+  // Functionality:
+  //    close and release an EPoll.
+  // Parameters:
+  //    0) [in] eid: EPoll ID.
+  // Returned value:
+  //    0 if success, otherwise an error number.
+  int release(const int eid);
 
-   int remove_usock(const int eid, const UDTSOCKET& u);
+  // for CUDT to acknowledge IO status
 
-      // Functionality:
-      //    remove a system socket event from an EPoll; socket will be removed if no events to watch
-      // Parameters:
-      //    0) [in] eid: EPoll ID.
-      //    1) [in] s: system socket ID.
-      // Returned value:
-      //    0 if success, otherwise an error number.
+  // Functionality:
+  //    set a UDT socket writable.
+  // Parameters:
+  //    0) [in] uid: UDT socket ID.
+  //    1) [in] eids: EPoll IDs to be set
+  // Returned value:
+  //    0 if success, otherwise an error number.
+  int enable_write(const UDTSOCKET& uid, std::set<int>& eids);
 
-   int remove_ssock(const int eid, const SYSSOCKET& s);
+  // Functionality:
+  //    set a UDT socket readable.
+  // Parameters:
+  //    0) [in] uid: UDT socket ID.
+  //    1) [in] eids: EPoll IDs to be set
+  // Returned value:
+  //    0 if success, otherwise an error number.
+  int enable_read(const UDTSOCKET& uid, std::set<int>& eids);
 
-      // Functionality:
-      //    wait for EPoll events or timeout.
-      // Parameters:
-      //    0) [in] eid: EPoll ID.
-      //    1) [out] readfds: UDT sockets available for reading.
-      //    2) [out] writefds: UDT sockets available for writing.
-      //    3) [in] msTimeOut: timeout threshold, in milliseconds.
-      //    4) [out] lrfds: system file descriptors for reading.
-      //    5) [out] lwfds: system file descriptors for writing.
-      // Returned value:
-      //    number of sockets available for IO.
+  // Functionality:
+  //    reset a the writable status of a UDT socket.
+  // Parameters:
+  //    0) [in] uid: UDT socket ID.
+  //    1) [in] eids: EPoll IDs to be set
+  // Returned value:
+  //    0 if success, otherwise an error number.
+  int disable_write(const UDTSOCKET& uid, std::set<int>& eids);
 
-   int wait(const int eid, std::set<UDTSOCKET>* readfds, std::set<UDTSOCKET>* writefds, int64_t msTimeOut, std::set<SYSSOCKET>* lrfds, std::set<SYSSOCKET>* lwfds);
+  // Functionality:
+  //    reset a the readable status of a UDT socket.
+  // Parameters:
+  //    0) [in] uid: UDT socket ID.
+  //    1) [in] eids: EPoll IDs to be set
+  // Returned value:
+  //    0 if success, otherwise an error number.
+  int disable_read(const UDTSOCKET& uid, std::set<int>& eids);
 
-      // Functionality:
-      //    close and release an EPoll.
-      // Parameters:
-      //    0) [in] eid: EPoll ID.
-      // Returned value:
-      //    0 if success, otherwise an error number.
+ private:
+  // seed to generate a new ID
+  int m_iIDSeed;
+  pthread_mutex_t m_SeedLock;
 
-   int release(const int eid);
-
-public: // for CUDT to acknowledge IO status
-
-      // Functionality:
-      //    set a UDT socket writable.
-      // Parameters:
-      //    0) [in] uid: UDT socket ID.
-      //    1) [in] eids: EPoll IDs to be set
-      // Returned value:
-      //    0 if success, otherwise an error number.
-
-   int enable_write(const UDTSOCKET& uid, std::set<int>& eids);
-
-      // Functionality:
-      //    set a UDT socket readable.
-      // Parameters:
-      //    0) [in] uid: UDT socket ID.
-      //    1) [in] eids: EPoll IDs to be set
-      // Returned value:
-      //    0 if success, otherwise an error number.
-
-   int enable_read(const UDTSOCKET& uid, std::set<int>& eids);
-
-      // Functionality:
-      //    reset a the writable status of a UDT socket.
-      // Parameters:
-      //    0) [in] uid: UDT socket ID.
-      //    1) [in] eids: EPoll IDs to be set
-      // Returned value:
-      //    0 if success, otherwise an error number.
-
-   int disable_write(const UDTSOCKET& uid, std::set<int>& eids);
-
-      // Functionality:
-      //    reset a the readable status of a UDT socket.
-      // Parameters:
-      //    0) [in] uid: UDT socket ID.
-      //    1) [in] eids: EPoll IDs to be set
-      // Returned value:
-      //    0 if success, otherwise an error number.
-
-   int disable_read(const UDTSOCKET& uid, std::set<int>& eids);
-
-private:
-   int m_iIDSeed;                            // seed to generate a new ID
-   pthread_mutex_t m_SeedLock;
-
-   std::map<int, CEPollDesc> m_mPolls;       // all epolls
-   pthread_mutex_t m_EPollLock;
+  // all epolls
+  std::map<int, CEPollDesc> m_mPolls;
+  pthread_mutex_t m_EPollLock;
 };
 
 
