@@ -150,6 +150,12 @@ QuicBandwidth PccVivaceRateController::GetNextStartingSendingRate(
         QuicTime cur_time,
         int id) {
 
+    if (last_rate_sample_.rate == -1) {
+        // We haven't gotten a rate sample yet, so we don't know anything about
+        // our rate decision. For now, just maintain the starting rate.
+        return current_rate;
+    }
+
     // As long as we're in STARTING, keep doubling sending rate.
     target_rate_ *= 2;
     return target_rate_;
@@ -268,7 +274,7 @@ void PccVivaceRateController::StartingMonitorIntervalFinished(
 
     // We have a previous rate sample to compare to. If utility has decreased
     // since then, we will cut our rate in half and move to the probing phase.
-    if (last_rate_sample_.utility > mi.GetObsUtility()) {
+    if (last_rate_sample_.utility > mi.GetObsUtility() && last_rate_sample_.rate < mi.GetTargetSendingRate()) {
         PccLoggableEvent event("Startup Finished", "--log-utility-calc-lite");
         event.AddValue("Last Rate", last_rate_sample_.rate);
         event.AddValue("Last Utility", last_rate_sample_.utility);

@@ -18,11 +18,14 @@ float PccVivaceUtilityCalculator::CalculateUtility(MonitorInterval& cur_mi) {
 
   float throughput = cur_mi.GetObsThroughput();
   float sending_rate_mbps = cur_mi.GetObsSendingRate() / kBitsPerMegabit;
-  float rtt_inflation = cur_mi.GetObsRttInflation(); 
+  float raw_rtt_inflation = cur_mi.GetObsRttInflation(); 
+  float rtt_inflation = raw_rtt_inflation;
   float avg_rtt = cur_mi.GetObsRtt();
   float loss_rate = cur_mi.GetObsLossRate();
+  float send_dur = cur_mi.GetObsSendDur();
+  float recv_dur = cur_mi.GetObsRecvDur();
 
-  if (rtt_inflation < kRTTFilter && rtt_inflation > -1 * kRTTFilter) {
+  if (rtt_inflation < kRTTFilter) {
       rtt_inflation = 0.0;
   }
 
@@ -39,6 +42,9 @@ float PccVivaceUtilityCalculator::CalculateUtility(MonitorInterval& cur_mi) {
   event.AddValue("Actual Rate", cur_mi.GetObsSendingRate());
   event.AddValue("Loss Rate", loss_rate);
   event.AddValue("Avg RTT", avg_rtt);
+  event.AddValue("Raw RTT Inflation", raw_rtt_inflation);
+  event.AddValue("Send Dur", send_dur);
+  event.AddValue("Recv Dur", recv_dur);
   log->LogEvent(event); 
   
   return utility;
