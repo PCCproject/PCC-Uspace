@@ -24,7 +24,9 @@ cmd = [
     "-pypath=" + cfg.PCC_CONFIG["PYTHON_ML_DIR"],
     "--model-path=" + cfg.PCC_CONFIG["ML_MODEL_PATH"],
     "--pcc-rate-control=python",
-    "--sim-dur=50000"
+    "--sim-dur=50000",
+    "--pcc-utility-calc=linear",
+    "--history-len=1"
 ]
 
 cmd += sys.argv
@@ -56,6 +58,9 @@ dls = [0.016, 0.064]
 bufs = [500]
 plrs = [0.00]
 
+#bws = [16]
+#dls = [0.016]
+
 link_configs = []
 
 for i in range(0, n_replicas):
@@ -71,9 +76,9 @@ server_cmd = [
     "--model-path=" + cfg.PCC_CONFIG["ML_MODEL_PATH"],
     "--ml-cp-freq=5",
     "--ml-cp-dir=/home/njay2/PCC/deep-learning/python/models/gym-rpc/models/checkpoints/",
-    "--ml-training-clients=%d" % len(link_configs),
     "--ml-training-flows=%d" % (len(link_configs) * flows_per_link),
-    "--ml-max-iters=1200"
+    "--ml-max-iters=1200",
+    "--history-len=1"
 ]
 
 server_cmd += sys.argv

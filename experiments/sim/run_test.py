@@ -18,6 +18,7 @@ model_name = "model_h10_d3_w32_g0.000000_ulinear"
 model_name = "model_h10_d3_w32_g0.000000_ucopa"
 #model_name = "saved_models/m1/cur_model"
 model_name = "saved_models/m2/model"
+model_name = "model"
 
 cmd = cfg.PCC_CONFIG["SIM_DIR"] + "sim_test"
 cmd += " --sim-dur=300"
@@ -25,7 +26,7 @@ cmd += " -log=" + log_dir + log
 cmd += " -pyhelper=" + pyhelper
 cmd += " -pypath=" + pypath
 cmd += " --deterministic"
-cmd += " --pcc-utility-calc=linear"
+#cmd += " --pcc-utility-calc=linear"
 cmd += " --model-path=" + cfg.PCC_CONFIG["ML_MODEL_PATH"]
 cmd += " --model-name=" + model_name
 cmd += " --no-training"
@@ -48,7 +49,7 @@ grapher = cfg.PCC_CONFIG["REPO_DIR"] + "vis/pcc_grapher.py"
 graph_config = cfg.PCC_CONFIG["REPO_DIR"] + "vis/graphs/basic.json"
 
 cmd = "python " + grapher + " " + log_dir + " " + graph_config
-cmd += " --output=graph.png"
+#cmd += " --output=graph.png"
 
 print(cmd)
 os.system(cmd)

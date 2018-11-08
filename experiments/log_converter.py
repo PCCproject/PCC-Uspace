@@ -1,12 +1,9 @@
 import time
 import os
 import json
+import sys
 
-def get_log_name(hist, depth, width, gamma, utility):
-    return "log_h%d_d%d_w%d_g%f_u%s" % (hist, depth, width, gamma, utility) + ".txt"
-
-def convert_log(hist, depth, width, gamma, utility):
-    filename = get_log_name(hist, depth, width, gamma, utility)
+def convert_log(filename):
     lines = []
     with open(filename) as f:
         lines = f.readlines()
@@ -28,19 +25,8 @@ def convert_log(hist, depth, width, gamma, utility):
         else:
             i += 1
     new_filename = filename[:-3] + "log"
-    log = {"Log Version":"njay-1", "Events":events, "Experiment Parameters":{"Model":"H-%d, D-%d, W-%d G-%f U-%s" % (hist, depth, width, gamma, utility)}}
+    log = {"Log Version":"njay-1", "Events":events, "Experiment Parameters":{}}
     with open(new_filename, "w") as f:
         json.dump(log, f, indent=4)
 
-model_params = [
-    [1, 3, 32, 0.0, "linear"],
-    [2, 3, 32, 0.0, "linear"],
-    [3, 3, 32, 0.0, "linear"],
-    [5, 3, 32, 0.0, "linear"],
-    [10, 3, 32, 0.0, "linear"],
-    [100, 3, 32, 0.0, "linear"],
-    [100, 5, 32, 0.0, "linear"]
-]
-
-for p in model_params:
-    convert_log(p[0], p[1], p[2], p[3], p[4])
+convert_log(sys.argv[1])
