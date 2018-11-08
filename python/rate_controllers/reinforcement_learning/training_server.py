@@ -13,10 +13,6 @@ from policies.lstm_policy import LstmPolicy
 from policies.mlp_policy import MlpPolicy
 from open_ai import trpo
 
-from xmlrpc.server import SimpleXMLRPCServer
-from xmlrpc.server import SimpleXMLRPCRequestHandler
-import socketserver
-
 import tensorflow as tf
 
 if not hasattr(sys, 'argv'):
@@ -31,8 +27,11 @@ MODEL_CHECKPOINT_DIR = arg_or_default("--ml-cp-dir", default=None)
 MAX_ITERS = int(arg_or_default("--ml-max-iters", default=1e9))
 PORT = int(arg_or_default("--port", default=8000))
 
-TRAINING_CLIENTS = int(arg_or_default("--ml-training-clients", default=1))
 TRAINING_FLOWS = int(arg_or_default("--ml-training-flows", default=1))
+
+DATA_DIR = arg_or_default("--ml-data-dir", default="/tmp/pcc_rl_data/")
+os.system("mkdir -p %s" % DATA_DIR)
+os.system("rm %s/*.dat" % DATA_DIR)
 
 should_load_model = bool(arg_or_default("--load-model", default=False))
 
@@ -47,8 +46,9 @@ def load_model():
 model_params = model_param_set.ModelParameterSet(MODEL_NAME, MODEL_PATH)
 env = pcc_env.PccEnv(model_params)
 
-data_agg = data_aggregator.DataAggregator(TRAINING_FLOWS, TRAINING_CLIENTS, model_params,
-env.observation_space.sample(), env.action_space.sample(), norm_rewards=True)
+data_agg = data_aggregator.DataAggregator(model_params, TRAINING_FLOWS,
+    DATA_DIR,
+    env.observation_space.sample(), env.action_space.sample(), False)
 
 def policy_fn(name, ob_space, ac_space): #pylint: disable=W0613
     #return LstmPolicy(
@@ -61,7 +61,7 @@ def policy_fn(name, ob_space, ac_space): #pylint: disable=W0613
         gaussian_fixed_var=True
     )
 
-def train(data_agg, env, policy_fn, finished_queue):
+def train(data_agg, env, policy_fn):
     sess = U.single_threaded_session()
     sess.__enter__()
     trainer = trpo.TrpoTrainer(data_agg, env, policy_fn, 
@@ -81,41 +81,6 @@ def train(data_agg, env, policy_fn, finished_queue):
     if (should_load_model):
         load_model()
     trainer.train(model_params.path + model_params.name)
-    print("Shutting down server")
-    finished_queue.put(1)
 
-# Restrict to a particular path.
-class RequestHandler(SimpleXMLRPCRequestHandler):
-    rpc_paths = ('/RPC2',)
-
-class RPCThreading(socketserver.ThreadingMixIn, SimpleXMLRPCServer):
-    pass
-
-# Create server
-server = RPCThreading(("localhost", PORT), requestHandler=RequestHandler, logRequests=False)
-server.timeout = 1
-finished_queue = multiprocessing.Queue()
-
-p = multiprocessing.Process(target=train, args=[data_agg, env, policy_fn, finished_queue])
-p.start()
-
-def give_dataset(dataset, block):
-    data_agg.give_dataset(dataset.data, block)
-    return 0
-
-server.register_introspection_functions()
-
-server.register_function(give_dataset)
-
-# Run the server's main loop
-done = False
-while not done:
-    server.handle_request()
-    done = not finished_queue.empty()
-
-p.join()
-
-server.server_close()
-
-print("Training server closed")
-exit(-1)
+train(data_agg, env, policy_fn)
+print("Training complete")

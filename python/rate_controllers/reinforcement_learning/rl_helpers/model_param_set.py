@@ -4,7 +4,15 @@ from rl_helpers.simple_arg_parse import arg_or_default
 if not hasattr(sys, 'argv'):
     sys.argv = ['']
 
+
+##
+#   The ModelParameterSet is a single place to store all of the model parameters. Using this
+#   structure directly requires edits to the policy functions, but the training helper can
+#   translate some of these parameters for us.
+##
 class ModelParameterSet:
+
+    # Default model parameters.
     _default_history_len = 10
     _default_hidden_layers = 3
     _default_hidden_size = 32
@@ -14,11 +22,14 @@ class ModelParameterSet:
     _default_cg_damping = 1e-3
     _default_gamma = 0.0
     _default_lam = 1.0
-    _default_vf_iters = 30
+    _default_vf_iters = 3
     _default_vf_stepsize = 1e-5
     _default_entcoeff = 0.0
 
     def __init__(self, name, path, args=sys.argv):
+        # On __init__, we will check all of the command line arguments for any changes to the
+        # model parameters.
+
         self.name = name
         self.path = path
 

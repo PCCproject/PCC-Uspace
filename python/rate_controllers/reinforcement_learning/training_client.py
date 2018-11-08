@@ -71,10 +71,6 @@ for arg in sys.argv:
     if "--ml-port=" in arg:
         PORT = int(arg_str)
 
-s = None
-if ("--no-training" not in sys.argv):
-    s = xmlrpc.client.ServerProxy('http://localhost:%s' % PORT)
-
 model_params = model_param_set.ModelParameterSet(MODEL_NAME, MODEL_PATH)
 env = pcc_env.PccEnv(model_params)
 stoc = True
@@ -128,8 +124,8 @@ class PccGymDriver():
 
         self.agent = trpo_agent.TrpoAgent(
             env,
-            s,
             flow_id,
+            0,
             model_name=MODEL_PATH + MODEL_NAME,
             model_params=model_params,
             model=trainer.get_model(),
@@ -211,7 +207,7 @@ class PccGymDriver():
 
 def give_sample(flow_id, sending_rate, recv_rate, latency, loss, lat_infl, utility, stop=False):
     driver = PccGymDriver.get_by_flow_id(flow_id)
-    driver.give_sample(sending_rate, recv_rate, latency, loss, lat_infl, utility, stop)
+    driver.give_sample(sending_rate, recv_rate, latency, loss, lat_infl, utility / float(1e9), stop)
 
 def apply_rate_delta(rate, rate_delta):
     global MIN_RATE

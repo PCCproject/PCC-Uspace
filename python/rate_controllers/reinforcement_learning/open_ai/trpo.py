@@ -26,7 +26,7 @@ def create_checkpoint(model_name, checkpoint_dir, checkpoint_num):
 
 def traj_segment_generator(agg):
     while True:
-        data = agg.get_dataset()
+        data = agg.poll_for_data().__next__()
         yield data
 
 def add_vtarg_and_adv(seg, gamma, lam):
@@ -316,9 +316,10 @@ class TrpoTrainer():
                         g = allmean(self.compute_vflossandgrad(mbob, mbh, mbc, mbret))
                         self.vfadam.update(g, self.vf_stepsize)
                 else:
-                    for (mbob, mbret) in dataset.iterbatches((seg["ob"], seg["tdlamret"]),
+                    for (mbob, mbret, mbscale) in dataset.iterbatches((seg["ob"], seg["tdlamret"], seg["vpred_scale"]),
                                                              include_final_partial_batch=False, batch_size=64):
-                        g = allmean(self.compute_vflossandgrad(mbob, mbret))
+                        scaled_mbret = mbret / mbscale
+                        g = allmean(self.compute_vflossandgrad(mbob, scaled_mbret))
                         self.vfadam.update(g, self.vf_stepsize)
             #logger.record_tabular("ev_tdlam_before", explained_variance(vpredbefore, tdlamret))
 
