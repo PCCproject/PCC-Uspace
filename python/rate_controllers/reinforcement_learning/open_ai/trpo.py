@@ -161,9 +161,9 @@ class TrpoTrainer():
 
     def train(self, model_name):
         seg_gen = traj_segment_generator(self.agg)
-        summ_writer = tf.summary.FileWriter("/home/njay2/PCC/deep-learning/experiments/tf_summary/",
-            tf.get_default_session().graph)
-        summ_writer.flush()
+        #summ_writer = tf.summary.FileWriter("/home/njay2/PCC/deep-learning/experiments/tf_summary/",
+        #    tf.get_default_session().graph)
+        #summ_writer.flush()
         
         @contextmanager
         def timed(msg):
