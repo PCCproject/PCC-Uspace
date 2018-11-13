@@ -207,4 +207,4 @@ class DataAggregator():
             if self.all_data_files_finished():
                 self.reset_data_file_status()
                 yield self.dataset_as_dict()
-            time.sleep(2.0)
+            time.sleep(0.5)
