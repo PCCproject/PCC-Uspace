@@ -74,8 +74,6 @@ server_cmd = [
     "python3",
     cfg.PCC_CONFIG["PYTHON_ML_DIR"] + "training_server.py",
     "--model-path=" + cfg.PCC_CONFIG["ML_MODEL_PATH"],
-    "--ml-cp-freq=5",
-    "--ml-cp-dir=/home/njay2/PCC/deep-learning/python/models/gym-rpc/models/checkpoints/",
     "--ml-training-flows=%d" % (len(link_configs) * flows_per_link),
     "--ml-max-iters=1200",
     "--history-len=1"
@@ -97,7 +95,9 @@ sleep_increment = 1
 
 done = False
 while (time_slept < dur and not done):
-    if (os.system("pgrep -P %d > /dev/null" % server_proc.pid) != 0):
+    try:
+        os.kill(server_proc.pid, 0)
+    except ProcessLookupError as e:
         done = True
     time.sleep(sleep_increment)
     time_slept += sleep_increment
