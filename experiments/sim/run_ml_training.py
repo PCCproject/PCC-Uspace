@@ -38,6 +38,8 @@ def run_endless_training(link):
    this_cmd.append("--test-buf=%d" % link["buf"])
    this_cmd.append("--test-plr=%f" % link["plr"])
    this_cmd.append("--sim-n-copies=%d" % flows_per_link)
+   if flows_per_link == 1:
+       this_cmd.append("--ml-pause-during-trpo")
    this_cmd.append("--nonce=%d" % random.randint(1, 2e9))
    log_path = cfg.PCC_CONFIG["ML_MODEL_PATH"] + "/logs/"
    os.system("mkdir " + log_path)

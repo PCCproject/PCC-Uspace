@@ -168,7 +168,7 @@ class TrpoDataset():
 ##
 class TrpoAgent():
 
-    def __init__(self, env, flow_id, network_id, model_name, model_params, model, stochastic=True, log=None, nonce=None):
+    def __init__(self, env, flow_id, network_id, model_name, model_params, model, stochastic=True, log=None, nonce=None, pause_on_full=False):
         self.model_name = model_name
         self.model_loaded = False
 
@@ -194,6 +194,8 @@ class TrpoAgent():
         self.data_filename = "/tmp/pcc_rl_data/flow_%d_nonce_%d.dat" % (flow_id, self.nonce)
         self.vpred_scale = 1.0
         self.first_epoch = True
+
+        self.pause_on_full = pause_on_full
 
     def load_model(self):
         if os.path.isfile(self.model_name + ".meta"):
@@ -256,8 +258,9 @@ class TrpoAgent():
             self.prevac = ac
             self.next_action_id += 1
             self.actions[action_id] = ac
-        else:
-            pass
+        elif (self.dataset.finished() and self.pause_on_full):
+            while (self.model_timestamp == os.stat(self.model_name + ".meta").st_mtime):
+                time.sleep(1.0)
 
         self.prevac = ac
 

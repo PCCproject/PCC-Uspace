@@ -1,3 +1,6 @@
+
+print("Beginning python module import...")
+
 from rl_helpers import model_param_set
 from rl_helpers import pcc_env
 from rl_helpers import trpo_agent
@@ -131,7 +134,8 @@ class PccGymDriver():
             model=trainer.get_model(),
             stochastic=stoc,
             log=log,
-            nonce=NONCE
+            nonce=NONCE,
+            pause_on_full=("--ml-pause-during-trpo" in sys.argv)
         )
 
         PccGymDriver.flow_lookup[flow_id] = self
