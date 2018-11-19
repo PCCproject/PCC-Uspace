@@ -20,7 +20,7 @@ class ModelParameterSet:
     _default_max_kl = 0.0001
     _default_cg_iters = 10
     _default_cg_damping = 1e-3
-    _default_gamma = 0.0
+    _default_gamma = 0.9
     _default_lam = 1.0
     _default_vf_iters = 3
     _default_vf_stepsize = 1e-5

@@ -10,7 +10,7 @@ def dict_str_to_num(d):
 
 class PccExperimentLog:
     def __init__(self, filename):
-        print filename
+        print(filename)
         self.filename = filename
         self.dict = {}
         try:

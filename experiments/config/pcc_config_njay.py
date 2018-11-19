@@ -2,7 +2,7 @@ import os
 
 cfg = {}
 
-cfg["REPO_DIR"] = "/home/njay2/PCC/deep-learning/"
+cfg["REPO_DIR"] = "/home/pcc/PCC/deep-learning/"
 
 cfg["EXPR_DIR"] = cfg["REPO_DIR"] + "experiments/"
 cfg["PYTHON_ML_DIR"] = cfg["REPO_DIR"] + "python/rate_controllers/reinforcement_learning/"

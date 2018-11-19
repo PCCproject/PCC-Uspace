@@ -1,4 +1,4 @@
-import pcc_experiment_log
+import analysis.pcc_experiment_log
 
 class PccFilterParameterRange:
     def __init__(self, param, param_min, param_max, inverted):

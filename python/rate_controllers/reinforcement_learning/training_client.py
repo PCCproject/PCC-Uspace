@@ -23,8 +23,8 @@ if not hasattr(sys, 'argv'):
 
 MIN_RATE = 0.5
 MAX_RATE = 300.0
-DELTA_SCALE = 0.005
-#DELTA_SCALE = 0.04
+#DELTA_SCALE = 0.005
+DELTA_SCALE = 0.04
 
 RESET_RATE_MIN = 5.0
 RESET_RATE_MAX = 100.0
@@ -32,7 +32,7 @@ RESET_RATE_MAX = 100.0
 RESET_RATE_MIN = 24.0
 RESET_RATE_MAX = 24.0
 
-RESET_INTERVAL = 4096
+RESET_INTERVAL = 1024
 
 MODEL_PATH = arg_or_default("--model-path", "/tmp/")
 MODEL_NAME = arg_or_default("--model-name", "model")
