@@ -10,7 +10,12 @@ for arg in sys.argv:
 
 def arg_or_default(arg, default=None):
     if arg in _arg_dict.keys():
-        return _arg_dict[arg]
+        result = _arg_dict[arg]
+        if isinstance(default, int):
+            return int(result)
+        if isinstance(default, float):
+            return float(result)
+        return result
     else:
         return default
 
