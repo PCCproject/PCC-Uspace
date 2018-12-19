@@ -5,6 +5,7 @@ from gym.envs.registration import register
 import numpy as np
 import heapq
 import time
+import random
 
 MAX_RATE = 1000
 MIN_RATE = 20
@@ -29,7 +30,8 @@ class Link():
         return self.dl + self.get_cur_queue_delay(event_time)
 
     def packet_enters_link(self, event_time):
-        #print("Packet enters link")
+        if (random.random() < self.lr):
+            return False
         self.queue_delay = self.get_cur_queue_delay(event_time)
         extra_delay = 1.0 / self.bw
         if extra_delay + self.queue_delay > self.max_queue_delay:
@@ -154,6 +156,7 @@ class Sender():
 
     def set_rate(self, new_rate):
         self.rate = new_rate
+        print("Attempt to set new rate to %f (min %f, max %f)" % (new_rate, MIN_RATE, MAX_RATE))
         if self.rate > MAX_RATE:
             self.rate = MAX_RATE
         if self.rate < MIN_RATE:
@@ -161,16 +164,25 @@ class Sender():
 
     def get_obs(self):
         obs_end_time = self.net.get_cur_time()
+        obs_dur = obs_end_time - self.obs_start_time
+        recv_rate = 0
+        if obs_dur > 0:
+            recv_rate = self.acked / obs_dur
+        loss = 0
+        if self.lost + self.acked > 0:
+            loss = self.lost / (self.lost + self.acked)
+ 
         latency_inflation = 0.0
         avg_latency = 0.0
         if len(self.latency_samples) > 0:
             (self.latency_samples[-1] - self.latency_samples[0]) / (obs_end_time - self.obs_start_time)
             avg_latency = sum(self.latency_samples) / len(self.latency_samples)
+        
+        print("self.rate = %f" % self.rate)
         return [self.rate,
-                self.sent,
-                self.acked,
-                self.lost,
+                recv_rate,
                 avg_latency,
+                loss,
                 latency_inflation]
 
     def reset_obs(self):
@@ -187,34 +199,63 @@ class Sender():
 class SimulatedNetworkEnv(gym.Env):
     
     def __init__(self):
-        self.viwer = None
+        self.viewer = None
         self.rand = None
-        self.links = [Link(300.0, 0.03, 100, 0.0)]
-        self.senders = [Sender(330.0, [self.links[0]])]
+
+        self.min_bw, self.max_bw = (200, 600)
+        self.min_lat, self.max_lat = (0.01, 0.1)
+        self.min_queue, self.max_queue = (5, 500)
+        self.min_loss, self.max_loss = (0.0, 0.0)
+
+        self.links = None
+        self.senders = None
+        self.create_new_links_and_senders()
         self.net = Network(self.senders, self.links)
         self.run_period = 0.1
         self.steps_taken = 0
         self.max_steps = 200
 
         self.action_space = spaces.Box(np.array([-1e12]), np.array([1e12]), dtype=np.float32)
-        self.observation_space = spaces.Box(np.array([10.0, 0.0, 0.0, 0.0, 0.0, -100.0]),
-            np.array([2000.0, 200.0, 200.0, 200.0, 1.0, 100.0]), dtype=np.float32) 
+        self.observation_space = spaces.Box(np.array([10.0, 0.0, 0.0, 0.0, -100.0, -10000.0]),
+            np.array([2000.0, 2000.0, 10.0, 1.0, 10.0, 2000.0]), dtype=np.float32) 
 
     def seed(self, seed=None):
         self.rand, seed = seeding.np_random(seed)
         return [seed]
 
+    def _get_all_sender_obs(self, reward):
+        sender_obs = self.senders[0].get_obs()
+        sender_obs.append(reward)
+        sender_obs = np.array(sender_obs).reshape(-1, 1)
+        return sender_obs
+
     def step(self, actions):
+        print("Actions: %s" % str(actions))
         for i in range(0, len(actions)):
-            self.senders[i].set_rate(self.senders[i].rate * actions[i])
+            print("Updating rate for sender %d" % i)
+            self.senders[i].apply_rate_delta(actions[i])
         reward = self.net.run_for_dur(self.run_period)
         self.steps_taken += 1
-        return np.array(self.senders[0].get_obs()), reward, self.steps_taken >= self.max_steps, {}
+        sender_obs = self._get_all_sender_obs(reward)
+        print("Sender obs: %s" % sender_obs)
+
+        return sender_obs, reward, self.steps_taken >= self.max_steps, {}
+
+    def create_new_links_and_senders(self):
+        bw    = random.uniform(self.min_bw, self.max_bw)
+        lat   = random.uniform(self.min_lat, self.max_lat)
+        queue = random.uniform(self.min_queue, self.max_queue)
+        loss  = random.uniform(self.min_loss, self.max_loss)
+        self.links = [Link(bw, lat, queue, loss)]
+        self.senders = [Sender(random.uniform(0.2, 1.5) * bw, [self.links[0]])]
 
     def reset(self):
+        print("Reset called!")
         self.steps_taken = 0
         self.net.reset()
-        return np.array(self.senders[0].get_obs())
+        self.create_new_links_and_senders()
+        self.net = Network(self.senders, self.links)
+        return self._get_all_sender_obs(0.0)
 
     def render(self, mode='human'):
         pass
