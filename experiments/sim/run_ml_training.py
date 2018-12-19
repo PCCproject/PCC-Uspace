@@ -77,7 +77,7 @@ server_cmd = [
     "--model-path=" + cfg.PCC_CONFIG["ML_MODEL_PATH"],
     "--ml-training-flows=%d" % (len(link_configs) * flows_per_link),
     "--ml-max-iters=1200",
-    "--ts-per-batch=2048"
+    "--ts-per-batch=8192"
 ]
 
 server_cmd += sys.argv
