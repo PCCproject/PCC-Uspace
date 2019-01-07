@@ -329,6 +329,16 @@ void Simulator::UpdateQueueDelayOnSend(double event_time) {
   last_queue_update_time_ = event_time;
 }
 
+double GetLatencyVariation() {
+    float latency_variation = 0.00;
+    const char* latency_variation_str = Options::Get("--sim-latency-variation=");
+    if (latency_variation_str != NULL) {
+        latency_variation = atof(latency_variation_str);
+    }
+    return latency_variation;
+}
+
 double Simulator::CalculateAckTime(double cur_time) {
-    return cur_time + base_rtt_ + (rand0_1() - 0.5) * (base_rtt_ * 0.00) + GetCurrentQueueDelay(cur_time);
+    static double latency_variation = GetLatencyVariation();
+    return cur_time + base_rtt_ + 2.0 * (rand0_1() - 0.5) * (base_rtt_ * latency_variation) + GetCurrentQueueDelay(cur_time);
 }
