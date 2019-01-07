@@ -6,9 +6,12 @@ import numpy as np
 import heapq
 import time
 import random
+import json
 
 MAX_RATE = 1000
 MIN_RATE = 20
+
+DELTA_SCALE = 0.1
 
 EVENT_TYPE_SEND = 'S'
 EVENT_TYPE_ACK = 'A'
@@ -141,6 +144,13 @@ class Sender():
         self.net = None
         self.path = path
 
+    def apply_rate_delta(self, delta):
+        delta *= DELTA_SCALE
+        if delta >= 0.0:
+            self.set_rate(self.rate * (1.0 + delta))
+        else:
+            self.set_rate(self.rate / (1.0 - delta))
+
     def register_network(self, net):
         self.net = net
 
@@ -156,7 +166,7 @@ class Sender():
 
     def set_rate(self, new_rate):
         self.rate = new_rate
-        print("Attempt to set new rate to %f (min %f, max %f)" % (new_rate, MIN_RATE, MAX_RATE))
+        #print("Attempt to set new rate to %f (min %f, max %f)" % (new_rate, MIN_RATE, MAX_RATE))
         if self.rate > MAX_RATE:
             self.rate = MAX_RATE
         if self.rate < MIN_RATE:
@@ -178,7 +188,7 @@ class Sender():
             (self.latency_samples[-1] - self.latency_samples[0]) / (obs_end_time - self.obs_start_time)
             avg_latency = sum(self.latency_samples) / len(self.latency_samples)
         
-        print("self.rate = %f" % self.rate)
+        #print("self.rate = %f" % self.rate)
         return [self.rate,
                 recv_rate,
                 avg_latency,
@@ -219,6 +229,9 @@ class SimulatedNetworkEnv(gym.Env):
         self.observation_space = spaces.Box(np.array([10.0, 0.0, 0.0, 0.0, -100.0, -10000.0]),
             np.array([2000.0, 2000.0, 10.0, 1.0, 10.0, 2000.0]), dtype=np.float32) 
 
+        self.event_record = {"Events":[]}
+        self.episodes_run = -1
+
     def seed(self, seed=None):
         self.rand, seed = seeding.np_random(seed)
         return [seed]
@@ -226,18 +239,30 @@ class SimulatedNetworkEnv(gym.Env):
     def _get_all_sender_obs(self, reward):
         sender_obs = self.senders[0].get_obs()
         sender_obs.append(reward)
-        sender_obs = np.array(sender_obs).reshape(-1, 1)
+        sender_obs = np.array(sender_obs).reshape(-1,)
         return sender_obs
 
     def step(self, actions):
-        print("Actions: %s" % str(actions))
+        #print("Actions: %s" % str(actions))
         for i in range(0, len(actions)):
-            print("Updating rate for sender %d" % i)
+            #print("Updating rate for sender %d" % i)
             self.senders[i].apply_rate_delta(actions[i])
         reward = self.net.run_for_dur(self.run_period)
         self.steps_taken += 1
         sender_obs = self._get_all_sender_obs(reward)
-        print("Sender obs: %s" % sender_obs)
+        event = {}
+        event["Name"] = "Step"
+        event["Time"] = self.steps_taken
+        event["Reward"] = reward
+        """
+        event["Send Rate"] = sender_obs[0][0]
+        event["Throughput"] = sender_obs[1][0]
+        event["Latency"] = sender_obs[2][0]
+        event["Loss Rate"] = sender_obs[3][0]
+        event["Latency Inflation"] = sender_obs[4][0]
+        """
+        self.event_record["Events"].append(event)
+        #print("Sender obs: %s" % sender_obs)
 
         return sender_obs, reward, self.steps_taken >= self.max_steps, {}
 
@@ -255,6 +280,10 @@ class SimulatedNetworkEnv(gym.Env):
         self.net.reset()
         self.create_new_links_and_senders()
         self.net = Network(self.senders, self.links)
+        self.episodes_run += 1
+        if self.episodes_run > 0 and self.episodes_run % 100 == 0:
+            self.dump_events_to_file("pcc_env_log_run_%d.json" % self.episodes_run)
+        self.event_record = {"Events":[]}
         return self._get_all_sender_obs(0.0)
 
     def render(self, mode='human'):
@@ -264,6 +293,10 @@ class SimulatedNetworkEnv(gym.Env):
         if self.viewer:
             self.viewer.close()
             self.viewer = None
+
+    def dump_events_to_file(self, filename):
+        with open(filename, 'w') as f:
+            json.dump(self.event_record, f, indent=4)
 
 register(id='PccNs-v0', entry_point='network_sim:SimulatedNetworkEnv')
 #env = SimulatedNetworkEnv()
