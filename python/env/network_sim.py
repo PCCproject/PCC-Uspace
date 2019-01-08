@@ -260,13 +260,11 @@ class SimulatedNetworkEnv(gym.Env):
         event["Name"] = "Step"
         event["Time"] = self.steps_taken
         event["Reward"] = reward
-        """
-        event["Send Rate"] = sender_obs[0][0]
-        event["Throughput"] = sender_obs[1][0]
-        event["Latency"] = sender_obs[2][0]
-        event["Loss Rate"] = sender_obs[3][0]
-        event["Latency Inflation"] = sender_obs[4][0]
-        """
+        event["Send Rate"] = sender_obs[0]
+        event["Throughput"] = sender_obs[1]
+        event["Latency"] = sender_obs[2]
+        event["Loss Rate"] = sender_obs[3]
+        event["Latency Inflation"] = sender_obs[4]
         self.event_record["Events"].append(event)
         #print("Sender obs: %s" % sender_obs)
 
