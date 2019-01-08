@@ -36,12 +36,13 @@ class Link():
         if (random.random() < self.lr):
             return False
         self.queue_delay = self.get_cur_queue_delay(event_time)
+        self.queue_delay_update_time = event_time
         extra_delay = 1.0 / self.bw
+        #print("Extra delay: %f, Current delay: %f, Max delay: %f" % (extra_delay, self.queue_delay, self.max_queue_delay))
         if extra_delay + self.queue_delay > self.max_queue_delay:
             #print("\tDrop!")
             return False
         self.queue_delay += extra_delay
-        self.queue_delay_update_time = event_time
         #print("\tNew delay = %f" % self.queue_delay)
         return True
 
@@ -91,27 +92,28 @@ class Network():
             push_new_event = False
 
             if event_type == EVENT_TYPE_ACK:
-                if next_hop == -1:
+                if next_hop == len(sender.path):
                     if dropped:
                         sender.on_packet_lost()
+                        #print("Packet lost at time %f" % self.cur_time)
                     else:
                         sender.on_packet_acked(cur_latency)
+                        #print("Packet acked at time %f" % self.cur_time)
                 else:
-                    new_next_hop = next_hop - 1
+                    new_next_hop = next_hop + 1
                     link_latency = sender.path[next_hop].get_cur_latency(self.cur_time)
                     new_latency += link_latency
                     new_event_time += link_latency
                     push_new_event = True
             if event_type == EVENT_TYPE_SEND:
                 if next_hop == 0:
+                    #print("Packet sent at time %f" % self.cur_time)
                     sender.on_packet_sent()
                     heapq.heappush(self.q, (self.cur_time + (1.0 / sender.rate), sender, EVENT_TYPE_SEND, 0, 0.0, False))
 
-                if next_hop == len(sender.path) - 1:
+                if next_hop == sender.dest:
                     new_event_type = EVENT_TYPE_ACK
-                    new_next_hop = next_hop
-                else:
-                    new_next_hop = next_hop + 1
+                new_next_hop = next_hop + 1
                 
                 link_latency = sender.path[next_hop].get_cur_latency(self.cur_time)
                 new_latency += link_latency
@@ -123,17 +125,17 @@ class Network():
                 heapq.heappush(self.q, (new_event_time, sender, new_event_type, new_next_hop, new_latency, new_dropped))
 
         obs = [sender.get_obs() for sender in self.senders]
-        throughput = sum([ob[2] for ob in obs]) / float(dur)
-        latency = sum([ob[4] for ob in obs]) / len(obs)
-        loss = sum([ob[3] for ob in obs]) / float(dur)
+        throughput = sum([ob[1] for ob in obs])
+        latency = sum([ob[2] for ob in obs])
+        loss = sum([ob[3] for ob in obs])
         reward = throughput - 1e3 * latency - 10 * loss
-        if reward > 857:
-            print("Reward = %f, thpt = %f, lat = %f, loss = %f" % (reward, throughput, latency, loss))
+        #if reward > 857:
+        #print("Reward = %f, thpt = %f, lat = %f, loss = %f" % (reward, throughput, latency, loss))
         return reward
 
 class Sender():
     
-    def __init__(self, rate, path):
+    def __init__(self, rate, path, dest):
         self.starting_rate = rate
         self.rate = rate
         self.sent = 0
@@ -143,6 +145,7 @@ class Sender():
         self.sample_time = []
         self.net = None
         self.path = path
+        self.dest = dest
 
     def apply_rate_delta(self, delta):
         delta *= DELTA_SCALE
@@ -185,9 +188,12 @@ class Sender():
         latency_inflation = 0.0
         avg_latency = 0.0
         if len(self.latency_samples) > 0:
-            (self.latency_samples[-1] - self.latency_samples[0]) / (obs_end_time - self.obs_start_time)
+            latency_inflation = (self.latency_samples[-1] - self.latency_samples[0]) / (obs_end_time - self.obs_start_time)
             avg_latency = sum(self.latency_samples) / len(self.latency_samples)
-        
+       
+        #print("Got %d acks in %f seconds" % (self.acked, obs_dur))
+        #print("Sent %d packets in %f seconds" % (self.sent, obs_dur))
+ 
         #print("self.rate = %f" % self.rate)
         return [self.rate,
                 recv_rate,
@@ -271,8 +277,8 @@ class SimulatedNetworkEnv(gym.Env):
         lat   = random.uniform(self.min_lat, self.max_lat)
         queue = random.uniform(self.min_queue, self.max_queue)
         loss  = random.uniform(self.min_loss, self.max_loss)
-        self.links = [Link(bw, lat, queue, loss)]
-        self.senders = [Sender(random.uniform(0.2, 1.5) * bw, [self.links[0]])]
+        self.links = [Link(bw, lat, queue, loss), Link(bw, lat, queue, loss)]
+        self.senders = [Sender(random.uniform(0.2, 1.5) * bw, [self.links[0], self.links[1]], 0)]
 
     def reset(self):
         print("Reset called!")
