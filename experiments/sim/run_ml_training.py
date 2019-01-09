@@ -5,6 +5,7 @@ import subprocess
 import time
 from config import pcc_expr_config as cfg
 import random
+import signal
 
 random.seed(int(time.time() * 1000000))
 
@@ -93,6 +94,15 @@ time.sleep(10)
 client_procs = []
 for link_config in link_configs:
     client_procs.append(run_endless_training(link_config))
+
+def signal_handler(sig, frame):
+    print("You pressed Ctrl+C! Training will now stop. The most recent version of your model will be saved.")
+    for proc in client_procs:
+        proc.kill()
+    if server_proc.poll() is None:
+        server_proc.kill()
+    sys.exit(0)
+signal.signal(signal.SIGINT, signal_handler)
 
 time_slept = 0
 sleep_increment = 1
