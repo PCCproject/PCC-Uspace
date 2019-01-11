@@ -32,6 +32,7 @@ class LoadedModel():
             #print(lines)
             dim_1 = int(lines[1].split(":")[1].strip(" "))
             dim_2 = int(lines[4].split(":")[1].strip(" "))
+            self.initial_state = np.zeros((dim_1, dim_2), dtype=np.float32)
             self.state = np.zeros((dim_1, dim_2), dtype=np.float32)
  
         self.output_act_label = output_dict["act"].name
@@ -46,7 +47,7 @@ class LoadedModel():
             self.mask = np.ones((1, 1)).reshape((1, ))
 
     def reset_state(self):      
-        self.state = self.initial_state
+        self.state = np.copy(self.initial_state)
 
     def reload(self):
         self.metagraph = tf.saved_model.loader.load(self.sess,
@@ -143,7 +144,8 @@ class LoadedModelAgent():
 
     def act(self, ob):
 
-        act_dict = self.model.act(ob.reshape((1, 6)), stochastic=True)#self.stochastic)
+        #print(ob[:5], file=sys.stderr)
+        act_dict = self.model.act(ob[:5].reshape((1, 5)), stochastic=True)#self.stochastic)
         ac = act_dict["act"]
         vpred = act_dict["vpred"] if "vpred" in act_dict.keys() else None
         state = act_dict["state"] if "state" in act_dict.keys() else None

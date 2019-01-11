@@ -24,13 +24,13 @@ if not hasattr(sys, 'argv'):
 MIN_RATE = 0.5
 MAX_RATE = 300.0
 #DELTA_SCALE = 0.005
-DELTA_SCALE = 0.04
+DELTA_SCALE = 0.05
 
 RESET_RATE_MIN = 5.0
 RESET_RATE_MAX = 100.0
 
-RESET_RATE_MIN = 24.0
-RESET_RATE_MAX = 24.0
+RESET_RATE_MIN = 6.0
+RESET_RATE_MAX = 6.0
 
 RESET_INTERVAL = 1024
 
@@ -95,6 +95,7 @@ class PccGymDriver():
         self.current_rate = random.uniform(RESET_RATE_MIN, RESET_RATE_MAX)
         self.history = pcc_env.PccHistory(model_params.history_len)
         self.actions = {}
+        self.got_data = False
 
         self.agent = loaded_agent.LoadedModelAgent(
             flow_id,
@@ -124,30 +125,38 @@ class PccGymDriver():
     def get_rate(self):
         global RESET_INTERVAL
         prev_rate = self.get_current_rate()
-        action_id, rate_delta = self.agent.act(self.get_current_observation())
-        self.push_waiting_action_id(action_id, rate_delta)
-        rate = apply_rate_delta(prev_rate, rate_delta)
-        self.reset_counter += 1
-        if (self.reset_counter >= RESET_INTERVAL):
-            self.reset()
-            rate = self.get_current_rate()
-    
-        self.set_current_rate(rate)
-        return float(rate * 1e6)
+        if self.has_data():
+            action_id, rate_delta = self.agent.act(self.get_current_observation())
+            self.push_waiting_action_id(action_id, rate_delta)
+            rate = apply_rate_delta(prev_rate, rate_delta)
+            self.reset_counter += 1
+            if (self.reset_counter >= RESET_INTERVAL):
+                self.reset()
+                rate = self.get_current_rate()
+        
+            self.set_current_rate(rate)
+            return float(rate * 1e6)
 
+        print("Got rate! (staying same %f)" % self.get_current_rate())
+        return self.get_current_rate() * 1e6
+
+    def has_data(self):
+        return self.got_data
 
     def set_current_rate(self, new_rate):
         self.current_rate = new_rate
 
     def record_observation(self, new_mi):
         self.history.step(new_mi)
+        self.got_data = True
 
     def reset_rate(self):
         self.current_rate = random.uniform(RESET_RATE_MIN, RESET_RATE_MAX)
 
     def reset_history(self):
         self.history = pcc_env.PccHistory(model_params.history_len)
-    
+        self.got_data = False
+
     def reset(self):
         self.agent.reset()
         self.reset_rate()
@@ -165,9 +174,9 @@ class PccGymDriver():
     def give_sample(self, sending_rate, recv_rate, latency, loss, lat_infl, utility, stop):
         self.record_observation(
             pcc_env.PccMonitorInterval(
-                sending_rate,
-                recv_rate,
-                latency,
+                sending_rate / (8.0 * 1500.0 * 1000.0 * 8.0),
+                recv_rate / (8.0 * 1500.0 * 1000.0 * 8.0),
+                latency / (10.0 * 1000.0 * 1000.0),
                 loss,
                 lat_infl,
                 utility
@@ -212,6 +221,7 @@ def reset(flow_id):
     driver.reset()
 
 def get_rate(flow_id):
+    print("Getting rate")
     driver = PccGymDriver.get_by_flow_id(flow_id)
     return driver.get_rate()
 
