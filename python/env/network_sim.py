@@ -11,13 +11,16 @@ import json
 MAX_RATE = 500
 MIN_RATE = 20
 
-DELTA_SCALE = 0.05
+DELTA_SCALE = 0.025# * 1e-12
 REWARD_SCALE = 0.01
 
 EVENT_TYPE_SEND = 'S'
 EVENT_TYPE_ACK = 'A'
 
 BYTES_PER_PACKET = 1500
+
+RATE_OBS_SCALE = 0.001
+LAT_OBS_SCALE = 0.1
 
 class Link():
 
@@ -131,10 +134,11 @@ class Network():
         throughput = sum([ob[1] for ob in obs])
         latency = sum([ob[2] for ob in obs])
         loss = sum([ob[3] for ob in obs])
-        bw_cutoff = self.links[0].bw * 0.8 * 0.001
-        lat_cutoff = 2.0 * self.links[0].dl * 1.5 * 0.1
+        bw_cutoff = self.links[0].bw * 0.8 * RATE_OBS_SCALE
+        lat_cutoff = 2.0 * self.links[0].dl * 1.5 * LAT_OBS_SCALE
         #print("thpt %f, bw %f" % (throughput, bw_cutoff))
-        reward = 0 if (loss > 0.1 or throughput < bw_cutoff or latency > lat_cutoff) else 1 #REWARD_SCALE * (5.0 * throughput - 5e2 * latency - 1e3 * loss)
+        reward = 0 if (loss > 0.1 or throughput < bw_cutoff or latency > lat_cutoff) else 1 #
+        #reward = REWARD_SCALE * (10.0 * throughput / RATE_OBS_SCALE - 5e2 * latency / LAT_OBS_SCALE - 1e3 * loss)
         #if reward > 857:
         #print("Reward = %f, thpt = %f, lat = %f, loss = %f" % (reward, throughput, latency, loss))
         return reward
@@ -157,6 +161,7 @@ class Sender():
 
     def apply_rate_delta(self, delta):
         delta *= DELTA_SCALE
+        #print("Applying delta %f" % delta)
         if delta >= 0.0:
             self.set_rate(self.rate * (1.0 + delta))
         else:
@@ -214,14 +219,14 @@ class Sender():
         #print("Sent %d packets in %f seconds" % (self.sent, obs_dur))
  
         #print("self.rate = %f" % self.rate)
-        return [self.rate * 0.001,
-                recv_rate * 0.001,
-                avg_latency * 0.1,
+        return [self.rate * RATE_OBS_SCALE,
+                recv_rate * RATE_OBS_SCALE,
+                avg_latency * LAT_OBS_SCALE,
                 loss,
-                latency_inflation#,
-                #latency_ratio,
+                latency_inflation,
+                latency_ratio,
                 #self.bytes_in_flight,
-                #send_ratio
+                send_ratio
                 ]
 
     def reset_obs(self):
@@ -232,6 +237,7 @@ class Sender():
         self.obs_start_time = self.net.get_cur_time()
 
     def reset(self):
+        #print("Resetting sender!")
         self.rate = self.starting_rate
         self.bytes_in_flight = 0
         self.min_latency = None
@@ -243,10 +249,10 @@ class SimulatedNetworkEnv(gym.Env):
         self.viewer = None
         self.rand = None
 
-        self.min_bw, self.max_bw = (100, 300)
-        self.min_lat, self.max_lat = (0.01, 0.5)
+        self.min_bw, self.max_bw = (60, 300)
+        self.min_lat, self.max_lat = (0.03, 0.5)
         self.min_queue, self.max_queue = (5, 500)
-        self.min_loss, self.max_loss = (0.0, 0.0)
+        self.min_loss, self.max_loss = (0.0, 0.05)
 
         self.links = None
         self.senders = None
@@ -255,7 +261,7 @@ class SimulatedNetworkEnv(gym.Env):
         self.run_dur = None
         self.run_period = 0.1
         self.steps_taken = 0
-        self.max_steps = 200
+        self.max_steps = 400
 
 
         self.action_space = spaces.Box(np.array([-1e12]), np.array([1e12]), dtype=np.float32)
@@ -263,8 +269,18 @@ class SimulatedNetworkEnv(gym.Env):
         #    np.array([2000.0, 2000.0, 10.0, 1.0, 10.0, 2000.0, 1000.0, BYTES_PER_PACKET * 500 * 2.0, 1000.0]), dtype=np.float32) 
         #self.observation_space = spaces.Box(np.array([10.0, 0.0, 0.0, 0.0, -100.0, -10000.0]),
         #    np.array([2000.0, 2000.0, 10.0, 1.0, 10.0, 2000.0]), dtype=np.float32) 
-        self.observation_space = spaces.Box(np.array([10.0, 0.0, 0.0, 0.0, -100.0]),
-            np.array([2000.0, 2000.0, 10.0, 1.0, 10.0]), dtype=np.float32) 
+       
+        self.observation_space = None
+        use_only_scale_free = True 
+        if use_only_scale_free:
+            self.observation_space = spaces.Box(np.array([-1.0, 1.0, 0.0]),
+                np.array([10.0, 100.0, 1000.0]), dtype=np.float32) 
+        else:
+            self.observation_space = spaces.Box(np.array([10.0, 0.0, 0.0, 0.0, -100.0]),
+                np.array([2000.0, 2000.0, 10.0, 1.0, 10.0]), dtype=np.float32) 
+
+        self.reward_sum = 0.0
+        self.reward_ewma = 0.0
 
         self.event_record = {"Events":[]}
         self.episodes_run = -1
@@ -277,6 +293,7 @@ class SimulatedNetworkEnv(gym.Env):
         sender_obs = self.senders[0].get_obs()
         #sender_obs.append(reward)
         sender_obs = np.array(sender_obs).reshape(-1,)
+        #print(sender_obs)
         return sender_obs
 
     def step(self, actions):
@@ -302,23 +319,26 @@ class SimulatedNetworkEnv(gym.Env):
         #event["Send Ratio"] = sender_obs[7]
         self.event_record["Events"].append(event)
         if event["Latency"] > 0.0:
-            self.run_dur = 1.5 * event["Latency"]
+            self.run_dur = 0.5 * event["Latency"] / LAT_OBS_SCALE
         #print("Sender obs: %s" % sender_obs)
 
-        return sender_obs, reward, self.steps_taken >= self.max_steps, {}
+        should_stop = False #sender_obs[0] < 0.001 * 40.0 or sender_obs[2] > 0.1 * 0.12 or sender_obs[3] > 0.1 
+
+        self.reward_sum += reward
+        return sender_obs[-3:], reward, (self.steps_taken >= self.max_steps or should_stop), {}
 
     def create_new_links_and_senders(self):
         bw    = random.uniform(self.min_bw, self.max_bw)
         lat   = random.uniform(self.min_lat, self.max_lat)
         queue = random.uniform(self.min_queue, self.max_queue)
-        loss  = random.uniform(self.min_loss, self.max_loss)
-        #bw    = 400
-        #lat   = 0.06
+        #loss  = random.uniform(self.min_loss, self.max_loss)
+        #bw    = 200
+        #lat   = 0.03
         #queue = 500
-        #loss  = 0.00
+        loss  = 0.00
         self.links = [Link(bw, lat, queue, loss), Link(bw, lat, queue, loss)]
-        self.senders = [Sender(0.3 * bw, [self.links[0], self.links[1]], 0)]
-        #self.senders = [Sender(random.uniform(0.2, 1.5) * bw, [self.links[0], self.links[1]], 0)]
+        #self.senders = [Sender(0.3 * bw, [self.links[0], self.links[1]], 0)]
+        self.senders = [Sender(random.uniform(0.3, 1.5) * bw, [self.links[0], self.links[1]], 0)]
         self.run_dur = 3 * lat
 
     def reset(self):
@@ -330,7 +350,12 @@ class SimulatedNetworkEnv(gym.Env):
         if self.episodes_run > 0 and self.episodes_run % 100 == 0:
             self.dump_events_to_file("pcc_env_log_run_%d.json" % self.episodes_run)
         self.event_record = {"Events":[]}
-        return self._get_all_sender_obs(0.0)
+        #self.net.run_for_dur(self.run_dur)
+        self.reward_ewma *= 0.99
+        self.reward_ewma += 0.01 * self.reward_sum
+        print("Reward: %0.2f, Ewma Reward: %0.2f" % (self.reward_sum, self.reward_ewma))
+        self.reward_sum = 0.0
+        return self._get_all_sender_obs(0.0)[-3:]
 
     def render(self, mode='human'):
         pass
