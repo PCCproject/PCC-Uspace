@@ -2,7 +2,7 @@ from network_sim import SimulatedNetworkEnv
 import numpy as np
 import json
 
-bias = 2.0
+bias = 4.0
 
 def run_episode(env, parameters, log=False):
     observation = env.reset()
@@ -39,7 +39,7 @@ params = np.array([
      -50.0, # Latency Inflation
      -1.0, # Latency Ratio
 #    # Bytes In Flight
-     0.0 # Send Ratio
+     -2.0 # Send Ratio
 #    0.0 # Reward
 ])
 

@@ -19,13 +19,13 @@ n_cpu = 1
 env = gym.make('PccNs-v0')
 #env = gym.make('CartPole-v0')
 
-model = PPO1(MyMlpPolicy, env, verbose=1, schedule='constant', timesteps_per_actorbatch=2048, optim_batchsize=512)
-model.learn(total_timesteps=(800 * 400 + 10))
+model = PPO1(MyMlpPolicy, env, verbose=1, schedule='constant', timesteps_per_actorbatch=8192, optim_batchsize=2048)
+model.learn(total_timesteps=(4800 * 410))
 
 ##
 #   Save the model to the location specified below.
 ##
-export_dir = "/home/pcc/PCC/deep-learning/python/saved_models/simple_input_mlp/"
+export_dir = "/home/pcc/PCC/deep-learning/python/saved_models/mlp_sf_10hist_wide_queue/"
 with model.graph.as_default():
 
     pol = model.policy_pi#act_model
