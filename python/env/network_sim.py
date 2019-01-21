@@ -7,6 +7,7 @@ import heapq
 import time
 import random
 import json
+from simple_arg_parse import arg_or_default
 
 MAX_RATE = 1000
 MIN_RATE = 40
@@ -21,6 +22,9 @@ BYTES_PER_PACKET = 1500
 
 RATE_OBS_SCALE = 0.001
 LAT_OBS_SCALE = 0.1
+
+USE_LATENCY_NOISE = False#True
+MAX_LATENCY_NOISE = 1.1
 
 # The monitor interval class used to pass data from the PCC subsystem to
 # the machine learning module.
@@ -155,6 +159,8 @@ class Network():
                 else:
                     new_next_hop = next_hop + 1
                     link_latency = sender.path[next_hop].get_cur_latency(self.cur_time)
+                    if USE_LATENCY_NOISE:
+                        link_latency *= random.uniform(1.0, MAX_LATENCY_NOISE)
                     new_latency += link_latency
                     new_event_time += link_latency
                     push_new_event = True
@@ -169,6 +175,8 @@ class Network():
                 new_next_hop = next_hop + 1
                 
                 link_latency = sender.path[next_hop].get_cur_latency(self.cur_time)
+                if USE_LATENCY_NOISE:
+                    link_latency *= random.uniform(1.0, MAX_LATENCY_NOISE)
                 new_latency += link_latency
                 new_event_time += link_latency
                 new_dropped = not sender.path[next_hop].packet_enters_link(self.cur_time)
@@ -185,7 +193,18 @@ class Network():
         lat_cutoff = 2.0 * self.links[0].dl * 1.5 * LAT_OBS_SCALE
         #print("thpt %f, bw %f" % (throughput, bw_cutoff))
         #reward = 0 if (loss > 0.1 or throughput < bw_cutoff or latency > lat_cutoff) else 1 #
-        reward = REWARD_SCALE * (5.0 * throughput / RATE_OBS_SCALE - 1e3 * latency / LAT_OBS_SCALE - 2e3 * loss)
+        
+        # Super high throughput
+        #reward = REWARD_SCALE * (20.0 * throughput / RATE_OBS_SCALE - 1e3 * latency / LAT_OBS_SCALE - 2e3 * loss)
+        
+        # Very high thpt
+        reward = REWARD_SCALE * (10.0 * throughput / RATE_OBS_SCALE - 1e3 * latency / LAT_OBS_SCALE - 2e3 * loss)
+        
+        # High thpt
+        #reward = REWARD_SCALE * (5.0 * throughput / RATE_OBS_SCALE - 1e3 * latency / LAT_OBS_SCALE - 2e3 * loss)
+        
+        # Low latency
+        #reward = REWARD_SCALE * (2.0 * throughput / RATE_OBS_SCALE - 1e3 * latency / LAT_OBS_SCALE - 2e3 * loss)
         #if reward > 857:
         #print("Reward = %f, thpt = %f, lat = %f, loss = %f" % (reward, throughput, latency, loss))
         return reward
@@ -309,7 +328,7 @@ class Sender():
 
 class SimulatedNetworkEnv(gym.Env):
     
-    def __init__(self, history_len=10):
+    def __init__(self, history_len=arg_or_default("--history-len", default=10)):
         self.viewer = None
         self.rand = None
 
@@ -318,6 +337,7 @@ class SimulatedNetworkEnv(gym.Env):
         self.min_queue, self.max_queue = (0, 8)
         self.min_loss, self.max_loss = (0.0, 0.05)
         self.history_len = history_len
+        print("History len = %d" % history_len)
 
         self.links = None
         self.senders = None
@@ -414,15 +434,15 @@ class SimulatedNetworkEnv(gym.Env):
         bw    = random.uniform(self.min_bw, self.max_bw)
         lat   = random.uniform(self.min_lat, self.max_lat)
         queue = 1 + int(np.exp(random.uniform(self.min_queue, self.max_queue)))
-        #loss  = random.uniform(self.min_loss, self.max_loss)
+        loss  = random.uniform(self.min_loss, self.max_loss)
         #bw    = 200
         #lat   = 0.03
         #queue = 5
-        loss  = 0.00
+        #loss  = 0.00
         self.links = [Link(bw, lat, queue, loss), Link(bw, lat, queue, loss)]
-        #self.senders = [Sender(0.3 * bw, [self.links[0], self.links[1]], 0)]
-        self.senders = [Sender(random.uniform(0.3, 1.5) * bw, [self.links[0], self.links[1]], 0,
-            self.history_len)]
+        #self.senders = [Sender(0.3 * bw, [self.links[0], self.links[1]], 0, self.history_len)]
+        #self.senders = [Sender(random.uniform(0.2, 0.7) * bw, [self.links[0], self.links[1]], 0, self.history_len)]
+        self.senders = [Sender(random.uniform(0.3, 1.5) * bw, [self.links[0], self.links[1]], 0, self.history_len)]
         self.run_dur = 3 * lat
 
     def reset(self):
