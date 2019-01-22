@@ -8,10 +8,9 @@ default_gamma = 0.99
 all_hists = [1, 2, 3, 5, 10]
 all_archs = ["", "16", "32,16", "64,32,16"]
 all_gammas = [0.00, 0.50, 0.99]
-all_gammas = []
 
 def get_model_name(hist, arch, gamma, replica):
-    return "model_%dhist_%sarch_%fgamma_run_%d_very_high_thpt_lat_noise" % (hist, arch, gamma, replica)
+    return "model_%dhist_%sarch_%fgamma_run_%d_very_high_thpt_good_arch" % (hist, arch, gamma, replica)
 
 def get_log_name(hist, arch, gamma, replica):
     return "%s_train_log.txt" % get_model_name(hist, arch, gamma, replica)
