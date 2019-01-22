@@ -13,12 +13,13 @@ default_gamma = 0.99
 all_hists = [1, 2, 3, 5, 10]
 all_archs = ["", "16", "32,16", "64,32,16"]
 all_gammas = [0.00, 0.50, 0.99]
+#all_gammas = []
 
 smoothness = 51
 n_replicas = 3
 
 def get_model_name(hist, arch, gamma, replica):
-    return "model_%dhist_%sarch_%fgamma_run_%d_low_lat_long_train" % (hist, arch, gamma, replica)
+    return "model_%dhist_%sarch_%fgamma_run_%d_very_high_thpt_good_arch" % (hist, arch, gamma, replica)
 
 def get_log_name(hist, arch, gamma, replica):
     return "%s_train_log.txt" % get_model_name(hist, arch, gamma, replica)
@@ -43,7 +44,10 @@ def get_model_rewards(hist, arch, gamma, replica):
         all_lines = f.readlines()
     reward_lines = get_reward_lines(all_lines)
     rewards = [get_line_reward(line) for line in reward_lines]
-    print("%s reward %f" % (get_model_name(hist, arch, gamma, replica), np.mean(rewards[:-100])))
+    mean_rew = np.mean(rewards)
+    if (len(rewards) > 500):
+        mean_rew = np.mean(rewards[-500:])
+    print("%s reward %f" % (get_model_name(hist, arch, gamma, replica), mean_rew))
     return rewards
 
 def trim_to_equal_length(list_of_lists):
@@ -57,6 +61,7 @@ def average_sublists(list_of_lists):
 def get_model_avg_rewards(hist, arch, gamma):
     global n_replicas
     all_rews = [get_model_rewards(hist, arch, gamma, replica) for replica in range(1, n_replicas + 1)]
+    print("Mean rew for %s: %f (%d samples done)" % (get_model_name(hist, arch, gamma, 0), np.mean(average_sublists(all_rews)[-500:]), len(average_sublists(all_rews))))
     return average_sublists(all_rews)
 
 
