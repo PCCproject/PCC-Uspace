@@ -18,8 +18,8 @@ else:
 print("Architecture is: %s" % str(arch))
 class MyMlpPolicy(FeedForwardPolicy):
 
-    def __init__(self, sess, ob_space, ac_space, n_env, n_steps, n_batch, net_arch=arch, reuse=False, **_kwargs):
-        super(MyMlpPolicy, self).__init__(sess, ob_space, ac_space, n_env, n_steps, n_batch, reuse,
+    def __init__(self, sess, ob_space, ac_space, n_env, n_steps, n_batch, reuse=False, **_kwargs):
+        super(MyMlpPolicy, self).__init__(sess, ob_space, ac_space, n_env, n_steps, n_batch, reuse, net_arch=arch,
                                         feature_extraction="mlp", **_kwargs)
 
 n_cpu = 1
@@ -29,6 +29,7 @@ env = gym.make('PccNs-v0')
 gamma = arg_or_default("--gamma", default=0.99)
 print("gamma = %f" % gamma)
 model = PPO1(MyMlpPolicy, env, verbose=1, schedule='constant', timesteps_per_actorbatch=8192, optim_batchsize=2048, gamma=gamma)
+exit(-1)
 model.learn(total_timesteps=(9600 * 410))
 
 ##
