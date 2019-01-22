@@ -29,7 +29,6 @@ env = gym.make('PccNs-v0')
 gamma = arg_or_default("--gamma", default=0.99)
 print("gamma = %f" % gamma)
 model = PPO1(MyMlpPolicy, env, verbose=1, schedule='constant', timesteps_per_actorbatch=8192, optim_batchsize=2048, gamma=gamma)
-exit(-1)
 model.learn(total_timesteps=(9600 * 410))
 
 ##
