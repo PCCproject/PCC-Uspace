@@ -65,11 +65,11 @@ MonitorInterval PccMonitorIntervalQueue::Pop() {
     return mi;
 }
 
-bool PccMonitorIntervalQueue::HasFinishedInterval() {
+bool PccMonitorIntervalQueue::HasFinishedInterval(QuicTime cur_time) {
     if (monitor_intervals_.empty()) {
         return false;
     }
-    return monitor_intervals_.front().AllPacketsAccountedFor();
+    return monitor_intervals_.front().AllPacketsAccountedFor(cur_time);
 }
 
 void PccMonitorIntervalQueue::OnPacketSent(QuicTime sent_time,
@@ -98,7 +98,7 @@ void PccMonitorIntervalQueue::OnCongestionEvent(
   }
 
   for (MonitorInterval& interval : monitor_intervals_) {
-    if (interval.AllPacketsAccountedFor()) {
+    if (interval.AllPacketsAccountedFor(event_time)) {
       // Skips intervals that have available utilities.
       continue;
     }
