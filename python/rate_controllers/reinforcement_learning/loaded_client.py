@@ -221,7 +221,7 @@ def reset(flow_id):
     driver.reset()
 
 def get_rate(flow_id):
-    print("Getting rate")
+    #print("Getting rate")
     driver = PccGymDriver.get_by_flow_id(flow_id)
     return driver.get_rate()
 

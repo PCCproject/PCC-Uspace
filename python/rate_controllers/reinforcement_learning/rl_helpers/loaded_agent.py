@@ -102,6 +102,8 @@ class LoadedModelAgent():
         # on the same machine with this method.
         self.data_filename = "/tmp/pcc_rl_data/flow_%d_nonce_%d.dat" % (flow_id, self.nonce)
 
+        self.use_scale_free_obs = True
+        self.min_latency = None
         self.pause_on_full = pause_on_full
 
     def _load_model(self):
@@ -142,10 +144,53 @@ class LoadedModelAgent():
         #self.dataset.reset_near_action(action_id)
         #self.model.reset_state()
 
+    def make_scale_free_ob(self, ob):
+        history_len = int(len(ob) / 6)
+        #print("Ob length: %d, history length: %d" % (len(ob), history_len))
+        scale_free_ob = np.zeros((3 * history_len,))
+        #print("Made scale_free_ob")
+        for i in range(0, history_len):
+            #print("Creating scale_free_ob %d" % i)
+            send_rate = ob[6 * i + 1]
+            #print("Send rate done")
+            thpt = ob[6 * i + 2]
+            #print("Throughput done")
+            lat = ob[6 * i + 3]
+            #print("Latency done")
+            lat_infl = ob[6 * i + 5]
+            #print("Latency inflation done")
+            scale_free_ob[3 * i + 0] = lat_infl
+            #print("Latency inflation assigned, self.min_latency = %s, lat = %s" % (self.min_latency, lat))
+            if lat > 0.0 and ((self.min_latency is None) or (lat < self.min_latency)):
+                self.min_latency = lat
+            if self.min_latency is not None:
+                scale_free_ob[3 * i + 1] = lat / self.min_latency
+            else:
+                scale_free_ob[3 * i + 1] = 1.0
+            #print("Latency ratio assignedi, send_rate = %s, thtp = %s" % (send_rate, thpt))
+            if send_rate == 0.0 and thpt == 0.0:
+                scale_free_ob[3 * i + 2] = 1.0
+            elif send_rate > 1000.0 * thpt:
+                scale_free_ob[3 * i + 2] = 1000.0
+            else:
+                scale_free_ob[3 * i + 2] = send_rate / thpt
+            #print("Send ratio assigned")
+        #print("Returning scale_free_ob")
+        return scale_free_ob
+
     def act(self, ob):
 
         #print(ob[:5], file=sys.stderr)
-        act_dict = self.model.act(ob[:5].reshape((1, 5)), stochastic=True)#self.stochastic)
+        act_dict = None
+        #print("Ob = %s" % str(ob))
+        #print("Taking action!")
+        if self.use_scale_free_obs:
+            scale_free_ob = self.make_scale_free_ob(ob)
+            #print("Scale-free ob: %s" % str(scale_free_ob))
+            act_dict = self.model.act(scale_free_ob.reshape((1, int(len(ob) / 2))), stochastic=False)#self.stochastic)
+        else:
+            act_dict = self.model.act(ob[:5].reshape((1, 5)), stochastic=True)#self.stochastic)
+
         ac = act_dict["act"]
         vpred = act_dict["vpred"] if "vpred" in act_dict.keys() else None
         state = act_dict["state"] if "state" in act_dict.keys() else None
@@ -170,5 +215,6 @@ class LoadedModelAgent():
         self.prevac = ac
         #"""
 
+        #print("Action: %s" % str(ac))
         return action_id, ac
 

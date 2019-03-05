@@ -36,8 +36,8 @@ class PccMonitorInterval():
 
     # Convert the observation parts of the monitor interval into a numpy array
     def as_array(self):
-        return np.array([self.rate, self.recv_rate, self.latency, self.loss, self.lat_infl])
-        #return np.array([self.utility, self.rate, self.recv_rate, self.latency, self.loss, self.lat_infl])
+        #return np.array([self.rate, self.recv_rate, self.latency, self.loss, self.lat_infl])
+        return np.array([self.utility, self.rate, self.recv_rate, self.latency, self.loss, self.lat_infl])
         #return np.array([self.utility / 1e9, self.rate / 1e9, self.recv_rate / 1e9, self.latency / 1e6, self.loss, self.lat_infl])
 
 class PccHistory():
