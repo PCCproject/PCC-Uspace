@@ -84,7 +84,7 @@ struct MonitorInterval {
   void OnPacketLost(QuicTime cur_time, QuicPacketNumber packet_num, QuicByteCount packet_size);
 
   bool AllPacketsSent(QuicTime cur_time) const;
-  bool AllPacketsAccountedFor();
+  bool AllPacketsAccountedFor(QuicTime cur_time);
 
   QuicBandwidth GetTargetSendingRate() const;
   QuicTime GetStartTime() const;
