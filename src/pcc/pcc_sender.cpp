@@ -55,7 +55,7 @@ const size_t kBitsPerByte = 8;
 // Duration of monitor intervals as a proportion of RTT.
 const float kMonitorIntervalDuration = 0.5f;
 // Minimum number of packets in a monitor interval.
-const size_t kMinimumPacketsPerInterval = 1;
+const size_t kMinimumPacketsPerInterval = 5;
 }  // namespace
 
 #ifdef QUIC_PORT
@@ -235,7 +235,7 @@ void PccSender::OnCongestionEvent(UDT_UNUSED bool rtt_updated,
                                     lost_packets,
                                     rtt_estimate, 
                                     event_time);
-  while (interval_queue_.HasFinishedInterval()) {
+  while (interval_queue_.HasFinishedInterval(event_time)) {
     MonitorInterval mi = interval_queue_.Pop();
     //std::cerr << "MI Finished with: " << mi.n_packets_sent << ", loss " << mi.GetObsLossRate() << std::endl;
     mi.SetUtility(utility_calculator_->CalculateUtility(interval_analysis_group_, mi));

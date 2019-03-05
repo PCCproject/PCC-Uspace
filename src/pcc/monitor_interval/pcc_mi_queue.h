@@ -84,7 +84,7 @@ class PccMonitorIntervalQueue {
 
   // Returns the most recent MonitorInterval in the tail of the queue
   const MonitorInterval& Current() const;
-  bool HasFinishedInterval();
+  bool HasFinishedInterval(QuicTime cur_time);
   MonitorInterval Pop();
   
   bool Empty() const;
