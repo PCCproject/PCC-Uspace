@@ -9,29 +9,44 @@ import random
 import json
 from simple_arg_parse import arg_or_default
 
+MAX_CWND = 5000
+MIN_CWND = 4
+
 MAX_RATE = 1000
 MIN_RATE = 40
 
 DELTA_SCALE = 0.025# * 1e-12
 REWARD_SCALE = 0.01
+#DELTA_SCALE = 0.1
+
+MAX_STEPS = 400
 
 EVENT_TYPE_SEND = 'S'
 EVENT_TYPE_ACK = 'A'
 
 BYTES_PER_PACKET = 1500
 
+LATENCY_PENALTY = 1.0
+LOSS_PENALTY = 1.0
+
 RATE_OBS_SCALE = 0.001
+CWND_OBS_SCALE = 0.001
 LAT_OBS_SCALE = 0.1
 
 USE_LATENCY_NOISE = False#True
 MAX_LATENCY_NOISE = 1.1
 
+USE_CWND = False
+
 # The monitor interval class used to pass data from the PCC subsystem to
 # the machine learning module.
 #
 class SenderMonitorInterval():
-    def __init__(self, rate=0.0, recv_rate=0.0, latency=0.0, loss=0.0, lat_infl=0.0, lat_ratio=1.0, send_ratio=1.0):
-        self.rate = rate
+    def __init__(self, target_rate=0.0, send_rate=0.0, recv_rate=0.0, latency=0.0, loss=0.0, lat_infl=0.0, lat_ratio=1.0, send_ratio=1.0, cwnd=0.0, cwnd_used=0.0):
+        self.target_rate = target_rate
+        self.send_rate = send_rate
+        self.cwnd = cwnd
+        self.cwnd_used = cwnd_used
         self.recv_rate = recv_rate
         self.latency = latency
         self.loss = loss
@@ -42,10 +57,11 @@ class SenderMonitorInterval():
     # Convert the observation parts of the monitor interval into a numpy array
     def as_array(self, scale_free_only):
         if scale_free_only:
-            return np.array([self.lat_infl, self.lat_ratio, self.send_ratio])
+            return np.array([self.lat_infl, self.lat_ratio, self.send_ratio, self.cwnd_used])
         else:
-            return np.array([self.rate, self.recv_rate, self.latency, self.loss, self.lat_infl,
-                self.lat_ratio, self.send_ratio])
+            return np.array([self.target_rate, self.send_rate, self.recv_rate,
+                self.latency, self.loss, self.lat_infl, self.lat_ratio,
+                self.send_ratio, self.cwnd_used])
 
 class SenderHistory():
     def __init__(self, length, scale_free_only=True):
@@ -167,8 +183,13 @@ class Network():
             if event_type == EVENT_TYPE_SEND:
                 if next_hop == 0:
                     #print("Packet sent at time %f" % self.cur_time)
-                    sender.on_packet_sent()
+                    if sender.can_send_packet():
+                        sender.on_packet_sent()
+                        push_new_event = True
                     heapq.heappush(self.q, (self.cur_time + (1.0 / sender.rate), sender, EVENT_TYPE_SEND, 0, 0.0, False))
+                
+                else:
+                    push_new_event = True
 
                 if next_hop == sender.dest:
                     new_event_type = EVENT_TYPE_ACK
@@ -180,8 +201,7 @@ class Network():
                 new_latency += link_latency
                 new_event_time += link_latency
                 new_dropped = not sender.path[next_hop].packet_enters_link(self.cur_time)
-                push_new_event = True
-                    
+                   
             if push_new_event:
                 heapq.heappush(self.q, (new_event_time, sender, new_event_type, new_next_hop, new_latency, new_dropped))
 
@@ -191,8 +211,9 @@ class Network():
         loss = sender_mi.loss
         bw_cutoff = self.links[0].bw * 0.8 * RATE_OBS_SCALE
         lat_cutoff = 2.0 * self.links[0].dl * 1.5 * LAT_OBS_SCALE
+        loss_cutoff = 2.0 * self.links[0].lr * 1.5
         #print("thpt %f, bw %f" % (throughput, bw_cutoff))
-        #reward = 0 if (loss > 0.1 or throughput < bw_cutoff or latency > lat_cutoff) else 1 #
+        #reward = 0 if (loss > 0.1 or throughput < bw_cutoff or latency > lat_cutoff or loss > loss_cutoff) else 1 #
         
         # Super high throughput
         #reward = REWARD_SCALE * (20.0 * throughput / RATE_OBS_SCALE - 1e3 * latency / LAT_OBS_SCALE - 2e3 * loss)
@@ -207,11 +228,13 @@ class Network():
         #reward = REWARD_SCALE * (2.0 * throughput / RATE_OBS_SCALE - 1e3 * latency / LAT_OBS_SCALE - 2e3 * loss)
         #if reward > 857:
         #print("Reward = %f, thpt = %f, lat = %f, loss = %f" % (reward, throughput, latency, loss))
+        
+        #reward = (throughput / RATE_OBS_SCALE) * np.exp(-1 * (LATENCY_PENALTY * latency / LAT_OBS_SCALE + LOSS_PENALTY * loss))
         return reward
 
 class Sender():
     
-    def __init__(self, rate, path, dest, history_len=1):
+    def __init__(self, rate, path, dest, cwnd=25, history_len=10):
         self.starting_rate = rate
         self.rate = rate
         self.sent = 0
@@ -226,6 +249,7 @@ class Sender():
         self.dest = dest
         self.history_len = history_len
         self.history = SenderHistory(history_len)
+        self.cwnd = cwnd
 
     def apply_rate_delta(self, delta):
         delta *= DELTA_SCALE
@@ -234,6 +258,20 @@ class Sender():
             self.set_rate(self.rate * (1.0 + delta))
         else:
             self.set_rate(self.rate / (1.0 - delta))
+
+    def apply_cwnd_delta(self, delta):
+        delta *= DELTA_SCALE
+        #print("Applying delta %f" % delta)
+        if delta >= 0.0:
+            self.set_cwnd(self.cwnd * (1.0 + delta))
+        else:
+            self.set_cwnd(self.cwnd / (1.0 - delta))
+
+    def can_send_packet(self):
+        if USE_CWND:
+            return int(self.bytes_in_flight) / BYTES_PER_PACKET < self.cwnd
+        else:
+            return True
 
     def register_network(self, net):
         self.net = net
@@ -261,6 +299,14 @@ class Sender():
         if self.rate < MIN_RATE:
             self.rate = MIN_RATE
 
+    def set_cwnd(self, new_cwnd):
+        self.cwnd = int(new_cwnd)
+        #print("Attempt to set new rate to %f (min %f, max %f)" % (new_rate, MIN_RATE, MAX_RATE))
+        if self.cwnd > MAX_CWND:
+            self.cwnd = MAX_CWND
+        if self.cwnd < MIN_CWND:
+            self.cwnd = MIN_CWND
+
     def record_run(self):
         smi = self.get_run_data()
         self.history.step(smi)
@@ -272,8 +318,10 @@ class Sender():
         obs_end_time = self.net.get_cur_time()
         obs_dur = obs_end_time - self.obs_start_time
         recv_rate = 0
+        send_rate = 0
         if obs_dur > 0:
             recv_rate = self.acked / obs_dur
+            send_rate = self.sent / obs_dur
         loss = 0
         if self.lost + self.acked > 0:
             loss = self.lost / (self.lost + self.acked)
@@ -290,17 +338,22 @@ class Sender():
         if (self.rate < 1000.0 * recv_rate) and (recv_rate > 0.0):
             send_ratio = self.rate / recv_rate
 
+        cwnd_used = self.bytes_in_flight / (BYTES_PER_PACKET * self.cwnd)
+
         #print("Got %d acks in %f seconds" % (self.acked, obs_dur))
         #print("Sent %d packets in %f seconds" % (self.sent, obs_dur))
  
         #print("self.rate = %f" % self.rate)
         return SenderMonitorInterval(self.rate * RATE_OBS_SCALE,
+                    send_rate * RATE_OBS_SCALE,
                     recv_rate * RATE_OBS_SCALE,
                     avg_latency * LAT_OBS_SCALE,
                     loss,
                     latency_inflation,
                     latency_ratio,
-                    send_ratio)
+                    send_ratio,
+                    self.cwnd * CWND_OBS_SCALE,
+                    cwnd_used)
 
     def reset_obs(self):
         self.sent = 0
@@ -346,18 +399,22 @@ class SimulatedNetworkEnv(gym.Env):
         self.run_dur = None
         self.run_period = 0.1
         self.steps_taken = 0
-        self.max_steps = 400
+        self.max_steps = MAX_STEPS
         self.debug_thpt_changes = False
         self.last_thpt = None
         self.last_rate = None
 
-        self.action_space = spaces.Box(np.array([-1e12]), np.array([1e12]), dtype=np.float32)
-       
+        if USE_CWND:
+            self.action_space = spaces.Box(np.array([-1e12, -1e12]), np.array([1e12, 1e12]), dtype=np.float32)
+        else:
+            self.action_space = spaces.Box(np.array([-1e12]), np.array([1e12]), dtype=np.float32)
+                   
+
         self.observation_space = None
         use_only_scale_free = True 
         if use_only_scale_free:
-            self.observation_space = spaces.Box(np.tile(np.array([-1.0, 1.0, 0.0]), self.history_len),
-                np.tile(np.array([10.0, 100.0, 1000.0]), self.history_len), dtype=np.float32) 
+            self.observation_space = spaces.Box(np.tile(np.array([-1.0, 1.0, 0.0, 0.0]), self.history_len),
+                np.tile(np.array([10.0, 100.0, 1000.0, 1.0]), self.history_len), dtype=np.float32) 
         else:
             self.observation_space = spaces.Box(np.array([10.0, 0.0, 0.0, 0.0, -100.0]),
                 np.array([2000.0, 2000.0, 10.0, 1.0, 10.0]), dtype=np.float32) 
@@ -375,13 +432,18 @@ class SimulatedNetworkEnv(gym.Env):
     def _get_all_sender_obs(self):
         sender_obs = self.senders[0].get_obs()
         sender_obs = np.array(sender_obs).reshape(-1,)
+        #print(sender_obs)
         return sender_obs
 
     def step(self, actions):
         #print("Actions: %s" % str(actions))
-        for i in range(0, len(actions)):
+        #print(actions)
+        for i in range(0, 1):#len(actions)):
             #print("Updating rate for sender %d" % i)
-            self.senders[i].apply_rate_delta(actions[i])
+            action = actions
+            self.senders[i].apply_rate_delta(action[0])
+            if USE_CWND:
+                self.senders[i].apply_cwnd_delta(action[1])
         #print("Running for %fs" % self.run_dur)
         reward = self.net.run_for_dur(self.run_dur)
         for sender in self.senders:
@@ -393,13 +455,16 @@ class SimulatedNetworkEnv(gym.Env):
         event["Name"] = "Step"
         event["Time"] = self.steps_taken
         event["Reward"] = reward
-        event["Send Rate"] = sender_mi.rate
+        event["Target Rate"] = sender_mi.target_rate
+        event["Send Rate"] = sender_mi.send_rate
         event["Throughput"] = sender_mi.recv_rate
         event["Latency"] = sender_mi.latency
         event["Loss Rate"] = sender_mi.loss
         event["Latency Inflation"] = sender_mi.lat_infl
         event["Latency Ratio"] = sender_mi.lat_ratio
         event["Send Ratio"] = sender_mi.send_ratio
+        event["Cwnd"] = sender_mi.cwnd
+        event["Cwnd Used"] = sender_mi.cwnd_used
         self.event_record["Events"].append(event)
         if event["Latency"] > 0.0:
             self.run_dur = 0.5 * sender_mi.latency / LAT_OBS_SCALE
@@ -412,10 +477,10 @@ class SimulatedNetworkEnv(gym.Env):
         if thpt_change > 0.5 and self.debug_thpt_changes:
             print("---Large throughput change event!---")
             print("Throughput change: %f -> %f" % (self.last_thpt, sender_mi.recv_rate))
-            print("Rate change: %f -> %f" % (self.last_rate, sender_mi.rate))
+            print("Rate change: %f -> %f" % (self.last_rate, sender_mi.target_rate))
             self.print_debug()
         self.last_thpt = sender_mi.recv_rate
-        self.last_rate = sender_mi.rate
+        self.last_rate = sender_mi.target_rate
 
         should_stop = False #sender_obs[0] < 0.001 * 40.0 or sender_obs[2] > 0.1 * 0.12 or sender_obs[3] > 0.1 
 
@@ -454,6 +519,7 @@ class SimulatedNetworkEnv(gym.Env):
         if self.episodes_run > 0 and self.episodes_run % 100 == 0:
             self.dump_events_to_file("pcc_env_log_run_%d.json" % self.episodes_run)
         self.event_record = {"Events":[]}
+        self.net.run_for_dur(self.run_dur)
         self.net.run_for_dur(self.run_dur)
         self.reward_ewma *= 0.99
         self.reward_ewma += 0.01 * self.reward_sum

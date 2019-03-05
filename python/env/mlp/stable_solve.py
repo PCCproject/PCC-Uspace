@@ -16,20 +16,29 @@ if arch_str == "":
 else:
     arch = [int(layer_width) for layer_width in arch_str.split(",")]
 print("Architecture is: %s" % str(arch))
+
+training_sess = None
+
 class MyMlpPolicy(FeedForwardPolicy):
 
     def __init__(self, sess, ob_space, ac_space, n_env, n_steps, n_batch, reuse=False, **_kwargs):
         super(MyMlpPolicy, self).__init__(sess, ob_space, ac_space, n_env, n_steps, n_batch, reuse, net_arch=[{"pi":arch, "vf":arch}],
                                         feature_extraction="mlp", **_kwargs)
+        global training_sess
+        training_sess = sess
 
-n_cpu = 1
 env = gym.make('PccNs-v0')
 #env = gym.make('CartPole-v0')
 
 gamma = arg_or_default("--gamma", default=0.99)
 print("gamma = %f" % gamma)
 model = PPO1(MyMlpPolicy, env, verbose=1, schedule='constant', timesteps_per_actorbatch=8192, optim_batchsize=2048, gamma=gamma)
-model.learn(total_timesteps=(9600 * 410))
+
+for i in range(0, 6):
+    with model.graph.as_default():                                                                   
+        saver = tf.train.Saver()                                                                     
+        saver.save(training_sess, "/home/njay2/spec_model_%d.ckpt" % i)
+    model.learn(total_timesteps=(1600 * 410))
 
 ##
 #   Save the model to the location specified below.

@@ -7,8 +7,13 @@
     "y-axis":[
         "Send Rate",
         "Throughput",
-        "Latency",
+        "Latency Inflation",
         "Loss Rate",
-        "Reward"
+        "Reward",
+        "Target Rate",
+        "Cwnd",
+        "Cwnd Used",
+        "Latency Ratio",
+        "Send Ratio"
     ]
 }
