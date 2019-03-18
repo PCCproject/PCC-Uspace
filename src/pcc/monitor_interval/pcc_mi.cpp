@@ -213,6 +213,12 @@ float MonitorInterval::GetObsUtility() const {
     return utility;
 }
 
+void MonitorInterval::GetRttSamples(std::vector<double>* rtt_samples) const {
+    for (int i = 0; i < packet_rtt_samples.size(); ++i) {
+        rtt_samples->push_back(packet_rtt_samples[i].rtt / 1e6);
+    }
+}
+
 bool MonitorInterval::ContainsPacket(QuicPacketNumber packet_number) {
     return (packet_number >= first_packet_number && packet_number <= last_packet_number);
 }

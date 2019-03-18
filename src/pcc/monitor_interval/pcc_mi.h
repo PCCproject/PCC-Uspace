@@ -100,7 +100,18 @@ struct MonitorInterval {
   float GetObsLossRate() const;
   float GetObsUtility() const;
 
-  int GetId() { return id; }
+  long GetBytesSent() const { return bytes_sent; }
+  long GetBytesAcked() const { return bytes_acked; }
+  long GetBytesLost() const { return bytes_lost; }
+  double GetSendStartTime() const { return first_packet_sent_time; }
+  double GetSendEndTime() const { return last_packet_sent_time; }
+  double GetRecvStartTime() const { return first_packet_ack_time; }
+  double GetRecvEndTime() const { return last_packet_ack_time; }
+  void GetRttSamples(std::vector<double>* rtt_samples) const;
+  long GetPacketSize() const { return (long)(bytes_sent / n_packets_sent); }
+  double GetUtility() const { return utility; }
+
+  int GetId() const { return id; }
 
  //private:
   static int next_id;

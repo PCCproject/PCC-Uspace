@@ -29,7 +29,11 @@ class PccPythonRateController : public PccRateController {
   static std::mutex interpreter_lock_;
   static bool python_initialized_;
 
-  void GiveSample(double rate, double recv_rate, double lat, double loss, double lat_infl, double utility);
+  void GiveSample(long id, long bytes_sent, long bytes_acked, long bytes_lost,
+                  double send_start_time, double send_end_time,
+                  double recv_start_time, double recv_end_time,
+                  std::vector<double> rtt_samples, long packet_size,
+                  double utility);
   void GiveMiSample(const MonitorInterval& mi);
 
   int id;

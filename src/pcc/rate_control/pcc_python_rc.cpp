@@ -106,6 +106,7 @@ PccPythonRateController::PccPythonRateController(double call_freq,
 }
 
 void PccPythonRateController::Reset() {
+    std::cout << "Starting Reset" << std::endl;
     std::lock_guard<std::mutex> lock(interpreter_lock_);
     PyObject* id_obj = PyLong_FromLong(id);
     static PyObject* args = PyTuple_New(1);
@@ -115,43 +116,75 @@ void PccPythonRateController::Reset() {
     PyErr_Print();
 }
 
-void PccPythonRateController::GiveSample(double rate, double recv_rate, double lat, double loss, double lat_infl, double utility) {
+void PccPythonRateController::GiveSample(long id,
+                                         long bytes_sent,
+                                         long bytes_acked,
+                                         long bytes_lost,
+                                         double send_start_time,
+                                         double send_end_time,
+                                         double recv_start_time,
+                                         double recv_end_time,
+                                         std::vector<double> rtt_samples,
+                                         long packet_size,
+                                         double utility) {
+    
     std::lock_guard<std::mutex> lock(interpreter_lock_);
+    static PyObject* args = PyTuple_New(11);
     PyObject* id_obj = PyLong_FromLong(id);
-    static PyObject* args = PyTuple_New(7);
-    PyObject* sending_rate_value = PyFloat_FromDouble(rate);
-    PyObject* recv_rate_value = PyFloat_FromDouble(recv_rate);
-    PyObject* latency_value = PyFloat_FromDouble(lat);
-    PyObject* loss_rate_value = PyFloat_FromDouble(loss);
-    PyObject* latency_inflation_value = PyFloat_FromDouble(lat_infl);
-    PyObject* utility_value = PyFloat_FromDouble(utility);
+    PyObject* bytes_sent_obj = PyLong_FromLong(bytes_sent);
+    PyObject* bytes_acked_obj = PyLong_FromLong(bytes_acked);
+    PyObject* bytes_lost_obj = PyLong_FromLong(bytes_lost);
+    PyObject* send_start_obj = PyFloat_FromDouble(send_start_time);
+    PyObject* send_end_obj = PyFloat_FromDouble(send_end_time);
+    PyObject* recv_start_obj = PyFloat_FromDouble(recv_start_time);
+    PyObject* recv_end_obj = PyFloat_FromDouble(recv_end_time);
+
+    PyObject *rtt_samples_obj = PyList_New(rtt_samples.size());
+    for (size_t i = 0; i < rtt_samples.size(); ++i){
+        PyList_SetItem(rtt_samples_obj, i, PyFloat_FromDouble(rtt_samples[i]));
+    } 
+
+    PyObject* packet_size_obj = PyLong_FromLong(packet_size);
+    PyObject* utility_obj = PyFloat_FromDouble(utility);
     
     PyTuple_SetItem(args, 0, id_obj);
-    PyTuple_SetItem(args, 1, sending_rate_value);
-    PyTuple_SetItem(args, 2, recv_rate_value);
-    PyTuple_SetItem(args, 3, latency_value);
-    PyTuple_SetItem(args, 4, loss_rate_value);
-    PyTuple_SetItem(args, 5, latency_inflation_value);
-    PyTuple_SetItem(args, 6, utility_value);
+    PyTuple_SetItem(args, 1, bytes_sent_obj);
+    PyTuple_SetItem(args, 2, bytes_acked_obj);
+    PyTuple_SetItem(args, 3, bytes_lost_obj);
+    PyTuple_SetItem(args, 4, send_start_obj);
+    PyTuple_SetItem(args, 5, send_end_obj);
+    PyTuple_SetItem(args, 6, recv_start_obj);
+    PyTuple_SetItem(args, 7, recv_end_obj);
+    PyTuple_SetItem(args, 8, rtt_samples_obj);
+    PyTuple_SetItem(args, 9, packet_size_obj);
+    PyTuple_SetItem(args, 10, utility_obj);
     
     PyObject_CallObject(give_sample_func, args);
 }
 
 void PccPythonRateController::GiveMiSample(const MonitorInterval& mi) {
-    double sending_rate = mi.GetTargetSendingRate();
-    double recv_rate = mi.GetObsThroughput();
-    double latency = mi.GetObsRtt();
-    double loss_rate = mi.GetObsLossRate();
-    double latency_inflation = mi.GetObsRttInflation();
-    double utility = mi.GetObsUtility();
-    GiveSample(sending_rate, recv_rate, latency, loss_rate, latency_inflation, utility);
+    long id = mi.GetId();
+    long bytes_sent = mi.GetBytesSent();
+    long bytes_acked = mi.GetBytesAcked();
+    long bytes_lost = mi.GetBytesLost();
+    double send_start_time = mi.GetSendStartTime() / 1e6;
+    double send_end_time = mi.GetSendEndTime() / 1e6;
+    double recv_start_time = mi.GetRecvStartTime() / 1e6;
+    double recv_end_time = mi.GetRecvEndTime() / 1e6;
+    std::vector<double> rtt_samples;
+    mi.GetRttSamples(&rtt_samples);
+    long packet_size = mi.GetPacketSize();
+    double utility = mi.GetUtility();
+    GiveSample(0, bytes_sent, bytes_acked, bytes_lost, send_start_time,
+               send_end_time, recv_start_time, recv_end_time, rtt_samples,
+               packet_size, utility);
 }
 
 void PccPythonRateController::MonitorIntervalFinished(const MonitorInterval& mi) {
     GiveMiSample(mi);
 }
 
-QuicBandwidth PccPythonRateController::GetNextSendingRate( QuicBandwidth current_rate, QuicTime cur_time) {
+QuicBandwidth PccPythonRateController::GetNextSendingRate(QuicBandwidth current_rate, QuicTime cur_time) {
 
     std::lock_guard<std::mutex> lock(interpreter_lock_);
     
