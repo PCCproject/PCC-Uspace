@@ -9,6 +9,8 @@ PccUtilityCalculator* PccUtilityCalculatorFactory::Create(const std::string& nam
         return new PccLinearUtilityCalculator(log);
     } else if (name == "ixp") {
         return new PccIxpUtilityCalculator(log);
+    } else if (name == "sub-rate") {
+        return new PccSubRateUtilityCalculator(log);
     }
     return new PccVivaceUtilityCalculator(log);
 }
