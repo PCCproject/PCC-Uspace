@@ -3,7 +3,7 @@
 
 namespace {
 // Coefficeint of the loss rate term in utility function.
-const float kLossCoefficient = 11.35f;
+const float kLossCoefficient = 1e6f;
 // Coefficient of RTT term in utility function.
 const float kRTTCoefficient = 900.0f;
 // An exponent in the utility function.
@@ -29,7 +29,7 @@ float PccVivaceUtilityCalculator::CalculateUtility(MonitorInterval& cur_mi) {
       rtt_inflation = 0.0;
   }
 
-  float rtt_contribution = -1.0 * kRTTCoefficient * rtt_inflation;
+  float rtt_contribution = -1.0 * kRTTCoefficient * rtt_inflation * sending_rate_mbps;
   float loss_contribution = -1.0 * kLossCoefficient * loss_rate;
   float sending_factor = pow(sending_rate_mbps, kExponent);
   
