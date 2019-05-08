@@ -25,7 +25,7 @@ float PccVivaceUtilityCalculator::CalculateUtility(MonitorInterval& cur_mi) {
   float send_dur = cur_mi.GetObsSendDur();
   float recv_dur = cur_mi.GetObsRecvDur();
 
-  if (rtt_inflation < kRTTFilter) {
+  if (rtt_inflation < kRTTFilter && rtt_inflation > -1.0 * kRTTFilter) {
       rtt_inflation = 0.0;
   }
 
