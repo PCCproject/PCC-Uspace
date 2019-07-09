@@ -108,6 +108,7 @@ PccPythonRateController::PccPythonRateController(double call_freq,
 }
 
 void PccPythonRateController::Reset() {
+    std::cout << "Starting Reset" << std::endl;
     std::lock_guard<std::mutex> lock(interpreter_lock_);
     PyObject* id_obj = PyLong_FromLong(id);
     static PyObject* args = PyTuple_New(1);
@@ -170,7 +171,6 @@ void PccPythonRateController::GiveSample(int bytes_sent,
     
     PyObject_CallObject(give_sample_func, args);
 
-    //Py_DECREF(rtt_samples);
 }
 
 void PccPythonRateController::MonitorIntervalFinished(const MonitorInterval& mi) {
@@ -193,7 +193,7 @@ void PccPythonRateController::MonitorIntervalFinished(const MonitorInterval& mi)
     );
 }
 
-QuicBandwidth PccPythonRateController::GetNextSendingRate( QuicBandwidth current_rate, QuicTime cur_time) {
+QuicBandwidth PccPythonRateController::GetNextSendingRate(QuicBandwidth current_rate, QuicTime cur_time) {
 
     std::lock_guard<std::mutex> lock(interpreter_lock_);
     
