@@ -100,9 +100,24 @@ struct MonitorInterval {
   float GetObsLossRate() const;
   float GetObsUtility() const;
 
-  int GetId() { return id; }
+  int GetId() const { return id; }
 
- //private:
+  int GetBytesSent() const { return bytes_sent; } 
+  int GetBytesAcked() const { return bytes_acked; } 
+  int GetBytesLost() const { return bytes_lost; } 
+
+  uint64_t GetSendStartTime() const { return first_packet_sent_time; }
+  uint64_t GetSendEndTime() const { return last_packet_sent_time; }
+  uint64_t GetRecvStartTime() const { return first_packet_ack_time; }
+  uint64_t GetRecvEndTime() const { return last_packet_ack_time; }
+
+  uint64_t GetFirstAckLatency() const;
+  uint64_t GetLastAckLatency() const;
+
+  int GetAveragePacketSize() const { return bytes_sent / n_packets_sent; }
+  double GetUtility() const { return utility; }
+
+ private:
   static int next_id;
 
   bool ContainsPacket(QuicPacketNumber packet_num);

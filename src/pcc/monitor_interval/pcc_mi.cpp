@@ -213,6 +213,20 @@ float MonitorInterval::GetObsUtility() const {
     return utility;
 }
 
+uint64_t MonitorInterval::GetFirstAckLatency() const {
+    if (packet_rtt_samples.size() > 0) {
+        return packet_rtt_samples.front().rtt;
+    }
+    return 0;
+}
+
+uint64_t MonitorInterval::GetLastAckLatency() const {
+    if (packet_rtt_samples.size() > 0) {
+        return packet_rtt_samples.back().rtt;
+    }
+    return 0;
+}
+
 bool MonitorInterval::ContainsPacket(QuicPacketNumber packet_number) {
     return (packet_number >= first_packet_number && packet_number <= last_packet_number);
 }

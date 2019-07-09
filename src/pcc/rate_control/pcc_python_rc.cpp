@@ -47,6 +47,8 @@ PccPythonRateController::PccPythonRateController(double call_freq,
     }
     
     id = GetNextId();
+    has_time_offset = false;
+    time_offset_usec = 0;
 
     const char* python_path_arg = Options::Get("-pypath="); // The location in which the pcc_addon.py file can be found.
     if (python_path_arg != NULL) {
@@ -115,40 +117,80 @@ void PccPythonRateController::Reset() {
     PyErr_Print();
 }
 
-void PccPythonRateController::GiveSample(double rate, double recv_rate, double lat, double loss, double lat_infl, double utility) {
+void PccPythonRateController::GiveSample(int bytes_sent,
+                                         int bytes_acked,
+                                         int bytes_lost,
+                                         double send_start_time_sec,
+                                         double send_end_time_sec,
+                                         double recv_start_time_sec,
+                                         double recv_end_time_sec,
+                                         double first_ack_latency_sec,
+                                         double last_ack_latency_sec,
+                                         int packet_size,
+                                         double utility) {
+
     std::lock_guard<std::mutex> lock(interpreter_lock_);
-    PyObject* id_obj = PyLong_FromLong(id);
-    static PyObject* args = PyTuple_New(7);
-    PyObject* sending_rate_value = PyFloat_FromDouble(rate);
-    PyObject* recv_rate_value = PyFloat_FromDouble(recv_rate);
-    PyObject* latency_value = PyFloat_FromDouble(lat);
-    PyObject* loss_rate_value = PyFloat_FromDouble(loss);
-    PyObject* latency_inflation_value = PyFloat_FromDouble(lat_infl);
-    PyObject* utility_value = PyFloat_FromDouble(utility);
+    static PyObject* args = PyTuple_New(11);
     
-    PyTuple_SetItem(args, 0, id_obj);
-    PyTuple_SetItem(args, 1, sending_rate_value);
-    PyTuple_SetItem(args, 2, recv_rate_value);
-    PyTuple_SetItem(args, 3, latency_value);
-    PyTuple_SetItem(args, 4, loss_rate_value);
-    PyTuple_SetItem(args, 5, latency_inflation_value);
-    PyTuple_SetItem(args, 6, utility_value);
+    // flow_id
+    PyTuple_SetItem(args, 0, PyLong_FromLong(id));
+    
+    // bytes_sent
+    PyTuple_SetItem(args, 1, PyLong_FromLong(bytes_sent));
+    
+    // bytes_acked
+    PyTuple_SetItem(args, 2, PyLong_FromLong(bytes_acked));
+    
+    // bytes_lost
+    PyTuple_SetItem(args, 3, PyLong_FromLong(bytes_lost));
+    
+    // send_start_time
+    PyTuple_SetItem(args, 4, PyFloat_FromDouble(send_start_time_sec));
+    
+    // send_end_time
+    PyTuple_SetItem(args, 5, PyFloat_FromDouble(send_end_time_sec));
+    
+    // recv_start_time
+    PyTuple_SetItem(args, 6, PyFloat_FromDouble(recv_start_time_sec));
+    
+    // recv_end_time
+    PyTuple_SetItem(args, 7, PyFloat_FromDouble(recv_end_time_sec));
+
+    // rtt_samples
+    PyObject* rtt_samples = PyList_New(2);
+    PyList_SetItem(rtt_samples, 0, PyLong_FromLong(first_ack_latency_sec));
+    PyList_SetItem(rtt_samples, 1, PyLong_FromLong(last_ack_latency_sec));
+    PyTuple_SetItem(args, 8, rtt_samples);
+    
+    // packet_size
+    PyTuple_SetItem(args, 9, PyLong_FromLong(packet_size));
+    
+    // recv_end_time
+    PyTuple_SetItem(args, 10, PyFloat_FromDouble(utility));
     
     PyObject_CallObject(give_sample_func, args);
-}
 
-void PccPythonRateController::GiveMiSample(const MonitorInterval& mi) {
-    double sending_rate = mi.GetTargetSendingRate();
-    double recv_rate = mi.GetObsThroughput();
-    double latency = mi.GetObsRtt();
-    double loss_rate = mi.GetObsLossRate();
-    double latency_inflation = mi.GetObsRttInflation();
-    double utility = mi.GetObsUtility();
-    GiveSample(sending_rate, recv_rate, latency, loss_rate, latency_inflation, utility);
+    //Py_DECREF(rtt_samples);
 }
 
 void PccPythonRateController::MonitorIntervalFinished(const MonitorInterval& mi) {
-    GiveMiSample(mi);
+    if (!has_time_offset) {
+        time_offset_usec = mi.GetSendStartTime();
+        has_time_offset = true;
+    }
+    GiveSample(
+        mi.GetBytesSent(),
+        mi.GetBytesAcked(),
+        mi.GetBytesLost(),
+        (mi.GetSendStartTime() - time_offset_usec) / (double)USEC_PER_SEC,
+        (mi.GetSendEndTime() - time_offset_usec) / (double)USEC_PER_SEC,
+        (mi.GetRecvStartTime() - time_offset_usec) / (double)USEC_PER_SEC,
+        (mi.GetRecvEndTime() - time_offset_usec) / (double)USEC_PER_SEC,
+        mi.GetFirstAckLatency() / (double)USEC_PER_SEC,
+        mi.GetLastAckLatency() / (double)USEC_PER_SEC,
+        mi.GetAveragePacketSize(),
+        mi.GetUtility()
+    );
 }
 
 QuicBandwidth PccPythonRateController::GetNextSendingRate( QuicBandwidth current_rate, QuicTime cur_time) {

@@ -11,9 +11,12 @@
 #include <iostream>
 #include <sstream>
 
+#ifndef USEC_PER_SEC
+    #define USEC_PER_SEC 1000000
+#endif
+
 class PccPythonRateController : public PccRateController {
  public:
-
 
   PccPythonRateController(double call_freq, PccEventLogger* log);
   ~PccPythonRateController() {};
@@ -29,10 +32,21 @@ class PccPythonRateController : public PccRateController {
   static std::mutex interpreter_lock_;
   static bool python_initialized_;
 
-  void GiveSample(double rate, double recv_rate, double lat, double loss, double lat_infl, double utility);
-  void GiveMiSample(const MonitorInterval& mi);
+  void GiveSample(int bytes_sent,
+                  int bytes_acked,
+                  int bytes_lost,
+                  double send_start_time_sec,
+                  double send_end_time_sec,
+                  double recv_start_time_sec,
+                  double recv_end_time_sec,
+                  double first_ack_latency_sec,
+                  double last_ack_latency_sec,
+                  int packet_size,
+                  double utility);
 
   int id;
+  bool has_time_offset;
+  uint64_t time_offset_usec;
   
   PyObject* module;
   PyObject* give_sample_func;
