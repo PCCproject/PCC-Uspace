@@ -352,6 +352,7 @@ bool PccVivaceRateController::WasProbeConclusive() {
 void PccVivaceRateController::ProbingFinished() {
     if (!WasProbeConclusive()) {
         TransitionToProbing();
+        return;
     }
 
     target_rate_ = ProbingPairGetBetterRate(0);
