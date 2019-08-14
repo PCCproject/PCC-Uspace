@@ -564,20 +564,28 @@ DWORD WINAPI CSndQueue::worker(LPVOID param)
 			// wait until next processing time of the first socket on the list
 			uint64_t currtime;
 			CTimer::rdtsc(currtime);
-			if (currtime < ts)
-				self->m_pTimer->sleepto(ts);
+			if (ts > currtime) {
+                if (ts > currtime + 25) {
+                    timespec t;
+                    t.tv_sec = (ts - currtime) / 1000000;
+                    t.tv_nsec = 1000 * ((ts - currtime) % 1000000);
+				    nanosleep(&t, NULL);
+                } else {
+                    self->m_pTimer->sleepto(ts);
+                }
+            }
 
 			// it is time to send the next pkt
 			sockaddr* addr;
 			CPacket pkt;
-			if (self->m_pSndUList->pop(addr, pkt) < 0)
-			{//cout<<"popfails"<<endl;
-				continue;}
+			if (self->m_pSndUList->pop(addr, pkt) < 0) {
+				continue;
+            }
 
 			self->m_pChannel->sendto(addr, pkt);
 		}
 		else
-		{  //cout<<"waiting like a stupid guy"<<endl;
+		{  
 			// wait here if there is no sockets with data to be sent
 #ifndef WIN32
 			pthread_mutex_lock(&self->m_WindowLock);
