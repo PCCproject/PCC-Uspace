@@ -12,6 +12,7 @@ export LD\_LIBRARY\_PATH=$LD\_LIBRARY\_PATH:`pwd`/core/
 
 Start the udt side of the environment:
 cd src
+export LD\_LIBRARY\_PATH=$LD\_LIBRARY\_PATH:`pwd`/core/
 ./app/pccclient send 127.0.0.1 9000 --pcc-rate-control=python -pyhelper=loaded\_client -pypath=/path/to/pcc-rl/src/udt-plugins/testing/ --history-len=10 --pcc-utility-calc=linear --model-path=/path/to/your/model/
 
 This should begin running the specified agent on the localhost connection. To run on a real world link, run the sender and receiver on different machines and adjust the IP addresses appropriately.
