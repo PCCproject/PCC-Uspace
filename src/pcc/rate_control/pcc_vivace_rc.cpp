@@ -355,12 +355,17 @@ void PccVivaceRateController::ProbingFinished() {
         return;
     }
 
+    bool two_change_pos = last_change_pos_ && ProbingPairWasHigherBetter(0);
     target_rate_ = ProbingPairGetBetterRate(0);
     last_rate_sample_ = probing_rate_samples_[3];
     last_change_pos_ = ProbingPairWasHigherBetter(0);
     last_gradient_ = ComputeUtilityGradient(probing_rate_samples_[2],
             probing_rate_samples_[3]);
-    TransitionToMoving();
+    if (two_change_pos) {
+        TransitionToMoving();
+    } else {
+        TransitionToProbing();
+    }
 }
 
 void PccVivaceRateController::TransitionToMoving() {
