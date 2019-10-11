@@ -39,7 +39,7 @@ namespace {
 const size_t kMegabit = 1024 * 1024;
 // Minimum sending rate of the connection.
 #ifdef QUIC_PORT
-const QuicBandwidth kMinSendingRate = QuicBandwidth::FromKBitsPerSecond(2000);
+const QuicBandwidth kMinSendingRate = QuicBandwidth::FromKBitsPerSecond(500);
 // The smallest amount that the rate can be changed by at a time.
 const QuicBandwidth kMinimumRateChange = QuicBandwidth::FromBitsPerSecond(
     static_cast<int64_t>(0.5f * kMegabit));

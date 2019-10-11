@@ -36,7 +36,7 @@ namespace {
      *   
      *   default: 0.02
      */
-    double kProbingStep = 0.02;
+    double kProbingStep = 0.05;
 
     /*
      * kMinAmplifier: The minimum amplifier to rate change. This value
@@ -274,7 +274,7 @@ void PccVivaceRateController::StartingMonitorIntervalFinished(
 
     // We have a previous rate sample to compare to. If utility has decreased
     // since then, we will cut our rate in half and move to the probing phase.
-    if (last_rate_sample_.utility > mi.GetObsUtility() && last_rate_sample_.rate < mi.GetTargetSendingRate()) {
+    if (last_rate_sample_.utility > mi.GetObsUtility() && last_rate_sample_.rate < mi.GetTargetSendingRate() && (mi.GetObsLossRate() > 0.05 || mi.GetObsRttInflation() > 0.2)) {
         PccLoggableEvent event("Startup Finished", "--log-utility-calc-lite");
         event.AddValue("Last Rate", last_rate_sample_.rate);
         event.AddValue("Last Utility", last_rate_sample_.utility);
