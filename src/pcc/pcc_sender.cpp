@@ -100,7 +100,7 @@ PccSender::PccSender(QuicTime initial_rtt_us,
           initial_congestion_window * kDefaultTCPMSS * kBitsPerByte *
           kNumMicrosPerSecond / rtt_stats->initial_rtt_us())),
 #else
-      sending_rate_(128000
+      sending_rate_(128000),
 //          initial_congestion_window * kDefaultTCPMSS * kBitsPerByte *
 //          kNumMicrosPerSecond / initial_rtt_us),
 #endif
