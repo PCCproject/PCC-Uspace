@@ -36,7 +36,7 @@ namespace {
      *   
      *   default: 0.02
      */
-    double kProbingStep = 0.05;
+    double kProbingStep = 0.02;
 
     /*
      * kMinAmplifier: The minimum amplifier to rate change. This value

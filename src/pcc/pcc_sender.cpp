@@ -39,10 +39,10 @@ namespace {
 const size_t kMegabit = 1024 * 1024;
 // Minimum sending rate of the connection.
 #ifdef QUIC_PORT
-const QuicBandwidth kMinSendingRate = QuicBandwidth::FromKBitsPerSecond(500);
+const QuicBandwidth kMinSendingRate = QuicBandwidth::FromKBitsPerSecond(64);
 // The smallest amount that the rate can be changed by at a time.
 const QuicBandwidth kMinimumRateChange = QuicBandwidth::FromBitsPerSecond(
-    static_cast<int64_t>(0.5f * kMegabit));
+    static_cast<int64_t>(0.032f * kMegabit));
 #else
 const float kNumMicrosPerSecond = 1000000.0f;
 // Default TCPMSS used in UDT only.
@@ -100,9 +100,9 @@ PccSender::PccSender(QuicTime initial_rtt_us,
           initial_congestion_window * kDefaultTCPMSS * kBitsPerByte *
           kNumMicrosPerSecond / rtt_stats->initial_rtt_us())),
 #else
-      sending_rate_(
-          initial_congestion_window * kDefaultTCPMSS * kBitsPerByte *
-          kNumMicrosPerSecond / initial_rtt_us),
+      sending_rate_(128000
+//          initial_congestion_window * kDefaultTCPMSS * kBitsPerByte *
+//          kNumMicrosPerSecond / initial_rtt_us),
 #endif
       #ifndef QUIC_PORT
       avg_rtt_(initial_rtt_us)
