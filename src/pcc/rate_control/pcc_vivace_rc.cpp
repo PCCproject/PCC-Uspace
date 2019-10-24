@@ -20,6 +20,33 @@ namespace {
      * conditions.
      */
 
+    /*
+     * kStartingRate: The starting rate for a connection in bits per second.
+     *
+     *   suggested values: depends on expected network conditions.
+     *
+     *   default: 5 * kMegabit
+     */
+    QuicBandwidth kStartingRate = (QuicBandwidth)(128000);
+
+    /*
+     * kMinRate: The minimum rate for a connection in bits per second.
+     *
+     *   suggested values: depends on expected network conditions.
+     *
+     *   default: 64000
+     */
+    QuicBandwidth kMinRate = (QuicBandwidth)(64000);
+
+    /*
+     * kMaxLoss: Maximum loss tolerated by the algorithm.
+     *
+     *   suggested values: 0.25 to 0.50
+     *
+     *   default: 0.25
+     */
+    double kMaxLoss = 0.25;
+
     /* 
      * kProbingStep: The proportion of current rate to change by when probing.
      * Smaller values are subject to greater noise, but larger values may test
@@ -34,9 +61,9 @@ namespace {
      *                             the presence of noise, but tests less
      *                             desirable rates.
      *   
-     *   default: 0.02
+     *   default: 0.05
      */
-    double kProbingStep = 0.02;
+    double kProbingStep = 0.05;
 
     /*
      * kMinAmplifier: The minimum amplifier to rate change. This value
@@ -73,7 +100,7 @@ namespace {
      *            would like a 1Mbps minimum step size, our default value here
      *            is 0.1.
      */
-    double kGradientStepFactor = 0.1 * kMegabit;
+    double kGradientStepFactor = 0.1 * kMegabit / 5.0;
     
     /*
      * kMinChangeBound: Bounds the maximum rate change made in a single step as
@@ -111,15 +138,6 @@ namespace {
     double kChangeBoundStepSize = 0.5 * kMinChangeBound;
 
     /*
-     * kStartingRate: The starting rate for a connection in bits per second.
-     *
-     *   suggsted values: depends on expected network conditions.
-     *
-     *   default: 5 * kMegabit
-     */
-    QuicBandwidth kStartingRate = (QuicBandwidth)(5 * kMegabit);
-
-    /*
      * kMinChangeProportion: The smallest allowed step as a proportion of the
      * current sending rate. If this number is small, PCC can make very tiny
      * steps, but it may be more vulnerable to noise when computing the
@@ -140,6 +158,8 @@ PccVivaceRateController::PccVivaceRateController(PccEventLogger* log) {
 
     // Begin with the target rate equal to our configured starting rate.
     target_rate_ = kStartingRate;
+
+    first_moving_mi_ = -1;
 
     log_ = log;
     state_ = STARTING;
@@ -197,6 +217,7 @@ QuicBandwidth PccVivaceRateController::GetMovingStep() {
     double step = kMegabit * ((double)last_gradient_) * kGradientStepFactor;
     event.AddValue("Utility Gradient", last_gradient_);
     event.AddValue("Gradient Step Factor", kGradientStepFactor);
+    std::cout << "GetMovingStep()\n";
 
     // Accelerate repeated rate changes.
     event.AddValue("Step Before Amplifier", step);
@@ -226,7 +247,8 @@ QuicBandwidth PccVivaceRateController::GetMovingStep() {
     event.AddValue("Old Rate", target_rate_);
     event.AddValue("New Rate", target_rate_ + step);
     log_->LogEvent(event); 
-   
+  
+    std::cout << "\tstep = " << step << "\n";
     return step;
 }
 
@@ -234,7 +256,10 @@ QuicBandwidth PccVivaceRateController::GetNextMovingSendingRate(
         QuicBandwidth current_rate,
         QuicTime cur_time,
         int id) {
-    target_rate_ += GetMovingStep();
+    //target_rate_ += GetMovingStep();
+    if (first_moving_mi_ == -1) {
+        first_moving_mi_ = id;
+    }
     return target_rate_;
 }
 
@@ -243,15 +268,20 @@ QuicBandwidth PccVivaceRateController::GetNextSendingRate(
         QuicTime cur_time,
         int id) {
 
+    std::cout << "Getting next sending rate\n";
+
     QuicBandwidth new_rate;
     switch (state_) {
     case STARTING :
+        std::cout << "\tState: STARTING\n";
         new_rate = GetNextStartingSendingRate(current_rate, cur_time, id);
         break;
     case PROBING :
+        std::cout << "\tState: PROBING\n";
         new_rate = GetNextProbingSendingRate(current_rate, cur_time, id);
         break;
     case MOVING :
+        std::cout << "\tState: MOVING\n";
         new_rate = GetNextMovingSendingRate(current_rate, cur_time, id);
         break;
     default:
@@ -259,6 +289,12 @@ QuicBandwidth PccVivaceRateController::GetNextSendingRate(
         assert(false && "Error: Unknown PccVivaceRateController State");
     }
 
+    if (target_rate_ < kMinRate) {
+        target_rate_ = kMinRate;
+    }
+    if (new_rate < kMinRate) {
+        new_rate = kMinRate;
+    }
     return new_rate;
 }
 
@@ -274,7 +310,12 @@ void PccVivaceRateController::StartingMonitorIntervalFinished(
 
     // We have a previous rate sample to compare to. If utility has decreased
     // since then, we will cut our rate in half and move to the probing phase.
-    if (last_rate_sample_.utility > mi.GetObsUtility() && last_rate_sample_.rate < mi.GetTargetSendingRate() && (mi.GetObsLossRate() > 0.05 || mi.GetObsRttInflation() > 0.2)) {
+    if (mi.GetObsLossRate() > kMaxLoss || (last_rate_sample_.utility > mi.GetObsUtility() && last_rate_sample_.rate < mi.GetTargetSendingRate() && (mi.GetObsLossRate() > 0.05 || mi.GetObsRttInflation() > 0.2))) {
+        
+        if (mi.GetObsLossRate() > kMaxLoss) {
+            std::cout << "Loss cutoff, new rate " << last_rate_sample_.rate << std::endl;
+        }
+
         PccLoggableEvent event("Startup Finished", "--log-utility-calc-lite");
         event.AddValue("Last Rate", last_rate_sample_.rate);
         event.AddValue("Last Utility", last_rate_sample_.utility);
@@ -291,6 +332,8 @@ void PccVivaceRateController::StartingMonitorIntervalFinished(
 }
 
 void PccVivaceRateController::TransitionToProbing() {
+
+    std::cout << "TRANISTION TO PROBING\n";
 
     PccLoggableEvent event("State Change", "--log-utility-calc-lite");
     event.AddValue("New State", "Probing");
@@ -312,6 +355,15 @@ void PccVivaceRateController::ProbingMonitorIntervalFinished(
 
     if (offset < 0) {
         // This sample is from before our probing started.
+        return;
+    }
+    
+    if (mi.GetObsLossRate() > kMaxLoss) {
+        target_rate_ /= 2;
+        std::cout << "Probing loss cutoff, new rate " << target_rate_ << std::endl;
+        PccLoggableEvent event("Probing Loss Cutoff", "--log-utility-calc-lite");
+        log_->LogEvent(event);
+        TransitionToProbing();
         return;
     }
 
@@ -350,26 +402,34 @@ bool PccVivaceRateController::WasProbeConclusive() {
 }
 
 void PccVivaceRateController::ProbingFinished() {
+    PccLoggableEvent event("Probing Finished", "--log-utility-calc-lite");
     if (!WasProbeConclusive()) {
+        event.AddValue("Result", "Inconclusive");
         TransitionToProbing();
+        log_->LogEvent(event); 
         return;
     }
 
     bool two_change_pos = last_change_pos_ && ProbingPairWasHigherBetter(0);
     target_rate_ = ProbingPairGetBetterRate(0);
+    event.AddValue("New Rate", target_rate_);
     last_rate_sample_ = probing_rate_samples_[3];
     last_change_pos_ = ProbingPairWasHigherBetter(0);
     last_gradient_ = ComputeUtilityGradient(probing_rate_samples_[2],
             probing_rate_samples_[3]);
     if (two_change_pos) {
+        event.AddValue("Result", "Repeat Positive Step");
         TransitionToMoving();
     } else {
+        event.AddValue("Result", "Single Step");
         TransitionToProbing();
     }
+    log_->LogEvent(event); 
 }
 
 void PccVivaceRateController::TransitionToMoving() {
     
+    std::cout << "TRANSITION TO MOVING\n";
     PccLoggableEvent event("State Change", "--log-utility-calc-lite");
     event.AddValue("New State", "Moving");
     log_->LogEvent(event); 
@@ -377,6 +437,8 @@ void PccVivaceRateController::TransitionToMoving() {
     // Reset the rate changing acceleration.
     rate_change_amplifier_ = kMinAmplifier;
     rate_change_bound_ = kMinChangeBound;
+
+    first_moving_mi_ = -1;
     
     state_ = MOVING;
 }
@@ -391,18 +453,28 @@ double PccVivaceRateController::ComputeUtilityGradient(const RateSample& s1,
 }
 
 void PccVivaceRateController::MovingMonitorIntervalFinished(const MonitorInterval& mi) {
+    PccLoggableEvent event("Moving Finished", "--log-utility-calc-lite");
+    event.AddValue("Monitor Interval ID", mi.GetId());
+    event.AddValue("First Moving MI", first_moving_mi_);
+    if (first_moving_mi_ == -1 || mi.GetId() < first_moving_mi_) {
+        event.AddValue("Result", "Ignore MI");
+        log_->LogEvent(event);
+        return;
+    }
+    
+    if (mi.GetObsLossRate() > kMaxLoss) {
+        target_rate_ /= 2;
+        std::cout << "Moving loss cutoff, new rate " << target_rate_ << std::endl;
+        TransitionToProbing();
+        event.AddValue("Result", "Loss Backoff");
+        log_->LogEvent(event);
+        return;
+    }
+
     RateSample rs;
     rs.rate = mi.GetTargetSendingRate();
     rs.utility = mi.GetObsUtility();
     last_gradient_ = ComputeUtilityGradient(rs, last_rate_sample_);
-    if (last_change_pos_ == (last_gradient_ >= 0)) {
-        // The gradient continues to point in our direction of movement. Keep
-        // going.
-        last_rate_sample_ = rs;
-        return;
-    }
-        
-    PccLoggableEvent event("Moving Finished", "--log-utility-calc-lite");
     event.AddValue("Last Rate", last_rate_sample_.rate);
     event.AddValue("Last Utility", last_rate_sample_.utility);
     event.AddValue("New Rate", rs.rate);
@@ -410,6 +482,16 @@ void PccVivaceRateController::MovingMonitorIntervalFinished(const MonitorInterva
     event.AddValue("Last Change Positive", last_change_pos_);
     event.AddValue("Last Gradient", last_gradient_);
     log_->LogEvent(event);
+    if (last_change_pos_ == (last_gradient_ >= 0)) {
+        // The gradient continues to point in our direction of movement. Keep
+        // going.
+        std::cout << "\tGradient continues in same direction\n";
+        last_rate_sample_ = rs;
+        target_rate_ += GetMovingStep();
+        return;
+    }
+    
+    last_change_pos_ = last_gradient_ > 0;
 
     target_rate_ = last_rate_sample_.rate;
     target_rate_ += GetMovingStep();
@@ -420,14 +502,20 @@ void PccVivaceRateController::MovingMonitorIntervalFinished(const MonitorInterva
 }
 
 void PccVivaceRateController::MonitorIntervalFinished(const MonitorInterval& mi) {
+    std::cout << "Monitor interval finished!\n";
+    std::cout << "Target Rate: " << mi.GetTargetSendingRate() << std::endl;
+
     switch (state_) {
     case STARTING :
+        std::cout << "\tState: STARTING\n";
         StartingMonitorIntervalFinished(mi);
         break;
     case PROBING :
+        std::cout << "\tState: PROBING\n";
         ProbingMonitorIntervalFinished(mi);
         break;
     case MOVING :
+        std::cout << "\tState: MOVING\n";
         MovingMonitorIntervalFinished(mi);
         break;
     default:

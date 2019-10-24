@@ -63,6 +63,7 @@ class PccVivaceRateController : public PccRateController {
 
   RateSample last_rate_sample_;
   double last_gradient_;
+  int first_moving_mi_;
 
   int probing_seed_;
   int first_probing_sample_id_;

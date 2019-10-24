@@ -99,6 +99,7 @@ struct MonitorInterval {
   float GetObsRttInflation() const;
   float GetObsLossRate() const;
   float GetObsUtility() const;
+  int GetPacketCount() const { return n_packets_sent; };
 
   int GetId() const { return id; }
   static int GetNextId() { return next_id; }

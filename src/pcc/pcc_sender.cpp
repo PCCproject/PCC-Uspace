@@ -44,6 +44,7 @@ const QuicBandwidth kMinSendingRate = QuicBandwidth::FromKBitsPerSecond(64);
 const QuicBandwidth kMinimumRateChange = QuicBandwidth::FromBitsPerSecond(
     static_cast<int64_t>(0.032f * kMegabit));
 #else
+const double kMinSendingRate = 64000.0;
 const float kNumMicrosPerSecond = 1000000.0f;
 // Default TCPMSS used in UDT only.
 const size_t kDefaultTCPMSS = 1400;
@@ -197,6 +198,9 @@ void PccSender::OnPacketSent(QuicTime sent_time,
   if (ShouldCreateNewMonitorInterval(sent_time)) {
     QuicTime rtt_estimate = GetCurrentRttEstimate(sent_time);
     float sending_rate = UpdateSendingRate(sent_time, MonitorInterval::GetNextId());
+    if (sending_rate < kMinSendingRate) {
+        sending_rate = kMinSendingRate;
+    }
     QuicTime monitor_duration = ComputeMonitorDuration(sending_rate, rtt_estimate); 
     interval_queue_.Push(MonitorInterval(sending_rate, sent_time + monitor_duration));
     
