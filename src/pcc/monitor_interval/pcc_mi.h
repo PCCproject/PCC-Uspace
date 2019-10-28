@@ -103,6 +103,9 @@ struct MonitorInterval {
 
   int GetId() const { return id; }
   static int GetNextId() { return next_id; }
+  
+  // A sample of the RTT for each packet.
+  std::vector<PacketRttSample> packet_rtt_samples;
 
  private:
   static int next_id;
@@ -150,8 +153,6 @@ struct MonitorInterval {
   // The number of packets whose return status is known.
   int n_packets_accounted_for;
 
-  // A sample of the RTT for each packet.
-  std::vector<PacketRttSample> packet_rtt_samples;
 };
 
 #ifdef QUIC_PORT

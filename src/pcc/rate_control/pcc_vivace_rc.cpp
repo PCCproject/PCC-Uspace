@@ -257,7 +257,7 @@ MonitorInterval PccVivaceRateController::GetNextMonitorInterval(
 
     QuicTime mi_dur;
     QuicBandwidth new_rate;
-    int n_packets = 10;
+    int n_packets = 20;
     switch (state_) {
     case STARTING :
         new_rate = GetNextStartingSendingRate(0, cur_time, 0);

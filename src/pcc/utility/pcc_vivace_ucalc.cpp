@@ -46,6 +46,9 @@ float PccVivaceUtilityCalculator::CalculateUtility(MonitorInterval& cur_mi) {
   event.AddValue("Raw RTT Inflation", raw_rtt_inflation);
   event.AddValue("Send Dur", send_dur);
   event.AddValue("Recv Dur", recv_dur);
+  for (int i = 0; i < cur_mi.packet_rtt_samples.size(); i++) {
+    event.AddValue(std::to_string(i), cur_mi.packet_rtt_samples[i].rtt);
+  }
   log->LogEvent(event); 
   
   return utility;

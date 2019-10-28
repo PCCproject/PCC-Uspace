@@ -3,6 +3,7 @@
 #define _PCC_VIVACE_UCALC_H_
 
 #include "pcc_ucalc.h"
+#include<string>
 
 class PccVivaceUtilityCalculator : public PccUtilityCalculator {
   public:
