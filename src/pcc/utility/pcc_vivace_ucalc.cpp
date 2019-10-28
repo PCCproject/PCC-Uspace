@@ -32,6 +32,7 @@ float PccVivaceUtilityCalculator::CalculateUtility(MonitorInterval& cur_mi) {
   float rtt_contribution = -1.0 * kRTTCoefficient * rtt_inflation * sending_rate_mbps;
   float loss_contribution = -1.0 * kLossCoefficient * loss_rate * sending_rate_mbps;
   float sending_factor = pow(sending_rate_mbps, kExponent);
+  sending_factor = pow(throughput, kExponent);
   
   float utility = sending_factor + loss_contribution + rtt_contribution;
   
