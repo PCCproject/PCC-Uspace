@@ -69,7 +69,7 @@ struct PacketRttSample {
 struct MonitorInterval {
  //friend class MonitorIntervalMetric;
  //public:
-  MonitorInterval(QuicBandwidth sending_rate, QuicTime end_time);
+  MonitorInterval(QuicBandwidth sending_rate, QuicTime min_end_time, QuicPacketNumber min_packets);
   #if defined(QUIC_PORT) && defined(QUIC_PORT_LOCAL)
   explicit MonitorInterval(const MonitorInterval&);
   #endif
@@ -113,8 +113,8 @@ struct MonitorInterval {
 
   // Sending rate.
   QuicBandwidth target_sending_rate;
-  // The end time for this monitor interval in microseconds.
-  QuicTime end_time;
+  QuicTime min_end_time;
+  QuicPacketNumber min_packets;
 
   // Sent time of the first packet.
   QuicTime first_packet_sent_time;

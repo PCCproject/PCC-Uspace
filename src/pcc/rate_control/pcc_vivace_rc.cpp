@@ -170,14 +170,10 @@ QuicBandwidth PccVivaceRateController::GetNextStartingSendingRate(
         QuicTime cur_time,
         int id) {
 
-    if (last_rate_sample_.rate == -1) {
-        // We haven't gotten a rate sample yet, so we don't know anything about
-        // our rate decision. For now, just maintain the starting rate.
-        return current_rate;
-    }
-
     // As long as we're in STARTING, keep doubling sending rate.
-    target_rate_ *= 2;
+    if (target_rate_ < 1e9) {
+        target_rate_ *= 2;
+    }
     return target_rate_;
 }
 
@@ -186,13 +182,7 @@ QuicBandwidth PccVivaceRateController::GetNextProbingSendingRate(
         QuicTime cur_time,
         int id) {
 
-    // Determine which of the 4 probes we are starting.
-    if (first_probing_sample_id_ == -1) {
-        first_probing_sample_id_ = id;
-    }
-    int offset = id - first_probing_sample_id_;
-
-    if (offset > 3) {
+    if (probing_round_ > 3) {
         // This wasn't a probe, so just send at the target rate.
         return target_rate_;
     }
@@ -200,10 +190,11 @@ QuicBandwidth PccVivaceRateController::GetNextProbingSendingRate(
     // Determine if the next probe should be a higher or lower rate.
     bool next_sample_high = false;
     if (probing_seed_ == 0) {
-        next_sample_high = (offset == 1 || offset == 2);
+        next_sample_high = (probing_round_ == 1 || probing_round_ == 2);
     } else {
-        next_sample_high = (offset == 0 || offset == 3);
+        next_sample_high = (probing_round_ == 0 || probing_round_ == 3);
     }
+    probing_round_++;
 
     // Return a rate either above or below our target rate by kProbingStep.
     if (next_sample_high) {
@@ -257,32 +248,31 @@ QuicBandwidth PccVivaceRateController::GetNextMovingSendingRate(
         QuicTime cur_time,
         int id) {
     //target_rate_ += GetMovingStep();
-    if (first_moving_mi_ == -1) {
-        first_moving_mi_ = id;
-    }
     return target_rate_;
 }
 
-QuicBandwidth PccVivaceRateController::GetNextSendingRate(
-        QuicBandwidth current_rate,
-        QuicTime cur_time,
-        int id) {
+MonitorInterval PccVivaceRateController::GetNextMonitorInterval(
+        QuicTime cur_time, QuicTime cur_rtt) {
 
     std::cout << "Getting next sending rate\n";
 
+    QuicTime mi_dur;
     QuicBandwidth new_rate;
     switch (state_) {
     case STARTING :
         std::cout << "\tState: STARTING\n";
-        new_rate = GetNextStartingSendingRate(current_rate, cur_time, id);
+        new_rate = GetNextStartingSendingRate(0, cur_time, 0);
+        mi_dur = 0;
         break;
     case PROBING :
         std::cout << "\tState: PROBING\n";
-        new_rate = GetNextProbingSendingRate(current_rate, cur_time, id);
+        new_rate = GetNextProbingSendingRate(0, cur_time, 0);
+        mi_dur = cur_rtt / 5;
         break;
     case MOVING :
         std::cout << "\tState: MOVING\n";
-        new_rate = GetNextMovingSendingRate(current_rate, cur_time, id);
+        new_rate = GetNextMovingSendingRate(0, cur_time, 0);
+        mi_dur = cur_rtt;
         break;
     default:
         // This is an error
@@ -295,7 +285,19 @@ QuicBandwidth PccVivaceRateController::GetNextSendingRate(
     if (new_rate < kMinRate) {
         new_rate = kMinRate;
     }
-    return new_rate;
+
+    MonitorInterval result(new_rate, cur_time + mi_dur, 10);
+    if (state_ == MOVING) {
+        if (first_moving_mi_ == -1) {
+            first_moving_mi_ = result.GetId();
+        }
+    } else if (state_ == PROBING) {
+        if (first_probing_sample_id_ == -1) {
+            first_probing_sample_id_ = result.GetId();
+        }
+    }
+
+    return result;
 }
 
 void PccVivaceRateController::StartingMonitorIntervalFinished(
@@ -341,6 +343,7 @@ void PccVivaceRateController::TransitionToProbing() {
     
 
     // Reset the probing data
+    probing_round_ = 0;
     first_probing_sample_id_ = -1;
     probing_seed_ = rand() % 2;
     

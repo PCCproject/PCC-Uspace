@@ -23,7 +23,7 @@ class PccVivaceRateController : public PccRateController {
   PccVivaceRateController(PccEventLogger* log);
   ~PccVivaceRateController() {};
 
-  QuicBandwidth GetNextSendingRate(QuicBandwidth current_rate, QuicTime cur_time, int id);
+  MonitorInterval GetNextMonitorInterval(QuicTime cur_time, QuicTime cur_rtt);
   void MonitorIntervalFinished(const MonitorInterval& mi);
 
   /* Do nothing for reset. */
@@ -66,6 +66,7 @@ class PccVivaceRateController : public PccRateController {
   int first_moving_mi_;
 
   int probing_seed_;
+  int probing_round_;
   int first_probing_sample_id_;
 
   PccEventLogger* log_;

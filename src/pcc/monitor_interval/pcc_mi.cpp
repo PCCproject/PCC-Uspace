@@ -24,9 +24,10 @@ PacketRttSample::PacketRttSample(QuicPacketNumber packet_number,
 
 int MonitorInterval::next_id = 0;
 
-MonitorInterval::MonitorInterval(QuicBandwidth sending_rate, QuicTime end_time) {
+MonitorInterval::MonitorInterval(QuicBandwidth sending_rate, QuicTime min_end_time, QuicPacketNumber min_packets) {
     this->target_sending_rate = sending_rate;
-    this->end_time = end_time;
+    this->min_end_time = min_end_time;
+    this->min_packets = min_packets;
     bytes_sent = 0;
     bytes_acked = 0;
     bytes_lost = 0;
@@ -95,11 +96,11 @@ void MonitorInterval::OnPacketLost(QuicTime cur_time, QuicPacketNumber packet_nu
 }
 
 bool MonitorInterval::AllPacketsSent(QuicTime cur_time) const {
-    return (cur_time >= end_time);
+    return (cur_time >= min_end_time && n_packets_sent >= min_packets);
 }
 
 bool MonitorInterval::AllPacketsAccountedFor() {
-    return (n_packets_accounted_for == n_packets_sent);
+    return (n_packets_accounted_for == n_packets_sent && n_packets_sent >= min_packets);
 }
 
 QuicTime MonitorInterval::GetStartTime() const {
@@ -164,8 +165,11 @@ float MonitorInterval::GetObsRttInflation() const {
         }
     }
     float rtt_inflation = 2.0 * (second_half_rtt_sum - first_half_rtt_sum) / (first_half_rtt_sum + second_half_rtt_sum);
-    return abs(recv_dur_inflation) < abs(rtt_inflation) ? recv_dur_inflation : rtt_inflation;
-    return rtt_inflation;
+    double result = recv_dur_inflation;
+    if (fabs(recv_dur_inflation) > fabs(rtt_inflation)) {
+        result = rtt_inflation;
+    }
+    return result;
 }
 
 float MonitorInterval::GetObsLossRate() const {
