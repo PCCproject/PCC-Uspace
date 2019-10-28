@@ -146,6 +146,28 @@ float MonitorInterval::GetObsRtt() const {
     return rtt_sum / packet_rtt_samples.size();
 }
 
+float GetRttPacketSlope(const std::vector<PacketRttSample>& rtts) {
+    double avgX = rtts.size() / 2.0f;
+    double avgY = 0;
+    for (int i = 0; i < rtts.size(); i++) {
+        avgY += rtts[i].rtt;
+    }
+    avgY /= rtts.size();
+
+	double numerator = 0.0;
+	double denominator = 0.0;
+	for(int i = 0; i < rtts.size(); i++){
+        numerator += (i - avgX) * (rtts[i].rtt - avgY);
+        denominator += (i - avgX) * (i - avgX);
+    }
+
+    if (denominator == 0) {
+        return 0;
+    }
+
+    return numerator / denominator;
+}
+
 float MonitorInterval::GetObsRttInflation() const {
     if (packet_rtt_samples.size() < 2) {
         return 0;
@@ -169,6 +191,14 @@ float MonitorInterval::GetObsRttInflation() const {
     if (fabs(recv_dur_inflation) > fabs(rtt_inflation)) {
         result = rtt_inflation;
     }
+	double rtt_slope = GetRttPacketSlope(packet_rtt_samples);
+	rtt_slope *= packet_rtt_samples.size();
+	rtt_slope /= GetObsSendDur();
+    if (fabs(result) > fabs(rtt_slope)) {
+        result = rtt_slope;
+    }
+	double rate = GetTargetSendingRate();
+    //std::cout << "rtt_inflation " << rtt_inflation << ", recv inflation " << recv_dur_inflation << ", rtt_slope " << rtt_slope << ", rate " << rate << std::endl;
     return result;
 }
 

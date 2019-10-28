@@ -16,7 +16,7 @@ const float kRTTFilter = 0.02;
 
 float PccVivaceUtilityCalculator::CalculateUtility(MonitorInterval& cur_mi) {
 
-  float throughput = cur_mi.GetObsThroughput();
+  float throughput = cur_mi.GetObsThroughput() / kBitsPerMegabit;
   float sending_rate_mbps = cur_mi.GetObsSendingRate() / kBitsPerMegabit;
   float raw_rtt_inflation = cur_mi.GetObsRttInflation(); 
   float rtt_inflation = raw_rtt_inflation;

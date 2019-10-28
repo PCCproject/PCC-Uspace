@@ -173,6 +173,8 @@ QuicBandwidth PccVivaceRateController::GetNextStartingSendingRate(
     // As long as we're in STARTING, keep doubling sending rate.
     if (target_rate_ < 1e9) {
         target_rate_ *= 2;
+    } else {
+        return kStartingRate;
     }
     return target_rate_;
 }
@@ -255,9 +257,13 @@ MonitorInterval PccVivaceRateController::GetNextMonitorInterval(
 
     QuicTime mi_dur;
     QuicBandwidth new_rate;
+    int n_packets = 10;
     switch (state_) {
     case STARTING :
         new_rate = GetNextStartingSendingRate(0, cur_time, 0);
+        if (new_rate == kStartingRate) {
+            n_packets = 5;
+        }
         mi_dur = 0;
         break;
     case PROBING :
@@ -280,7 +286,7 @@ MonitorInterval PccVivaceRateController::GetNextMonitorInterval(
         new_rate = kMinRate;
     }
 
-    MonitorInterval result(new_rate, cur_time + mi_dur, 10);
+    MonitorInterval result(new_rate, cur_time + mi_dur, n_packets);
     if (state_ == MOVING) {
         if (first_moving_mi_ == -1) {
             first_moving_mi_ = result.GetId();
@@ -348,7 +354,7 @@ void PccVivaceRateController::ProbingMonitorIntervalFinished(
     int id = mi.GetId();
     int offset = id - first_probing_sample_id_;
 
-    if (offset < 0) {
+    if (offset < 0 || first_probing_sample_id_ == -1) {
         // This sample is from before our probing started.
         return;
     }
@@ -356,6 +362,8 @@ void PccVivaceRateController::ProbingMonitorIntervalFinished(
     if (mi.GetObsLossRate() > kMaxLoss) {
         target_rate_ /= 2;
         PccLoggableEvent event("Probing Loss Cutoff", "--log-utility-calc-lite");
+        event.AddValue("Monitor Interval ID", id);
+        event.AddValue("First Probing Sample", first_probing_sample_id_);
         log_->LogEvent(event);
         TransitionToProbing();
         return;
