@@ -186,7 +186,8 @@ float MonitorInterval::GetObsRttInflation() const {
             second_half_rtt_sum += packet_rtt_samples[i].rtt;
         }
     }
-    float rtt_inflation = 2.0 * (second_half_rtt_sum - first_half_rtt_sum) / (first_half_rtt_sum + second_half_rtt_sum);
+    //float rtt_inflation = 2.0 * (second_half_rtt_sum - first_half_rtt_sum) / (first_half_rtt_sum + second_half_rtt_sum);
+    float rtt_inflation = 2.0 * (second_half_rtt_sum - first_half_rtt_sum) / (half_count * GetObsSendDur());
     double result = recv_dur_inflation;
     if (fabs(recv_dur_inflation) > fabs(rtt_inflation)) {
         result = rtt_inflation;
