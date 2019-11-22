@@ -53,43 +53,47 @@ void MonitorInterval::OnPacketSent(QuicTime cur_time, QuicPacketNumber packet_nu
 }
 
 void MonitorInterval::OnPacketAcked(QuicTime cur_time, QuicPacketNumber packet_number, QuicByteCount packet_size, QuicTime rtt) {
-    if (ContainsPacket(packet_number) && packet_number > last_packet_number_accounted_for) {
+    if (ContainsPacket(packet_number)) {// && packet_number > last_packet_number_accounted_for) {
+        if (first_packet_ack_time == 0) {
+            first_packet_ack_time = cur_time;
+        }
         int skipped = (packet_number - last_packet_number_accounted_for) - 1;
         bytes_acked += packet_size;
-        n_packets_accounted_for += skipped + 1;
+        n_packets_accounted_for += 1; //skipped + 1;
         packet_rtt_samples.push_back(PacketRttSample(packet_number, rtt));
         last_packet_number_accounted_for = packet_number;
-    } else if (packet_number > last_packet_number) {
-        n_packets_accounted_for = n_packets_sent;
-        last_packet_number_accounted_for = last_packet_number;
-    }
-    if (packet_number >= first_packet_number && first_packet_ack_time == 0) {
-        first_packet_ack_time = cur_time;
-    }
-    if (packet_number >= last_packet_number && last_packet_ack_time == 0) {
         last_packet_ack_time = cur_time;
-    }
+    }// else if (packet_number > last_packet_number) {
+    //    n_packets_accounted_for = n_packets_sent;
+    //    last_packet_number_accounted_for = last_packet_number;
+    //}
+    //if (packet_number >= first_packet_number && first_packet_ack_time == 0) {
+    //    first_packet_ack_time = cur_time;
+    //}
+    //if (packet_number >= last_packet_number && last_packet_ack_time == 0) {
+    //    last_packet_ack_time = cur_time;
+    //}
     if (AllPacketsAccountedFor()) {
         //std::cerr << "MI " << id << " [" << first_packet_number << ", " << last_packet_number << "] finished at packet " << packet_number << std::endl; 
     }
 }
 
 void MonitorInterval::OnPacketLost(QuicTime cur_time, QuicPacketNumber packet_number, QuicByteCount packet_size) {
-    if (ContainsPacket(packet_number) && packet_number > last_packet_number_accounted_for) {
+    if (ContainsPacket(packet_number)) {// && packet_number > last_packet_number_accounted_for) {
         int skipped = (packet_number - last_packet_number_accounted_for) - 1;
         bytes_lost += packet_size;
-        n_packets_accounted_for += skipped + 1;
+        n_packets_accounted_for += 1;//skipped + 1;
         last_packet_number_accounted_for = packet_number;
-    } else if (packet_number > last_packet_number) {
-        n_packets_accounted_for = n_packets_sent;
-        last_packet_number_accounted_for = last_packet_number;
-    }
-    if (packet_number >= first_packet_number && first_packet_ack_time == 0) {
-        first_packet_ack_time = cur_time;
-    }
-    if (packet_number >= last_packet_number && last_packet_ack_time == 0) {
-        last_packet_ack_time = cur_time;
-    }
+    }// else if (packet_number > last_packet_number) {
+    //    n_packets_accounted_for = n_packets_sent;
+    //    last_packet_number_accounted_for = last_packet_number;
+    //}
+    //if (packet_number >= first_packet_number && first_packet_ack_time == 0) {
+    //    first_packet_ack_time = cur_time;
+    //}
+    //if (packet_number >= last_packet_number && last_packet_ack_time == 0) {
+    //    last_packet_ack_time = cur_time;
+    //}
     if (AllPacketsAccountedFor()) {
         //std::cerr << "MI [" << first_packet_number << ", " << last_packet_number << "] finished at packet " << packet_number << std::endl; 
     }

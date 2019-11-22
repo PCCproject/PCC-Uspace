@@ -100,7 +100,7 @@ namespace {
      *            would like a 1Mbps minimum step size, our default value here
      *            is 0.1.
      */
-    double kGradientStepFactor = 0.1 * kMegabit / 5.0;
+    double kGradientStepFactor = 0.1 * kMegabit;
     
     /*
      * kMinChangeBound: Bounds the maximum rate change made in a single step as
@@ -268,7 +268,7 @@ MonitorInterval PccVivaceRateController::GetNextMonitorInterval(
         break;
     case PROBING :
         new_rate = GetNextProbingSendingRate(0, cur_time, 0);
-        mi_dur = cur_rtt / 5;
+        mi_dur = cur_rtt;// / 5;
         break;
     case MOVING :
         new_rate = GetNextMovingSendingRate(0, cur_time, 0);
