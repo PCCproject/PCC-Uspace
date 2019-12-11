@@ -80,7 +80,7 @@ namespace {
      *
      *   default: 10
      */
-    double kMinAmplifier = 2.0;
+    double kMinAmplifier = 5.0;
     
     /*
      * kGradientStepFactor: A multiplier applied to the gradient to determine
@@ -100,7 +100,7 @@ namespace {
      *            would like a 1Mbps minimum step size, our default value here
      *            is 0.1.
      */
-    double kGradientStepFactor = 0.4 * kMegabit * kMegabit;
+    double kGradientStepFactor = 0.1 * kMegabit * kMegabit;
     
     /*
      * kMinChangeBound: Bounds the maximum rate change made in a single step as
@@ -148,7 +148,7 @@ namespace {
      *
      *   default: 0.01
      */
-    double kMinChangeProportion = 0.01;
+    double kMinChangeProportion = 0.02;
 }
 
 PccVivaceRateController::PccVivaceRateController(PccEventLogger* log) {
