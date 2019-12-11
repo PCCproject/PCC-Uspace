@@ -34,6 +34,7 @@ class PccVivaceRateController : public PccRateController {
   /* STARTING state functions */
   void StartingMonitorIntervalFinished(const MonitorInterval& mi);
   QuicBandwidth GetNextStartingSendingRate(QuicBandwidth current_rate, QuicTime cur_time, int id);
+  QuicBandwidth GetRateChange(double utility_1, double utility_2, double rate_1, double rate_2);
 
   /* PROBING state functions */
   void TransitionToProbing();
@@ -64,6 +65,7 @@ class PccVivaceRateController : public PccRateController {
   RateSample last_rate_sample_;
   double last_gradient_;
   int first_moving_mi_;
+  int swing_buffer_;
 
   int probing_seed_;
   int probing_round_;

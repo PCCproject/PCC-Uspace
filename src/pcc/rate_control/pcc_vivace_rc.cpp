@@ -80,7 +80,7 @@ namespace {
      *
      *   default: 10
      */
-    double kMinAmplifier = 10.0;
+    double kMinAmplifier = 2.0;
     
     /*
      * kGradientStepFactor: A multiplier applied to the gradient to determine
@@ -100,7 +100,7 @@ namespace {
      *            would like a 1Mbps minimum step size, our default value here
      *            is 0.1.
      */
-    double kGradientStepFactor = 0.1 * kMegabit;
+    double kGradientStepFactor = 0.4 * kMegabit * kMegabit;
     
     /*
      * kMinChangeBound: Bounds the maximum rate change made in a single step as
@@ -160,6 +160,7 @@ PccVivaceRateController::PccVivaceRateController(PccEventLogger* log) {
     target_rate_ = kStartingRate;
 
     first_moving_mi_ = -1;
+    swing_buffer_ = 1;
 
     log_ = log;
     state_ = STARTING;
@@ -177,6 +178,62 @@ QuicBandwidth PccVivaceRateController::GetNextStartingSendingRate(
         return kStartingRate;
     }
     return target_rate_;
+}
+
+QuicBandwidth PccVivaceRateController::GetRateChange(double utility_1, double utility_2,
+    QuicBandwidth rate_1, QuicBandwidth rate_2) {
+    PccLoggableEvent event("GetRateChange", "--log-utility-calc-lite");
+
+    double rate_ratio = (rate_1 - rate_2) / rate_1;
+    if (rate_ratio > 0.99 && rate_ratio < 1.01) {
+        return 0.02 * rate_1;
+    }
+
+    double gradient = (utility_1 - utility_2) / (rate_1 - rate_2);
+    double step = kGradientStepFactor * gradient;
+
+    if (step >= 0.0 != last_change_pos_) {
+        rate_change_bound_ = kMinChangeBound;
+        rate_change_amplifier_ = kMinAmplifier;
+        if (swing_buffer_ < 2) {
+            swing_buffer_++;
+        }
+    } else {
+        if (swing_buffer_ > 0) {
+            swing_buffer_--;
+        } else {
+            rate_change_amplifier_++;
+        }
+    }
+
+    step *= rate_change_amplifier_;
+
+    event.AddValue("Step Before Change Bound", step);
+    // Put a proportional bound on the change (i.e. 10% or similar)
+    int step_sign = step >= 0 ? 1 : -1;
+    step *= step_sign;
+    double step_ratio = step / rate_1;
+    if (step_ratio > rate_change_bound_) {
+        step = rate_change_bound_ * rate_1;
+        rate_change_bound_ += kChangeBoundStepSize;
+    } else {
+        rate_change_bound_ = kMinChangeBound;
+    }
+
+    // Enforce a minimum change proportion
+    if (step_ratio < kMinChangeProportion) {
+        step = kMinChangeProportion * target_rate_;
+    }
+
+    step *= step_sign;
+
+    event.AddValue("Final Step", step);
+    event.AddValue("Old Rate", target_rate_);
+    event.AddValue("New Rate", target_rate_ + step);
+    log_->LogEvent(event); 
+  
+    return step;
+
 }
 
 QuicBandwidth PccVivaceRateController::GetNextProbingSendingRate(
@@ -413,13 +470,18 @@ void PccVivaceRateController::ProbingFinished() {
     }
 
     bool two_change_pos = last_change_pos_ && ProbingPairWasHigherBetter(0);
-    target_rate_ = ProbingPairGetBetterRate(0);
+    QuicBandwidth rate_change = GetRateChange(probing_rate_samples_[2].utility,
+        probing_rate_samples_[3].utility,
+        probing_rate_samples_[2].rate,
+        probing_rate_samples_[3].rate);
+    target_rate_ += rate_change;
+    //ProbingPairGetBetterRate(0);
     event.AddValue("New Rate", target_rate_);
     last_rate_sample_ = probing_rate_samples_[3];
     last_change_pos_ = ProbingPairWasHigherBetter(0);
     last_gradient_ = ComputeUtilityGradient(probing_rate_samples_[2],
             probing_rate_samples_[3]);
-    if (two_change_pos) {
+    if (two_change_pos && rate_change > target_rate_ / 20.0) {
         event.AddValue("Result", "Repeat Positive Step");
         TransitionToMoving();
     } else {
@@ -485,15 +547,18 @@ void PccVivaceRateController::MovingMonitorIntervalFinished(const MonitorInterva
     if (last_change_pos_ == (last_gradient_ >= 0)) {
         // The gradient continues to point in our direction of movement. Keep
         // going.
+        target_rate_ += GetRateChange(rs.utility, last_rate_sample_.utility, rs.rate, last_rate_sample_.rate);
         last_rate_sample_ = rs;
-        target_rate_ += GetMovingStep();
+        //GetMovingStep();
         return;
     }
     
     last_change_pos_ = last_gradient_ > 0;
 
     target_rate_ = last_rate_sample_.rate;
-    target_rate_ += GetMovingStep();
+    target_rate_ += GetRateChange(rs.utility, last_rate_sample_.utility, rs.rate, last_rate_sample_.rate);
+    last_rate_sample_ = rs;
+    //target_rate_ += GetMovingStep();
 
     // The gradient is no longer pointing in the direction we are moving, time
     // to switch to probing.
