@@ -31,6 +31,6 @@ python3 shim\_solver.py
 Start the udt side of the training environment (on the same machine as the shim\_solver):
 cd src
 export LD\_LIBRARY\_PATH=$LD\_LIBRARY\_PATH:`pwd`/core/
-./app/pccclient send 127.0.0.1 9000 --pcc-rate-control=python -pyhelper=shim -path=/path/to/pcc-rl/src/udt-plugins/training/ --history-len=10 --pcc-utility-calc=linear
+./app/pccclient send 127.0.0.1 9000 --pcc-rate-control=python -pyhelper=shim -pypath=/path/to/pcc-rl/src/udt-plugins/training/ --history-len=10 --pcc-utility-calc=linear
 
 This should begin online training on the localhost connection. To train on a real world link, run the sender and receiver on different machines and adjust the IP addresses appropriately.
