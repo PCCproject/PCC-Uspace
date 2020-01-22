@@ -2,7 +2,7 @@ export CC = g++
 
 export CCFLAGS = -g -std=c++0x -Wall
 
-export LDFLAGS = -Lcore -L/usr/lib/python3.5/config-3.5m-x86_64-linux-gnu/ -lpython3.5 -lstdc++ -lpthread -lm
+export LDFLAGS = -Lcore -L/usr/lib/python3.6/config-3.6m-x86_64-linux-gnu/ -lpython3.6 -lstdc++ -lpthread -lm
 
 LIB_SOURCES = $(wildcard core/*.cpp)
 LIB_SOURCES += $(wildcard pcc/monitor_interval/*.cpp)
