@@ -7,7 +7,7 @@
 #include <vector>
 
 #include "pcc_rc.h"
-#include <python3.5/Python.h>
+#include <python3.6/Python.h>
 #include <iostream>
 #include <sstream>
 
