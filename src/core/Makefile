@@ -30,7 +30,7 @@ ifeq ($(arch), AMD64)
   CCFLAGS += -DAMD64
 endif
 
-OBJS = ../pcc/pcc_monitor_interval_queue.o ../pcc/pcc_sender.o md5.o common.o window.o list.o buffer.o packet.o channel.o queue.o ccc.o cache.o core.o epoll.o api.o
+OBJS = ../pcc/pcc_monitor_interval_queue.o ../pcc/pcc_utility_manager.o ../pcc/pcc_sender.o ../pcc/pcc_vivace_sender.o md5.o common.o window.o list.o buffer.o packet.o channel.o queue.o ccc.o cache.o core.o epoll.o api.o
 DIR = $(shell pwd)
 
 all: libudt.so libudt.a udt

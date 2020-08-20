@@ -30,7 +30,9 @@ void intHandler(int dummy) {
 
 int main(int argc, char* argv[]) {
   if (argc < 4 || 0 == atoi(argv[3])) {
-    cout << "usage: " << argv[0] << " <send|recv> server_ip server_port";
+    cout << "usage: " << argv[0]
+         << " <send|recv> server_ip server_port "
+         << "[control algorithm] [utility tag] [utility parameter]";
     cout << endl;
     return 0;
   }
@@ -55,8 +57,50 @@ int main(int argc, char* argv[]) {
     return 0;
   }
 
+  // CUDT class constructor will be called here.
   UDTSOCKET client =
       UDT::socket(local->ai_family, local->ai_socktype, local->ai_protocol);
+
+  // Set PCC control algorithm.
+  string pcc_control_algorithm = "Vivace";
+  if (argc >= 5) {
+    pcc_control_algorithm = argv[4];
+  }
+  UDT::setsockopt(client, 0, UDT_PCC, &pcc_control_algorithm,
+                  pcc_control_algorithm.size());
+  // Set PCC utility tag and parameters.
+  string utility_tag = "Vivace";
+  if (argc >= 6) {
+    utility_tag = argv[5];
+  }
+  UDT::setsockopt(client, 0, UDT_UTAG, &utility_tag, utility_tag.size());
+  if (utility_tag == "HybridAllegro" || utility_tag == "HybridVivace" ||
+      utility_tag == "Scavenger" || utility_tag == "RateLimiter" ||
+      utility_tag == "Hybrid") {
+    if (argc < 7) {
+      cout << "Parameter should be provided for [" << utility_tag
+           << "] utility function" << endl;
+      return 0;
+    } else {
+      UDT::setsockopt(client, 0, UDT_UPARAM, new float(atof(argv[6])),
+                      sizeof(float));
+    }
+  }
+  if (utility_tag == "Proportional" || utility_tag == "TEST") {
+    if (argc < 7) {
+      UDT::setsockopt(client, 0, UDT_UPARAM, new float(900), sizeof(float));
+      UDT::setsockopt(client, 0, UDT_UPARAM, new float(11.35), sizeof(float));
+    } else if (argc == 7) {
+      UDT::setsockopt(client, 0, UDT_UPARAM, new float(atof(argv[6])),
+                      sizeof(float));
+      UDT::setsockopt(client, 0, UDT_UPARAM, new float(11.35), sizeof(float));
+    } else {
+      UDT::setsockopt(client, 0, UDT_UPARAM, new float(atof(argv[6])),
+                      sizeof(float));
+      UDT::setsockopt(client, 0, UDT_UPARAM, new float(atof(argv[7])),
+                      sizeof(float));
+    }
+  }
 
 #ifdef WIN32
   // Windows UDP issue

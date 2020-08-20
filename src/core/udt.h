@@ -183,7 +183,13 @@ enum UDTOpt {
   // size of data in the sending buffer
   UDT_SNDDATA,
   // size of data available for recv
-  UDT_RCVDATA
+  UDT_RCVDATA,
+  // control algorithm for pcc sender
+  UDT_PCC,
+  // utility tag for pcc sender
+  UDT_UTAG,
+  // utility parameter for pcc sender
+  UDT_UPARAM
 };
 
 ////////////////////////////////////////////////////////////////////////////////

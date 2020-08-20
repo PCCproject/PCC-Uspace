@@ -55,7 +55,7 @@ class LessThan {
 
 class CSndBuffer {
  public:
-  CSndBuffer(const int& size = 64, const int& mss = 1500);
+  CSndBuffer(const int& size = 64, const int& mss = 1464);
   ~CSndBuffer();
 
   // Functionality:

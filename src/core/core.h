@@ -58,6 +58,9 @@ written by
 #include "udt.h"
 #include "window.h"
 #include "../pcc/pcc_sender.h"
+#include "../pcc/pcc_vivace_sender.h"
+#include "../pcc/quic_types/quic_time.h"
+#include "../pcc/quic_types/quic_types.h"
 
 #include <deque>
 #include <mutex>
@@ -80,6 +83,7 @@ class CUDT {
   friend class CSndUList;
   friend class CRcvUList;
   friend class PccSender;
+  friend class PccVivaceSender;
 
  private:
   // constructor and desctructor
@@ -614,6 +618,7 @@ class CUDT {
   // total number of sent data packets, including retransmissions
   int64_t m_llSentTotal;
   int64_t TotalBytes;
+  int64_t BytesInFlight;
   // total number of received packets
   int64_t m_llRecvTotal;
   // total number of lost packets (sender side)

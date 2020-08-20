@@ -596,6 +596,13 @@ int CRcvBuffer::addData(CUnit* unit, int offset) {
   }
 
   if (NULL != m_pUnit[pos]) {
+    if (m_pUnit[pos]->m_Packet.m_iSeqNo != unit->m_Packet.m_iSeqNo) {
+      cerr << "Add Data Error (inconsistent Seq No) :"
+           << "<" << m_pUnit[pos]->m_Packet.m_iSeqNo << ", "
+           << m_pUnit[pos]->m_Packet.m_iMsgNo << "> vs. <"
+           << unit->m_Packet.m_iSeqNo << "," << unit->m_Packet.m_iMsgNo << ">"
+           << endl;
+    }
     return -1;
   }
 
@@ -604,6 +611,21 @@ int CRcvBuffer::addData(CUnit* unit, int offset) {
   unit->m_iFlag = 1;
   ++ m_pUnitQueue->m_iCount;
 
+  // Find largest ACK Seq No and update LastAckPos at once.
+  for (int i = 0; i <= m_iMaxPos + 1; i++) {
+    pos = (m_iLastAckPos + i) % m_iSize;
+    if (m_pUnit[pos] == NULL) {
+      m_iLastAckPos = pos;
+      m_iMaxPos -= i;
+      if (m_iMaxPos < 0) {
+        m_iMaxPos = 0;
+      }
+      CTimer::triggerEvent();
+      return i;
+    }
+  }
+
+  cerr << "Full Buffer" << endl;
   return 0;
 }
 

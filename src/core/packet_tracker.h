@@ -191,6 +191,7 @@ class PacketTracker {
   SeqNoType GetLowestRetransmittableSeqNo();
   SeqNoType GetOldestSentSeqNo();
   char* GetPacketPayloadPointer(SeqNoType seq_no);
+  SeqNoType GetMinSeqNo();
  private:
   IdType MakeNewPacketId(CPacket& packet);
   std::unordered_map<SeqNoType, PacketRecord<SeqNoType, IdType>*> packet_record_map_;
@@ -203,10 +204,12 @@ class PacketTracker {
   int arbitrary_packet_limit_;
   std::mutex lock_;
   pthread_cond_t* send_cond_;
+  SeqNoType* cur_min_seq_;
 };
 
 template <typename SeqNoType, typename IdType>
 PacketTracker<SeqNoType, IdType>::~PacketTracker() {
+  delete cur_min_seq_;
 }
 
 template <typename SeqNoType, typename IdType>
@@ -215,6 +218,7 @@ PacketTracker<SeqNoType, IdType>::PacketTracker(pthread_cond_t* send_cond) {
   arbitrary_packet_limit_ = kArbitraryPacketLimit;
   send_cond_ = send_cond;
   cur_num_packets_ = 0;
+  cur_min_seq_ = NULL;
 }
 
 template <typename SeqNoType, typename IdType>
@@ -232,6 +236,13 @@ bool PacketTracker<SeqNoType, IdType>::CanEnqueuePacket() {
 template <typename SeqNoType, typename IdType>
 void PacketTracker<SeqNoType, IdType>::EnqueuePacket(CPacket& packet) {
   SeqNoType seq_no = packet.m_iSeqNo;
+  // Keep track of minimum sequence number for all currently enqueued packets.
+  if (cur_min_seq_ == NULL) {
+    cur_min_seq_ = new SeqNoType(seq_no);
+  } else if (*cur_min_seq_ > seq_no) {
+    *cur_min_seq_ = seq_no;
+  }
+
   //std::cout << "Enqueueing packet: " << seq_no << std::endl;
   std::lock_guard<std::mutex> guard(lock_);
   typename std::unordered_map<SeqNoType,
@@ -361,6 +372,21 @@ void PacketTracker<SeqNoType, IdType>::DeletePacketRecord(SeqNoType seq_no) {
     packet_record_map_.erase(packet_record_iter);
   }
   --cur_num_packets_;
+
+  // Update minimum sequence number if necessary
+  if (*cur_min_seq_ == seq_no) {
+    if (cur_num_packets_ == 0) {
+      delete cur_min_seq_;
+      cur_min_seq_ = NULL;
+    } else {
+      (*cur_min_seq_)++;
+      while (packet_record_map_.find(*cur_min_seq_) ==
+             packet_record_map_.end()) {
+        (*cur_min_seq_)++;
+      }
+    }
+  }
+
   if (cur_num_packets_ < arbitrary_packet_limit_) {
     pthread_cond_signal(send_cond_);
   }
@@ -571,6 +597,11 @@ char* PacketTracker<SeqNoType, IdType>::GetPacketPayloadPointer(
     lock_.unlock();
     return result;
   }
+}
+
+template<typename SeqNoType, typename IdType>
+SeqNoType PacketTracker<SeqNoType, IdType>::GetMinSeqNo() {
+  return *cur_min_seq_;
 }
 
 

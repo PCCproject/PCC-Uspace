@@ -4,44 +4,57 @@ This repository houses the userspace implementations of the Performance-oriented
 
 PCC is a new transport rate control architecture which uses online learning. By empirically observing what actions lead to high performance, PCC achieves substantially higher performance than legacy TCP congestion controllers that are based on fixed rules.  For more, see our original paper on PCC Allegro in [USENIX NSDI 2015](https://www.usenix.org/conference/nsdi15/technical-sessions/presentation/dong), and the paper on PCC Vivace in [USENIX NSDI 2018](https://www.usenix.org/conference/nsdi18/presentation/dong).
 
+The current PCC implementation employs the Proteus architecture that supports different priorities with different utility functions, e.g., primary, scavenger, hybrid. Details can be found in our recent paper on PCC Proteus in [ACM SIGCOMM 2020](https://dl.acm.org/doi/pdf/10.1145/3387514.3405891)([talk video](https://dl.acm.org/doi/abs/10.1145/3387514.3405891#sec-supp)).
+
 ## Implementations
 
-This repository contains files for two implementations of PCC:
-* An implementation based on UDT, used for example for experiments in the NSDI'18 paper
-* An implementaton in the [QUIC](https://www.chromium.org/quic) framework
-
-The files in src/pcc/* can be used to build either a UDT or QUIC version of the code; however, the files must be copied to a full QUIC codebase (either Chromium or a QUIC server) before building PCC-QUIC. The UDT version can be built in this repository as described in the next section.
-
-Note: The QUIC version of PCC may require minor type or convention changes depending on the QUIC implementation it is built with because the Chromium and QUIC server codebases have different rules enforced by their build systems. We are working on additional documentation to walk through building PCC QUIC with each of the QUIC codebases.
-
-## Building
-
-To build PCC for UDT, run the following:
-
-```
-cd src
-sunifdef -r -UQUIC_PORT -UQUIC_PORT_LOCAL ./pcc/\*
-make
-```
-
-This will produce two apps (pccclient and pccserver) in the src/app directory.
-
-To test that PCC is functioning, create a PCC server that listens on port 9000 and receives data:
-
-```
-./app/pccserver recv 9000
-```
-
-Then, create a PCC client that connects to the local host (IP 127.0.0.1) at port 9000, then sends data to the server at that address:
-```
-./app/pccclient send 127.0.0.1 9000
-```
+Our implementation in folder src/ branches off the open-source UDT framework. All PCC related files locate in /src/pcc. Specifically, we implement the transport algorithms using QUIC-compatible function APIs, and QUIC data structures (src/pcc/quic_types/). So PCC should be easy for QUIC adoption.
 
 The code in this repository is broken into 3 parts:
 1. The application code (located in src/app)
 2. The UDT library code (located in src/core)
 3. The PCC implementation (located in src/pcc)
 
-The PCC code is split into two main parts:
-1. The rate control algorithm (located in the src/pcc/pcc_sender files)
-2. The monitor interval and utility calculation algorithms (located in the src/pcc/pcc_monitor_interval_queue files)
+
+## Building
+
+To build PCC for UDT, simply run the following:
+
+```
+cd src
+make
+```
+
+This will produce two apps (pccclient and pccserver) in the src/app directory.
+
+To test that PCC is functioning, create a PCC server that listens on a port and receives data:
+
+```
+./app/pccserver recv pcc_server_port
+```
+
+Then, create a PCC client that connects to the IP hosting the PCC server at the server listening port, then sends data to the server at that address (the last parameter tells the application to use the Vivace rate control algorithm, details in our PCC Vivace paper in NSDI 2018):
+```
+./app/pccclient send pcc_server_ip pcc_server_port Vivace
+```
+
+This will by default initiate data transfer using the primary priority utility function. To use a different utility function, give the corresponding parameter (utility function name, and if necessary, utility function parameter) when running PCC client:
+```
+./app/pccclient send pcc_server_ip pcc_server_port Vivace [utility_function] [utility_parameter]
+```
+
+For example,
+1. To use primary utility function:
+```
+./app/pccclient send pcc_server_ip pcc_server_port Vivace Vivace
+```
+
+2. To use scavenger utility function (0.0015 is the default coefficient for our scavenger utility function):
+```
+./app/pccclient send pcc_server_ip pcc_server_port Vivace Scavenger 0.0015
+```
+
+3. To use hybrid utility function with some switching threshold (in unit of Mbit/sec, see our PCC Proteus paper in SIGCOMM 2020 for details):
+```
+./app/pccclient send pcc_server_ip pcc_server_port Vivace Hybrid threshold
+```

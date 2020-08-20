@@ -120,7 +120,7 @@ CUDT::CUDT() {
   initSynch();
 
   // Default UDT configurations
-  m_iMSS = 1500;
+  m_iMSS = 1464;
   m_bSynSending = true;
   m_bSynRecving = true;
   m_iFlightFlagSize = 1000000;
@@ -145,7 +145,7 @@ CUDT::CUDT() {
   m_pCC = m_pCCFactory->create();
   m_pCache = NULL;
 
-  pcc_sender = new PccSender(10000, 10, 10);
+  pcc_sender = new PccVivaceSender(10, 10);
   packet_tracker_ = new PacketTracker<int32_t, PacketId>(&m_SendBlockCond);
 
   // Initial status
@@ -211,7 +211,7 @@ CUDT::CUDT(const CUDT& ancestor) {
   }
   m_pCC = m_pCCFactory->create();
 
-  pcc_sender = new PccSender(10000, 10, 10);
+  pcc_sender = new PccVivaceSender(10, 10);
   packet_tracker_ = new PacketTracker<int32_t, PacketId>(&m_SendBlockCond);
 
   // Initial status
@@ -253,6 +253,15 @@ CUDT::~CUDT() {
 void CUDT::setOpt(UDTOpt optName, const void* optval, const int&) {
   if (m_bBroken || m_bClosing) {
     throw CUDTException(2, 1, 0);
+  }
+
+  if (optName == UDT_UTAG || optName == UDT_UPARAM) {
+    if (optName == UDT_UTAG) {
+      pcc_sender->SetUtilityTag(*(string *)optval);
+    } else {
+      pcc_sender->SetUtilityParameter((float *)optval);
+    }
+    return;
   }
 
   CGuard cg(m_ConnectionLock);
@@ -413,6 +422,17 @@ void CUDT::setOpt(UDTOpt optName, const void* optval, const int&) {
       m_llMaxBW = *(int64_t*)optval;
       break;
 
+    case UDT_PCC:
+      if (m_bConnecting || m_bConnected) {
+        throw CUDTException(5, 1, 0);
+      }
+      if (*(string *)optval == "Vivace") {
+        delete pcc_sender;
+        cout << "Reset to Vivace Sender\n";
+        pcc_sender = new PccVivaceSender(10, 10);
+      }
+      break;
+
     default:
       throw CUDTException(5, 0, 0);
   }
@@ -569,6 +589,7 @@ void CUDT::open() {
   TotalBytes = m_llSentTotal = m_llRecvTotal = m_iSndLossTotal = 0;
   m_iRcvLossTotal = m_iRetransTotal = m_iSentACKTotal = m_iRecvACKTotal = 0;
   m_iSentNAKTotal = m_iRecvNAKTotal = 0;
+  BytesInFlight = 0;
   m_LastSampleTime = CTimer::getTime();
   m_llTraceSent = m_llTraceRecv = m_iTraceSndLoss = m_iTraceRcvLoss = 0;
   m_iTraceRetrans = m_iSentACK = m_iRecvACK = m_iSentNAK = m_iRecvNAK = 0;
@@ -1184,6 +1205,7 @@ int CUDT::send(const char* data, const int& len) {
   }
 
   if (!packet_tracker_->CanEnqueuePacket()) {
+    cerr << "Still cannot enqueue packet!!!\n";
     if (m_iSndTimeOut >= 0) {
       throw CUDTException(6, 1, 0);
     }
@@ -1563,17 +1585,16 @@ void CUDT::add_to_loss_record(int32_t loss1, int32_t loss2) {
   for (int loss = loss1; loss <= loss2; ++loss) {
     int32_t msg_no = packet_tracker_->GetPacketLastMsgNo(loss);
     PacketId pkt_id = packet_tracker_->GetPacketId(loss, msg_no);
-    CongestionEvent loss_event;
-    loss_event.packet_number = pkt_id;
-    loss_event.bytes_acked = 0;
-    loss_event.bytes_lost = packet_tracker_->GetPacketSize(loss);
-    loss_event.time = CTimer::getTime();
-    lost_packets.push_back(loss_event);
+    lost_packets.push_back(LostPacket(
+        pkt_id, static_cast<uint64_t>(packet_tracker_->GetPacketSize(loss))));
     packet_tracker_->OnPacketLoss(loss, msg_no);
     ++m_iSndLossTotal;
   }
-  pcc_sender->OnCongestionEvent(true, 0, CTimer::getTime(), 0, acked_packets,
-                                lost_packets);
+  pcc_sender->OnCongestionEvent(
+      false, QuicTime::Delta::Zero(), 0,
+      QuicTime::Zero() + QuicTime::Delta::FromMicroseconds(
+                             static_cast<int64_t>(CTimer::getTime())),
+      acked_packets, lost_packets);
   pcc_sender_lock.unlock();
 
 #ifdef EXPERIMENTAL_FEATURE_CONTINOUS_SEND
@@ -1604,6 +1625,24 @@ void CUDT::ProcessAck(CPacket& ctrlpkt) {
   }
 
   packet_tracker_->DeletePacketRecord(seq_no);
+  int32_t ack_no = packet_tracker_->GetMinSeqNo();
+  int offset = CSeqNo::seqoff((int32_t&)m_iSndLastDataAck, ack_no);
+  if (offset > 0) {
+    m_pSndBuffer->ackData(offset);
+    m_iSndLastDataAck = ack_no;
+#ifndef WIN32
+    pthread_mutex_lock(&m_SendBlockLock);
+    if (m_bSynSending) {
+      pthread_cond_signal(&m_SendBlockCond);
+    }
+    pthread_mutex_unlock(&m_SendBlockLock);
+#else
+    if (m_bSynSending) {
+      SetEvent(m_SendBlockCond);
+    }
+#endif
+  }
+
   if (old_state == PACKET_STATE_LOST) {
     pcc_sender_lock.unlock();
     return;
@@ -1616,13 +1655,20 @@ void CUDT::ProcessAck(CPacket& ctrlpkt) {
 
   AckedPacketVector acked_packets;
   LostPacketVector lost_packets;
-  CongestionEvent ack_event;
-  ack_event.time = CTimer::getTime();
-  ack_event.packet_number = pkt_id;
-  ack_event.bytes_acked = size;
-  ack_event.bytes_lost = 0;
-  acked_packets.push_back(ack_event);
-  pcc_sender->OnCongestionEvent(true, 0, CTimer::getTime(), rtt_us, acked_packets, lost_packets);
+  acked_packets.push_back(AckedPacket(
+      pkt_id, static_cast<uint64_t>(size),
+      QuicTime::Zero() + QuicTime::Delta::FromMicroseconds(
+                             static_cast<int64_t>(CTimer::getTime()))));
+  BytesInFlight -= static_cast<int64_t>(size);
+  if (BytesInFlight < 0) {
+    std::cerr << "Negative bytes in flight" << std::endl;
+  }
+  pcc_sender->OnCongestionEvent(
+      true,
+      QuicTime::Delta::FromMicroseconds(static_cast<int64_t>(rtt_us)), 0,
+      QuicTime::Zero() + QuicTime::Delta::FromMicroseconds(
+                             static_cast<int64_t>(CTimer::getTime())),
+      acked_packets, lost_packets);
   pcc_sender_lock.unlock();
   ++m_iRecvACK;
   ++m_iRecvACKTotal;
@@ -1744,19 +1790,20 @@ uint64_t CUDT::GetSendingInterval() {
    * frequency         * m_iMSS * 8      *  1 / sending_rate (in bits/second)
    */
 
+  double pacing_rate =
+      static_cast<double>(pcc_sender->PacingRate(0).ToBitsPerSecond());
 #ifdef DEBUG_CORE_SENDING_RATE
   static double prev_rate = 0;
-  if (pcc_sender->PacingRate(0) != prev_rate) {
+  if (pacing_rate != prev_rate) {
     std::cerr << "Sending rate changed to "
-              << pcc_sender->PacingRate(0) / 1000000.0f << "mbps" << std::endl;
+              << pacing_rate / 1000000.0f << "mbps" << std::endl;
     std::cerr << "New clock cycle interval is "
-              << m_ullCPUFrequency * m_iMSS * 8.0f * 1000000.0f /
-                    pcc_sender->PacingRate(0)
+              << m_ullCPUFrequency * m_iMSS * 8.0f * 1000000.0f / pacing_rate
               << std::endl;
-    prev_rate = pcc_sender->PacingRate(0);
+    prev_rate = pacing_rate;
   }
 #endif
-  return m_ullCPUFrequency * m_iMSS * 8.0f * 1000000.0f / pcc_sender->PacingRate(0);
+  return m_ullCPUFrequency * m_iMSS * 8.0f * 1000000.0f / pacing_rate;
 }
 
 int CUDT::packData(CPacket& packet, uint64_t& ts) {
@@ -1769,6 +1816,13 @@ int CUDT::packData(CPacket& packet, uint64_t& ts) {
   }
 
   pcc_sender_lock.lock();
+  if (!pcc_sender->CanSend(BytesInFlight)) {
+    ts = entertime;
+    m_ullTimeDiff = 0;
+    m_ullTargetTime = ts;
+    pcc_sender_lock.unlock();
+    return 0;
+  }
   int32_t seq_no;
   if (packet_tracker_->HasRetransmittablePackets()) {
     seq_no = packet_tracker_->GetLowestRetransmittableSeqNo();
@@ -1776,8 +1830,10 @@ int CUDT::packData(CPacket& packet, uint64_t& ts) {
     ++m_iRetransTotal;
   } else if (packet_tracker_->HasSendablePackets()) {
     seq_no = packet_tracker_->GetLowestSendableSeqNo();
+    BytesInFlight +=
+        static_cast<int64_t>(packet_tracker_->GetPacketSize(seq_no));
   } else {
-    std::cout << "no transmittable packets" << std::endl;
+    // std::cout << "no transmittable packets" << std::endl;
     pcc_sender_lock.unlock();
     return 0;
   }
@@ -1790,7 +1846,10 @@ int CUDT::packData(CPacket& packet, uint64_t& ts) {
   packet.m_iMsgNo = msg_no + 1;
   packet_tracker_->OnPacketSent(packet);
   PacketId pkt_id = packet_tracker_->GetPacketId(seq_no, packet.m_iMsgNo);
-  pcc_sender->OnPacketSent(CTimer::getTime(), 0, pkt_id, payload, false);
+  pcc_sender->OnPacketSent(
+      QuicTime::Zero() + QuicTime::Delta::FromMicroseconds(
+                             static_cast<int64_t>(CTimer::getTime())),
+      0, pkt_id, static_cast<uint64_t>(payload), false);
   pcc_sender_lock.unlock();
 
   packet.m_iTimeStamp = int(CTimer::getTime() - m_StartTime);
@@ -1839,11 +1898,22 @@ int CUDT::processData(CUnit* unit) {
 
   int32_t offset = CSeqNo::seqoff(m_iRcvLastAck, packet.m_iSeqNo);
   if (offset < 0 || offset >= m_pRcvBuffer->getAvailBufSize()) {
+    if (offset >= 0) {
+      cerr << "No available buffer space: " << offset << " vs. "
+           << m_pRcvBuffer->getAvailBufSize() << endl;
+    }
     return -1;
   }
 
-  if (m_pRcvBuffer->addData(unit, offset) < 0) {
+  int ack_len = m_pRcvBuffer->addData(unit, offset);
+  if (ack_len < 0) {
     return -1;
+  }
+  m_iRcvLastAck = CSeqNo::incseq(m_iRcvLastAck, ack_len);
+  if (m_bSynRecving && ack_len > 0) {
+    pthread_mutex_lock(&m_RecvDataLock);
+    pthread_cond_signal(&m_RecvDataCond);
+    pthread_mutex_unlock(&m_RecvDataLock);
   }
 
   return 0;

@@ -1,80 +1,47 @@
 #ifndef THIRD_PARTY_PCC_QUIC_PCC_MONITOR_QUEUE_H_
 #define THIRD_PARTY_PCC_QUIC_PCC_MONITOR_QUEUE_H_
 
+#include "quic_types/quic_bandwidth.h"
+
 #include <deque>
 #include <utility>
 #include <vector>
 
-#ifdef QUIC_PORT
-#ifdef QUIC_PORT_LOCAL
-#include "net/quic/core/congestion_control/send_algorithm_interface.h"
-#include "net/quic/core/quic_time.h"
-#include "net/quic/core/quic_types.h"
-#else
-#include "gfe/quic/core/congestion_control/send_algorithm_interface.h"
-#include "gfe/quic/core/quic_time.h"
-#include "gfe/quic/core/quic_types.h"
-#endif
-#else
-#include <cstdint>
-#include <cstdlib>
-#include <cmath>
-#endif
+//#include "third_party/quic/core/congestion_control/send_algorithm_interface.h"
+//#include "third_party/quic/core/quic_time.h"
+//#include "third_party/quic/core/quic_types.h"
 
-#ifndef QUIC_PORT
-typedef int32_t QuicPacketCount;
-typedef int32_t QuicPacketNumber;
-typedef int64_t QuicByteCount;
-typedef int64_t QuicTime;
-typedef double  QuicBandwidth;
+// namespace quic {
 
-typedef struct CongestionEvent {
-  int32_t packet_number;
-  int32_t bytes_acked;
-  int32_t bytes_lost;
-  uint64_t time;
-} CongestionEvent;
-
-typedef CongestionEvent AckedPacket;
-typedef CongestionEvent LostPacket;
-typedef std::vector<CongestionEvent> AckedPacketVector;
-typedef std::vector<CongestionEvent> LostPacketVector;
-
-class PccSender;
-typedef PccSender PccMonitorIntervalQueueDelegateInterface;
-#endif
-
-#ifdef QUIC_PORT
-#ifdef QUIC_PORT_LOCAL
-namespace net {
-namespace {
-bool FLAGS_use_utility_version_2 = true;
-}
-#else
-namespace gfe_quic {
-DECLARE_bool(use_utility_version_2);
-#endif
-using namespace net;
-#endif
-
-// PacketRttSample, stores the packet number and its corresponding RTT
+// PacketRttSample, stores packet number and the corresponding RTT.
 struct PacketRttSample {
   PacketRttSample();
-#ifdef QUIC_PORT
-  PacketRttSample(QuicPacketNumber packet_number, QuicTime::Delta rtt);
-#else
-  PacketRttSample(QuicPacketNumber packet_number, QuicTime rtt);
-#endif
+  PacketRttSample(QuicPacketNumber packet_number,
+                  QuicTime::Delta rtt,
+                  QuicTime ack_timestamp,
+                  bool reliability,
+                  bool gradient_reliability);
   ~PacketRttSample() {}
 
   // Packet number of the sampled packet.
   QuicPacketNumber packet_number;
   // RTT corresponding to the sampled packet.
-#ifdef QUIC_PORT
   QuicTime::Delta sample_rtt;
-#else
-  QuicTime sample_rtt;
-#endif
+  // Timestamp when the ACK of the sampled packet is received.
+  QuicTime ack_timestamp;
+
+  // Flag representing if the RTT sample is reliable for utility calculation.
+  bool is_reliable;
+  bool is_reliable_for_gradient_calculation;
+};
+
+struct LostPacketSample {
+  LostPacketSample();
+  LostPacketSample(QuicPacketNumber packet_number,
+                  QuicByteCount bytes);
+
+  QuicPacketNumber packet_number;
+  QuicByteCount bytes;
 };
 
 // MonitorInterval, as the queue's entry struct, stores the information
@@ -86,16 +53,8 @@ struct MonitorInterval {
   MonitorInterval(QuicBandwidth sending_rate,
                   bool is_useful,
                   float rtt_fluctuation_tolerance_ratio,
-                  int64_t rtt_us,
-                  QuicTime end_time);
-#if defined(QUIC_PORT) && defined(QUIC_PORT_LOCAL)
-  explicit MonitorInterval(const MonitorInterval&);
-#endif
-#ifdef QUIC_PORT_LOCAL
-  ~MonitorInterval();
-#else
+                  QuicTime::Delta rtt);
   ~MonitorInterval() {}
-#endif
 
   // Sending rate.
   QuicBandwidth sending_rate;
@@ -103,8 +62,6 @@ struct MonitorInterval {
   bool is_useful;
   // The tolerable rtt fluctuation ratio.
   float rtt_fluctuation_tolerance_ratio;
-  // The end time for this monitor interval in microseconds.
-  QuicTime end_time;
 
   // Sent time of the first packet.
   QuicTime first_packet_sent_time;
@@ -123,32 +80,29 @@ struct MonitorInterval {
   // Number of bytes which are considered as lost.
   QuicByteCount bytes_lost;
 
-  // RTT when the first packet is sent.
-  int64_t rtt_on_monitor_start_us;
+  // Smoothed RTT when the first packet is sent.
+  QuicTime::Delta rtt_on_monitor_start;
   // RTT when all sent packets are either acked or lost.
-  int64_t rtt_on_monitor_end_us;
+  QuicTime::Delta rtt_on_monitor_end;
+  // Minimum RTT seen by PCC sender.
+  QuicTime::Delta min_rtt;
 
-  // Utility value of this MonitorInterval, which is calculated
-  // when all sent packets are either acked or lost.
-  float utility;
-
-  // The number of packets in this monitor interval.
-  int n_packets;
-  // A sample of the RTT for each packet.
+  // Interval since previous sent packet for each packet in the interval.
+  std::vector<QuicTime::Delta> packet_sent_intervals;
+  // Packet RTT sample for each sent packet in the monitor interval.
   std::vector<PacketRttSample> packet_rtt_samples;
+  // Lost packet sample for each lost packet in the monitor interval.
+  std::vector<LostPacketSample> lost_packet_samples;
+
+  size_t num_reliable_rtt;
+  size_t num_reliable_rtt_for_gradient_calculation;
+  // True if the interval has enough number of reliable RTT samples.
+  bool has_enough_reliable_rtt;
+
+  // True only if the monitor duration is doubled due to lack of reliable RTTs.
+  bool is_monitor_duration_extended;
 };
 
-// UtilityInfo is used to store <sending_rate, utility> pairs
-struct UtilityInfo {
-  UtilityInfo();
-  UtilityInfo(QuicBandwidth rate, float utility);
-  ~UtilityInfo() {}
-
-  QuicBandwidth sending_rate;
-  float utility;
-};
-
-#ifdef QUIC_PORT
 // A delegate interface for further processing when all
 // 'useful' MonitorIntervals' utilities are available.
 class PccMonitorIntervalQueueDelegateInterface {
@@ -156,9 +110,9 @@ class PccMonitorIntervalQueueDelegateInterface {
   virtual ~PccMonitorIntervalQueueDelegateInterface() {}
 
   virtual void OnUtilityAvailable(
-      const std::vector<UtilityInfo>& utility_info) = 0;
+      const std::vector<const MonitorInterval *>& useful_intervals,
+      QuicTime event_time) = 0;
 };
-#endif
 
 // PccMonitorIntervalQueue contains a queue of MonitorIntervals.
 // New MonitorIntervals are added to the tail of the queue.
@@ -167,20 +121,12 @@ class PccMonitorIntervalQueueDelegateInterface {
 class PccMonitorIntervalQueue {
  public:
   explicit PccMonitorIntervalQueue(
-#ifdef QUIC_PORT
       PccMonitorIntervalQueueDelegateInterface* delegate);
-#else
-      PccSender* delegate);
-#endif
   PccMonitorIntervalQueue(const PccMonitorIntervalQueue&) = delete;
   PccMonitorIntervalQueue& operator=(const PccMonitorIntervalQueue&) = delete;
   PccMonitorIntervalQueue(PccMonitorIntervalQueue&&) = delete;
   PccMonitorIntervalQueue& operator=(PccMonitorIntervalQueue&&) = delete;
-#if defined(QUIC_PORT) && defined(QUIC_PORT_LOCAL)
-  ~PccMonitorIntervalQueue();
-#else
   ~PccMonitorIntervalQueue() {}
-#endif
 
   // Creates a new MonitorInterval and add it to the tail of the
   // monitor interval queue, provided the necessary variables
@@ -188,59 +134,72 @@ class PccMonitorIntervalQueue {
   void EnqueueNewMonitorInterval(QuicBandwidth sending_rate,
                                  bool is_useful,
                                  float rtt_fluctuation_tolerance_ratio,
-                                 int64_t rtt_us,
-                                 QuicTime end_time);
+                                 QuicTime::Delta rtt);
 
   // Called when a packet belonging to current monitor interval is sent.
   void OnPacketSent(QuicTime sent_time,
                     QuicPacketNumber packet_number,
-                    QuicByteCount bytes);
+                    QuicByteCount bytes,
+                    QuicTime::Delta sent_interval);
 
   // Called when packets are acked or considered as lost.
   void OnCongestionEvent(const AckedPacketVector& acked_packets,
                          const LostPacketVector& lost_packets,
-                         int64_t rtt_us,
-                         QuicTime event_time);
+                         QuicTime::Delta avg_rtt,
+                         QuicTime::Delta latest_rtt,
+                         QuicTime::Delta min_rtt,
+                         QuicTime event_time,
+                         QuicTime::Delta ack_interval);
 
   // Called when RTT inflation ratio is greater than
   // max_rtt_fluctuation_tolerance_ratio_in_starting.
   void OnRttInflationInStarting();
 
-  // Returns the most recent MonitorInterval in the tail of the queue
+  // Returns the fisrt MonitorInterval in the front of the queue. The caller
+  // needs to make sure the queue is not empty before calling this function.
+  const MonitorInterval& front() const;
+  // Returns the most recent MonitorInterval in the tail of the queue. The
+  // caller needs to make sure the queue is not empty before calling this
+  // function.
   const MonitorInterval& current() const;
+  // Mark the most recent MonitorInterval as already extended.
+  void extend_current_interval();
   size_t num_useful_intervals() const { return num_useful_intervals_; }
   size_t num_available_intervals() const { return num_available_intervals_; }
   bool empty() const;
-#if defined(QUIC_PORT) && defined(QUIC_PORT_LOCAL)
-  size_t size() const { return monitor_intervals_.size(); }
-#else
   size_t size() const;
-#endif
 
  private:
   // Returns true if the utility of |interval| is available, i.e.,
   // when all the interval's packets are either acked or lost.
-  bool IsUtilityAvailable(const MonitorInterval& interval,
-                          QuicTime cur_time) const;
+  bool IsUtilityAvailable(const MonitorInterval& interval) const;
 
   // Retruns true if |packet_number| belongs to |interval|.
   bool IntervalContainsPacket(const MonitorInterval& interval,
                               QuicPacketNumber packet_number) const;
 
-#ifdef QUIC_PORT
-  // Calculates utility for |interval|. Returns true if |interval| has valid
-  // utility, false otherwise.
-  bool CalculateUtility(MonitorInterval* interval);
-  // Calculates utility for |interval| using version-2 utility function. Returns
-  // true if |interval| has valid utility, false otherwise.
-  bool CalculateUtility2(MonitorInterval* interval);
-#else
-  // Calculates utility for |interval|. Returns true if |interval| has valid
-  // utility, false otherwise.
-  bool CalculateUtility(MonitorInterval* interval);
-#endif
+  // Returns true if the utility of |interval| is invalid, i.e., if it only
+  // contains a single sent packet.
+  bool HasInvalidUtility(const MonitorInterval* interval) const;
 
   std::deque<MonitorInterval> monitor_intervals_;
+  // Vector of acked packets with pending RTT reliability.
+  std::vector<AckedPacket> pending_acked_packets_;
+  // Latest RTT corresponding to pending acked packets.
+  QuicTime::Delta pending_rtt_;
+  // Average RTT corresponding to pending acked packets.
+  QuicTime::Delta pending_avg_rtt_;
+  // ACK interval corresponding to pending acked packets.
+  QuicTime::Delta pending_ack_interval_;
+  // ACK reception time corresponding to pending acked packets.
+  QuicTime pending_event_time_;
+
+  bool burst_flag_;
+
+  // EWMA of ratio between two consecutive ACK intervals, i.e., interval between
+  // reception time of two consecutive ACKs.
+  float avg_interval_ratio_;
+
   // Number of useful intervals in the queue.
   size_t num_useful_intervals_;
   // Number of useful intervals in the queue with available utilities.
@@ -249,8 +208,6 @@ class PccMonitorIntervalQueue {
   PccMonitorIntervalQueueDelegateInterface* delegate_;
 };
 
-#ifdef QUIC_PORT
-} // namespace gfe_quic
-#endif
+// }  // namespace quic
 
 #endif  // THIRD_PARTY_PCC_QUIC_PCC_MONITOR_QUEUE_H_

@@ -30,7 +30,7 @@ ifeq ($(arch), AMD64)
   CCFLAGS += -DAMD64
 endif
 
-OBJS = pcc_monitor_interval_queue.o pcc_sender.o
+OBJS = pcc_monitor_interval_queue.o pcc_utility_manager.o pcc_sender.o pcc_vivace_sender.o
 DIR = $(shell pwd)
 
 all: $(OBJS)
