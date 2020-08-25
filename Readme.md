@@ -6,6 +6,8 @@ PCC is a new transport rate control architecture which uses online learning. By 
 
 The current PCC implementation employs the Proteus architecture that supports different priorities with different utility functions, e.g., primary, scavenger, hybrid. Details can be found in our recent paper on PCC Proteus in [ACM SIGCOMM 2020](https://dl.acm.org/doi/pdf/10.1145/3387514.3405891)([talk video](https://dl.acm.org/doi/abs/10.1145/3387514.3405891#sec-supp)).
 
+(You can find the version of PCC Vivace as in our NSDI 2018 paper in branch [NSDI-2018](https://github.com/PCCproject/PCC-Uspace/tree/NSDI-2018).)
+
 ## Implementations
 
 Our implementation in folder src/ branches off the open-source UDT framework. All PCC related files locate in /src/pcc. Specifically, we implement the transport algorithms using QUIC-compatible function APIs, and QUIC data structures (src/pcc/quic_types/). So PCC should be easy for QUIC adoption.
