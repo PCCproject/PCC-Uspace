@@ -1,2 +1,1 @@
-# PCC-Uspace
-The userspace implementations of PCC.
+The benchmarking CCP implementation of PCC.
