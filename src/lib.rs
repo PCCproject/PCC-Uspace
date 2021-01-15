@@ -8,7 +8,6 @@ use portus::ipc::Ipc;
 use portus::lang::Scope;
 use portus::{CongAlg, Datapath, DatapathInfo, DatapathTrait, Report};
 use std::collections::HashMap;
-use std::cmp;
 
 pub struct Pcc<T: Ipc> {
     control_channel: Datapath<T>,
@@ -224,7 +223,10 @@ impl<T: Ipc> portus::Flow for Pcc<T> {
         let avg_rtt_left = sumrttl as f64 / numrttl as f64;
         let avg_rtt_right = sumrttr as f64 / numrttr as f64;
         let avg_rtt = 0.5 * (avg_rtt_left + avg_rtt_right);
-        let rtt_grad_approx = (avg_rtt_right - avg_rtt_left) / avg_rtt;
+        let mut rtt_grad_approx = (avg_rtt_right - avg_rtt_left) / avg_rtt;
+        if (rtt_grad_approx < 0.01) && (rtt_grad_approx > -0.01) {
+            rtt_grad_approx = 0.0;
+        }
         let utility_rtt_grad = 900.0 * rate_mbps * rtt_grad_approx;
 
         let acked_total = (ackedl + ackedr) as f64;
@@ -280,7 +282,9 @@ impl<T: Ipc> portus::Flow for Pcc<T> {
             rate_change = max_rate_change;
             self.incremental_steps = self.incremental_steps + 1;
         } else {
-            self.incremental_steps = cmp::max(self.incremental_steps, self.incremental_steps - 1);
+            if self.incremental_steps > 0 {
+                self.incremental_steps = self.incremental_steps - 1;
+            }
         }
 
         self.last_rate = self.curr_rate;
