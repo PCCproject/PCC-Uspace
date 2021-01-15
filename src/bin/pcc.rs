@@ -35,7 +35,7 @@ fn main() {
         .map_err(|e| warn!(log, "bad argument"; "err" => ?e))
         .unwrap();
 
-    info!(log, "configured BBR"; 
+    info!(log, "configured PCC";
         "ipc" => ipc.clone(),
     );
 
