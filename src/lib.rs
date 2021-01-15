@@ -19,6 +19,7 @@ pub struct Pcc<T: Ipc> {
     last_utility: f64,
     last_dir: i32,
     dir_rounds: u32,
+    max_step_size: f64,
     initial_max_step_size: f64,
     incremental_step_size: f64,
     incremental_steps: u32
@@ -178,6 +179,7 @@ impl<T: Ipc> CongAlg<T> for PccConfig {
             last_utility: 0.0,
             last_dir: 0,
             dir_rounds: 0,
+            max_step_size: 0.25,
             initial_max_step_size: 0.05,
             incremental_step_size: 0.05,
             incremental_steps: 0
@@ -270,6 +272,11 @@ impl<T: Ipc> portus::Flow for Pcc<T> {
             direction = 1i32;
         }
 
+        let max_inflated_rtt_us = std::cmp::max((1.2 * f64::from(self.min_rtt_us)) as u32, 2_000);
+        if avg_rtt > max_inflated_rtt_us as f64  {
+            direction = -1i32;
+        }
+
         if direction != self.last_dir {
             self.dir_rounds = 1;
             self.incremental_steps = 0;
@@ -278,7 +285,11 @@ impl<T: Ipc> portus::Flow for Pcc<T> {
             rate_change = rate_change * ((1.0 + self.dir_rounds as f64) * 0.5).powf(1.2);
         }
 
-        let max_rate_change = rate_mbps * (self.initial_max_step_size + self.incremental_step_size * (self.incremental_steps as f64));
+        let mut max_rate_change = rate_mbps * (self.initial_max_step_size + self.incremental_step_size * (self.incremental_steps as f64));
+        let max_rate_change_bound = rate_mbps * self.max_step_size;
+        if max_rate_change > max_rate_change_bound {
+            max_rate_change = max_rate_change_bound;
+        }
         if rate_change > max_rate_change {
             rate_change = max_rate_change;
             self.incremental_steps = self.incremental_steps + 1;
