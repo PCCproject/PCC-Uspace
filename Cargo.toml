@@ -1,0 +1,13 @@
+[package]
+name = "ccp_pcc"
+version = "0.1.1"
+authors = ["Tong Meng <tongm2@illinois.edu>"]
+
+[dependencies]
+clap = "2.29"
+fnv = "1"
+portus = "^0.5"
+slog = "2"
+slog-async = "2"
+slog-term = "2"
+time = "0.1"
