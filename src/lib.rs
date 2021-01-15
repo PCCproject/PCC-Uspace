@@ -224,7 +224,8 @@ impl<T: Ipc> portus::Flow for Pcc<T> {
         let avg_rtt_right = sumrttr as f64 / numrttr as f64;
         let avg_rtt = 0.5 * (avg_rtt_left + avg_rtt_right);
         let mut rtt_grad_approx = (avg_rtt_right - avg_rtt_left) / avg_rtt;
-        if (rtt_grad_approx < 0.01) && (rtt_grad_approx > -0.01) {
+        if rtt_grad_approx < 0.01 {
+            // Negative RTT Gradient is ignored altogether.
             rtt_grad_approx = 0.0;
         }
         let utility_rtt_grad = 900.0 * rate_mbps * rtt_grad_approx;
