@@ -8,6 +8,7 @@ use portus::ipc::Ipc;
 use portus::lang::Scope;
 use portus::{CongAlg, Datapath, DatapathInfo, DatapathTrait, Report};
 use std::collections::HashMap;
+use std::cmp;
 
 pub struct Pcc<T: Ipc> {
     control_channel: Datapath<T>,
@@ -16,7 +17,12 @@ pub struct Pcc<T: Ipc> {
     curr_rate: f64,
     min_rtt_us: u32,
     last_rate: f64,
-    last_utility: f64
+    last_utility: f64,
+    last_dir: i32,
+    dir_rounds: u32;
+    initial_max_step_size: f64,
+    incremental_step_size: f64,
+    incremental_steps: u32
 }
 
 #[derive(Clone)]
@@ -28,7 +34,13 @@ impl<T: Ipc> Pcc<T> {
     fn update_rate(&self) {
         let calculated_cwnd = (self.curr_rate * 2.0 * f64::from(self.min_rtt_us) / 1e6) as u32;
         self.control_channel
-            .update_field(&self.sc, &[("Cwnd", calculated_cwnd), ("Rate", self.curr_rate)])
+            .update_field(
+                &self.sc,
+                &[
+                    ("intervalState", 0)
+                    ("Cwnd", calculated_cwnd),
+                    ("Rate", self.curr_rate as u32),
+                ])
             .unwrap()
     }
 
@@ -67,10 +79,13 @@ impl<T: Ipc> Pcc<T> {
         let numrttr = m
             .get_field(&String::from("Report.numrttr"), &self.sc)
             .expect("expected numrttr field in returned measurement") as u32;
+        let minrtt = m
+            .get_field(&String::from("Report.minrtt"), &self.sc)
+            .expect("expected minrtt field in returned measurement") as u32;
         let sendrate = m
             .get_field(&String::from("Report.sendrate"), &self.sc)
             .expect("expected sendrate field in returned measurement") as f64;
-        Some((ackedl, lossl, ackedr, lossr, sumrttl, numrttl, sumrttr, numrttr, sendrate))
+        Some((ackedl, lossl, ackedr, lossr, sumrttl, numrttl, sumrttr, numrttr, minrtt, sendrate))
     }
 }
 
@@ -89,27 +104,27 @@ impl<T: Ipc> CongAlg<T> for PccConfig {
                     "
                 (def
                     (Report
-                        (ackedl 0)
-                        (lossl 0)
-                        (ackedr 0)
-                        (lossr 0)
-                        (sumrttl 0)
-                        (numrttl 0)
-                        (sumrttr 0)
-                        (numrttr 0)
-                        (sendrate 0)
+                        (volatile ackedl 0)
+                        (volatile lossl 0)
+                        (volatile ackedr 0)
+                        (volatile lossr 0)
+                        (volatile sumrttl 0)
+                        (volatile numrttl 0)
+                        (volatile sumrttr 0)
+                        (volatile numrttr 0)
+                        (minrtt +infinity)
+                        (volatile sendrate 0)
                     )
                     (intervalState 0)
                     (totalAckedPkts 0)
                     (totalLostPkts 0)
-                    (minrtt +infinity)
                     (startPktsInFlight 0)
                     (pacingRate 0)
                 )
                 (when true
                     (:= totalAckedPkts (+ totalAckedPkts Ack.packets_acked))
                     (:= totalLostPkts (+ totalLostPkts Ack.lost_pkts_sample))
-                    (:= minrtt (min minrtt Flow.rtt_sample_us))
+                    (:= Report.minrtt (min Report.minrtt Flow.rtt_sample_us))
                     (fallthrough)
                 )
                 (when (== intervalState 0)
@@ -121,15 +136,6 @@ impl<T: Ipc> CongAlg<T> for PccConfig {
                 )
                 (when (&& (== intervalState 1)
                           (> (+ totalAckedPkts totalLostPkts) startPktsInFlight))
-                    (:= Report.ackedl 0)
-                    (:= Report.lossl 0)
-                    (:= Report.ackedr 0)
-                    (:= Report.lossr 0)
-                    (:= Report.sumrttl 0)
-                    (:= Report.numrttl 0)
-                    (:= Report.sumrttr 0)
-                    (:= Report.numrttr 0)
-                    (:= Report.sendrate 0)
                     (:= intervalState 2)
                     (:= Micros 0)
                 )
@@ -140,7 +146,7 @@ impl<T: Ipc> CongAlg<T> for PccConfig {
                     (:= Report.numrttl (+ Report.numrttl 1))
                     (fallthrough)
                 )
-                (when (&& (> Micros minrtt) (== intervalState 2))
+                (when (&& (> Micros Report.minrtt) (== intervalState 2))
                     (:= intervalState 3)
                 )
                 (when (== intervalState 3)
@@ -174,6 +180,11 @@ impl<T: Ipc> CongAlg<T> for PccConfig {
             min_rtt_us: 1_000_000,
             last_rate: 0.0,
             last_utility: 0.0,
+            last_dir: 0,
+            dir_rounds: 0,
+            initial_max_step_size: 0.05,
+            incremental_step_size: 0.05,
+            incremental_steps: 0
         };
 
         s.sc = s
@@ -187,6 +198,88 @@ impl<T: Ipc> CongAlg<T> for PccConfig {
 
 impl<T: Ipc> portus::Flow for Pcc<T> {
     fn on_report(&mut self, _sock_id: u32, m: Report) {
-        //
+        let fields = self.get_single_mi_report_fields(&m);
+        if fields.is_none() {
+            return;
+        }
+
+        let (ackedl, lossl, ackedr, lossr, sumrttl, numrttl, sumrttr, numrttr, minrtt, sendrate) = fields.unwrap();
+        if ackedr + ackedl + lossl + lossr == 0 {
+            return;
+        }
+
+        self.min_rtt_us = minrtt;
+        self.logger.as_ref().map(|log| {
+            info!(log, "Get Report";
+                "acked (first half)" => ackedl,
+                "loss (first half)" => lossl,
+                "acked (second half)" => ackedr,
+                "loss (second half)" => lossr,
+                "avg rtt (first half)" => sumrttr / numrttl,
+                "avg rtt (second half)" => sumrttr / numrttr,
+                "min rtt" => minrtt,
+                "send rate (Mbps)" => sendrate / 125_000.0,
+            );
+        });
+
+        let rate_mbps = sendrate / 125_000.0;
+        let utility_send_rate = rate_mbps.powf(0.9);
+
+        let avg_rtt_left = (sumrttl as f64 / numrttl as f64);
+        let avg_rtt_right = (sumrttr as f64 / numrttr as f64);
+        let avg_rtt = 0.5 * (avg_rtt_left + avg_rtt_right);
+        let rtt_grad_approx = (avg_rtt_right - avg_rtt_left) / avg_rtt;
+        let utility_rtt_grad = 900.0 * rate_mbps * rtt_grad_approx;
+
+        let acked_total = (ackedl + ackedr) as f64;
+        let loss_total = (lossl + lossr) as f64;
+        let loss_rate = loss_total / (acked_total + loss_total);
+        let utility_loss = 11.35 * rate_mbps * loss_rate;
+
+        let utility = utility_send_rate - utility_rtt_grad - utility_loss;
+
+        if self.last_rate < 1e-10 {
+            self.last_rate = rate_mbps;
+            self.last_utility = utility;
+            self.last_dir = 1;
+            self.dir_rounds = 1;
+            self.curr_rate *= 2.;
+
+            self.update_rate();
+            return;
+        }
+
+        let delta_utility = (utility - self.last_utility).abs();
+        let delta_rate = (rate_mbps - self.last_rate).abs();
+        let rate_change = delta_utility / delta_rate;
+
+        let direction = -1i32;
+        if (utility > self.last_utility && rate_mbps > self.last_rate)
+            || (utility < self.last_utility && rate_mbps < self.last_rate) {
+            direction = 1i32;
+        }
+
+        if direction != self.last_dir {
+            self.dir_rounds = 1;
+            self.incremental_steps = 0;
+        } else {
+            self.dir_rounds += 1;
+            rate_change = rate_change * ((1 + self.dir_rounds as f64) * 0.5).powf(1.2);
+        }
+
+        let max_rate_change = rate_mbps * (self.initial_max_step_size + self.incremental_step_size * (self.incremental_steps as f64));
+        if rate_change > max_step_size {
+            rate_change = max_rate_change;
+            self.incremental_steps = self.incremental_steps + 1;
+        } else {
+            self.incremental_steps = cmp::max(self.incremental_steps, self.incremental_steps - 1);
+        }
+
+        self.curr_rate = (rate_mbps + (direction as f64) * rate_change) * 125_000.0;
+        self.last_rate = rate_mbps;
+        self.last_utility = utility;
+        self.last_dir = direction;
+
+        self.update_rate();
     }
 }
