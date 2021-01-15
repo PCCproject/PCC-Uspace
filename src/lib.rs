@@ -19,7 +19,7 @@ pub struct Pcc<T: Ipc> {
     last_rate: f64,
     last_utility: f64,
     last_dir: i32,
-    dir_rounds: u32;
+    dir_rounds: u32,
     initial_max_step_size: f64,
     incremental_step_size: f64,
     incremental_steps: u32
@@ -37,24 +37,14 @@ impl<T: Ipc> Pcc<T> {
             .update_field(
                 &self.sc,
                 &[
-                    ("intervalState", 0)
+                    ("intervalState", 0),
                     ("Cwnd", calculated_cwnd),
                     ("Rate", self.curr_rate as u32),
                 ])
             .unwrap()
     }
 
-    fn install_update(&self, update: &[(&str, u32)]) {
-        if let Err(e) = self.control_channel.update_field(&self.sc, update) {
-            self.logger.as_ref().map(|log| {
-                warn!(log, "Cwnd and rate update error";
-                      "err" => ?e,
-                );
-            });
-        }
-    }
-
-    fn get_single_mi_report_fields(&mut self, m: &Report) -> Option<(u32, u32, u32, u32, u32, u32, u32, u32, f64)> {
+    fn get_single_mi_report_fields(&mut self, m: &Report) -> Option<(u32, u32, u32, u32, u32, u32, u32, u32, u32, f64)> {
         let ackedl = m
             .get_field(&String::from("Report.ackedl"), &self.sc)
             .expect("expected ackedl field in returned measurement") as u32;
@@ -225,8 +215,8 @@ impl<T: Ipc> portus::Flow for Pcc<T> {
         let rate_mbps = sendrate / 125_000.0;
         let utility_send_rate = rate_mbps.powf(0.9);
 
-        let avg_rtt_left = (sumrttl as f64 / numrttl as f64);
-        let avg_rtt_right = (sumrttr as f64 / numrttr as f64);
+        let avg_rtt_left = sumrttl as f64 / numrttl as f64;
+        let avg_rtt_right = sumrttr as f64 / numrttr as f64;
         let avg_rtt = 0.5 * (avg_rtt_left + avg_rtt_right);
         let rtt_grad_approx = (avg_rtt_right - avg_rtt_left) / avg_rtt;
         let utility_rtt_grad = 900.0 * rate_mbps * rtt_grad_approx;
@@ -251,9 +241,9 @@ impl<T: Ipc> portus::Flow for Pcc<T> {
 
         let delta_utility = (utility - self.last_utility).abs();
         let delta_rate = (rate_mbps - self.last_rate).abs();
-        let rate_change = delta_utility / delta_rate;
+        let mut rate_change = delta_utility / delta_rate;
 
-        let direction = -1i32;
+        let mut direction = -1i32;
         if (utility > self.last_utility && rate_mbps > self.last_rate)
             || (utility < self.last_utility && rate_mbps < self.last_rate) {
             direction = 1i32;
@@ -264,11 +254,11 @@ impl<T: Ipc> portus::Flow for Pcc<T> {
             self.incremental_steps = 0;
         } else {
             self.dir_rounds += 1;
-            rate_change = rate_change * ((1 + self.dir_rounds as f64) * 0.5).powf(1.2);
+            rate_change = rate_change * ((1.0 + self.dir_rounds as f64) * 0.5).powf(1.2);
         }
 
         let max_rate_change = rate_mbps * (self.initial_max_step_size + self.incremental_step_size * (self.incremental_steps as f64));
-        if rate_change > max_step_size {
+        if rate_change > max_rate_change {
             rate_change = max_rate_change;
             self.incremental_steps = self.incremental_steps + 1;
         } else {
