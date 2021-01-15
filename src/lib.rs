@@ -200,7 +200,7 @@ impl<T: Ipc> portus::Flow for Pcc<T> {
             return;
         }
 
-        let (ackedl, lossl, ackedr, lossr, sumrttl, numrttl, sumrttr, numrttr, minrtt, sendrate) = fields.unwrap();
+        let (ackedl, lossl, ackedr, lossr, sumrttl, numrttl, sumrttr, numrttr, minrtt, _sendrate) = fields.unwrap();
         if ackedr + ackedl + lossl + lossr == 0 {
             return;
         }
