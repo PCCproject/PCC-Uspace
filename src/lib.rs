@@ -19,6 +19,7 @@ pub struct Pcc<T: Ipc> {
     last_utility: f64,
     last_dir: i32,
     dir_rounds: u32,
+    min_rate: f64,
     max_step_size: f64,
     initial_max_step_size: f64,
     incremental_step_size: f64,
@@ -179,6 +180,7 @@ impl<T: Ipc> CongAlg<T> for PccConfig {
             last_utility: 0.0,
             last_dir: 0,
             dir_rounds: 0,
+            min_rate: 125_000.0,
             max_step_size: 0.25,
             initial_max_step_size: 0.05,
             incremental_step_size: 0.05,
@@ -303,6 +305,15 @@ impl<T: Ipc> portus::Flow for Pcc<T> {
         self.curr_rate = (rate_mbps + (direction as f64) * rate_change) * 125_000.0;
         self.last_utility = utility;
         self.last_dir = direction;
+
+        if self.curr_rate < self.min_rate {
+            self.curr_rate = self.min_rate;
+            self.last_rate = 0.0;
+            self.last_dir = 0;
+            self.last_utility = 0.0;
+            self.dir_rounds = 0;
+            self.incremental_steps = 0;
+        }
 
         self.logger.as_ref().map(|log| {
             info!(log, "Rate Control";
