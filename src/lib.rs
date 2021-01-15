@@ -41,7 +41,14 @@ impl<T: Ipc> Pcc<T> {
                     ("Cwnd", calculated_cwnd),
                     ("Rate", self.curr_rate as u32),
                 ])
-            .unwrap()
+            .unwrap();
+
+        self.logger.as_ref().map(|log| {
+            info!(log, "Update Rate";
+                "cwnd" => calculated_cwnd,
+                "new send rate (Mbps)" => self.curr_rate / 125_000.0,
+            );
+        });
     }
 
     fn get_single_mi_report_fields(&mut self, m: &Report) -> Option<(u32, u32, u32, u32, u32, u32, u32, u32, u32, f64)> {
@@ -201,18 +208,17 @@ impl<T: Ipc> portus::Flow for Pcc<T> {
         self.min_rtt_us = minrtt;
         self.logger.as_ref().map(|log| {
             info!(log, "Get Report";
-                "acked (first half)" => ackedl,
-                "loss (first half)" => lossl,
-                "acked (second half)" => ackedr,
-                "loss (second half)" => lossr,
-                "avg rtt (first half)" => sumrttr / numrttl,
-                "avg rtt (second half)" => sumrttr / numrttr,
-                "min rtt" => minrtt,
-                "send rate (Mbps)" => sendrate / 125_000.0,
+                "loss-2" => lossr,
+                "acked-2" => ackedr,
+                "loss-1" => lossl,
+                "acked-1" => ackedl,
+                "avg rtt-2" => sumrttr / numrttr,
+                "avg rtt-1" => sumrttl / numrttl,
+                "send rate (Mbps)" => self.curr_rate / 125_000.0,
             );
         });
 
-        let rate_mbps = sendrate / 125_000.0;
+        let rate_mbps = self.curr_rate / 125_000.0;
         let utility_send_rate = rate_mbps.powf(0.9);
 
         let avg_rtt_left = sumrttl as f64 / numrttl as f64;
@@ -227,25 +233,37 @@ impl<T: Ipc> portus::Flow for Pcc<T> {
         let utility_loss = 11.35 * rate_mbps * loss_rate;
 
         let utility = utility_send_rate - utility_rtt_grad - utility_loss;
+        self.logger.as_ref().map(|log| {
+            info!(log, "Calculated Utility";
+                "Utility" => utility,
+            );
+        });
 
         if self.last_rate < 1e-10 {
-            self.last_rate = rate_mbps;
+            self.last_rate = self.curr_rate;
             self.last_utility = utility;
             self.last_dir = 1;
             self.dir_rounds = 1;
             self.curr_rate *= 2.;
 
+            self.logger.as_ref().map(|log| {
+                info!(log, "Doubling Rate";
+                    "target rate (Mbps)" => self.curr_rate / 125_000.0,
+                );
+            });
+
             self.update_rate();
             return;
         }
 
+        let last_rate_mbps = self.last_rate / 125_000.0;
         let delta_utility = (utility - self.last_utility).abs();
-        let delta_rate = (rate_mbps - self.last_rate).abs();
+        let delta_rate = (rate_mbps - last_rate_mbps).abs();
         let mut rate_change = delta_utility / delta_rate;
 
         let mut direction = -1i32;
-        if (utility > self.last_utility && rate_mbps > self.last_rate)
-            || (utility < self.last_utility && rate_mbps < self.last_rate) {
+        if (utility > self.last_utility && rate_mbps > last_rate_mbps)
+            || (utility < self.last_utility && rate_mbps < last_rate_mbps) {
             direction = 1i32;
         }
 
@@ -265,10 +283,16 @@ impl<T: Ipc> portus::Flow for Pcc<T> {
             self.incremental_steps = cmp::max(self.incremental_steps, self.incremental_steps - 1);
         }
 
+        self.last_rate = self.curr_rate;
         self.curr_rate = (rate_mbps + (direction as f64) * rate_change) * 125_000.0;
-        self.last_rate = rate_mbps;
         self.last_utility = utility;
         self.last_dir = direction;
+
+        self.logger.as_ref().map(|log| {
+            info!(log, "Rate Control";
+                "target rate (Mbps)" => self.curr_rate / 125_000.0,
+            );
+        });
 
         self.update_rate();
     }
